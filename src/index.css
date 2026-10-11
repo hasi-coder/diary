@@ -140,3 +140,20 @@ button:not(:disabled) {
 .rich-editor .entity-tag {
   @apply cursor-default;
 }
+
+/* Article reading view */
+.article-md > * + * {
+  margin-top: 1.1em;
+}
+.article-md h1 {
+  @apply mt-10 text-3xl;
+}
+.article-md h2 {
+  @apply mt-10 text-2xl;
+}
+.article-md h3 {
+  @apply mt-8 text-xl;
+}
+.article-md blockquote {
+  @apply border-l-4 border-brand-300 pl-5 text-xl text-slate-600;
+}

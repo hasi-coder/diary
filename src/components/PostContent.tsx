@@ -3,7 +3,7 @@ import remarkGfm from "remark-gfm";
 import { toRenderable } from "../lib/mentions";
 import { MentionTag } from "./MentionTag";
 
-export function PostContent({ content, onTag }: { content: string; onTag?: (tag: string) => void }) {
+export function PostContent({ content, onTag, large }: { content: string; onTag?: (tag: string) => void; large?: boolean }) {
   const components: Components = {
     a({ href, children }) {
       if (href?.startsWith("#mention-")) return <MentionTag id={href.slice("#mention-".length)} />;
@@ -28,7 +28,7 @@ export function PostContent({ content, onTag }: { content: string; onTag?: (tag:
   };
 
   return (
-    <div className="post-md text-sm leading-relaxed text-slate-700">
+    <div className={`post-md text-slate-700 ${large ? "article-md text-[17px] leading-8" : "text-sm leading-relaxed"}`}>
       <Markdown remarkPlugins={[remarkGfm]} components={components}>
         {toRenderable(content)}
       </Markdown>

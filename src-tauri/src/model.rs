@@ -108,11 +108,29 @@ pub struct ProfileInput {
     pub has_shop: bool,
 }
 
+/// What kind of entry a post is. Older records without a kind are statuses.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum PostKind {
+    /// A regular post: text plus a few attachments.
+    #[default]
+    Status,
+    /// Long-form writing with a title; the first attachment is its cover.
+    Article,
+    /// A titled photo/video collection; `content` is its description and the first item its cover.
+    Album,
+}
+
 /// A journal entry. Mentions are embedded in the Markdown as `@[profile:<uuid>]`.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Post {
     pub id: String,
+    #[serde(default)]
+    pub kind: PostKind,
+    /// Articles and albums only.
+    #[serde(default)]
+    pub title: String,
     pub author_id: String,
     pub content: String,
     /// When the event happened (unix millis); entries may be back-dated.
@@ -142,12 +160,22 @@ pub struct MediaRef {
     /// Original file name.
     pub name: String,
     pub size: u64,
+    /// Per-photo caption (used mostly in albums).
+    #[serde(default)]
+    pub caption: String,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PostInput {
     pub id: Option<String>,
+    #[serde(default)]
+    pub kind: PostKind,
+    #[serde(default)]
+    pub title: String,
+    /// Caption per attachment id. Attachments missing here keep their caption.
+    #[serde(default)]
+    pub captions: HashMap<String, String>,
     pub author_id: String,
     pub content: String,
     pub occurred_at: Option<i64>,
@@ -200,6 +228,7 @@ pub struct ItemInput {
 pub struct PostFilter {
     /// Posts written by, or mentioning, this profile.
     pub profile_id: Option<String>,
+    pub kind: Option<PostKind>,
     /// Inclusive lower bound on `occurred_at` (unix millis).
     pub from: Option<i64>,
     /// Exclusive upper bound on `occurred_at` (unix millis).

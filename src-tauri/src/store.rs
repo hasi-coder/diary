@@ -498,7 +498,14 @@ impl Workspace {
             "" => format!("{}.{}", kind_label(kind), mime.rsplit('/').next().unwrap_or("bin")),
             n => n.chars().take(200).collect(),
         };
-        let media = MediaRef { id: Uuid::new_v4().to_string(), kind, mime: mime.into(), name, size: bytes.len() as u64 };
+        let media = MediaRef {
+            id: Uuid::new_v4().to_string(),
+            kind,
+            mime: mime.into(),
+            name,
+            size: bytes.len() as u64,
+            caption: String::new(),
+        };
         self.media.staged.insert(media.id.clone(), StagedMedia { media: media.clone(), bytes: Arc::new(bytes) });
         Ok(media)
     }
@@ -827,8 +834,18 @@ impl Workspace {
 
     pub fn save_post(&mut self, input: PostInput) -> Result<Post> {
         let content = input.content.trim().to_string();
-        if content.is_empty() && input.media_ids.is_empty() {
-            return Err(Error::Invalid("Write something or attach a photo or video.".into()));
+        let title: String = input.title.trim().chars().take(300).collect();
+        match input.kind {
+            PostKind::Status if content.is_empty() && input.media_ids.is_empty() => {
+                return Err(Error::Invalid("Write something or attach a photo or video.".into()))
+            }
+            PostKind::Article if title.is_empty() => return Err(Error::Invalid("An article needs a title.".into())),
+            PostKind::Article if content.is_empty() => return Err(Error::Invalid("An article needs some text.".into())),
+            PostKind::Album if title.is_empty() => return Err(Error::Invalid("An album needs a title.".into())),
+            PostKind::Album if input.media_ids.is_empty() => {
+                return Err(Error::Invalid("Add at least one photo or video to the album.".into()))
+            }
+            _ => {}
         }
         if !self.profiles.contains_key(&input.author_id) {
             return Err(Error::NotFound(format!("author {}", input.author_id)));
@@ -850,15 +867,22 @@ impl Workspace {
                 .find(|m| &m.id == id)
                 .or_else(|| self.media.staged.get(id).map(|s| &s.media))
                 .ok_or_else(|| Error::NotFound(format!("attachment {id}")))?;
-            attached.push(media.clone());
+            let mut media = media.clone();
+            if let Some(caption) = input.captions.get(id) {
+                media.caption = caption.trim().chars().take(2000).collect();
+            }
+            attached.push(media);
         }
-        if attached.len() > media::MAX_MEDIA_PER_POST {
-            return Err(Error::Invalid(format!("A post can have at most {} attachments.", media::MAX_MEDIA_PER_POST)));
+        let max = if input.kind == PostKind::Album { media::MAX_MEDIA_PER_ALBUM } else { media::MAX_MEDIA_PER_POST };
+        if attached.len() > max {
+            return Err(Error::Invalid(format!("At most {max} photos and videos per {}.", if max > 20 { "album" } else { "post" })));
         }
 
         let now = now_millis();
         let post = Post {
             id: existing.as_ref().map_or_else(|| Uuid::new_v4().to_string(), |p| p.id.clone()),
+            kind: input.kind,
+            title: if input.kind == PostKind::Status { String::new() } else { title },
             author_id: input.author_id,
             content,
             occurred_at: input.occurred_at.or(existing.as_ref().map(|p| p.occurred_at)).unwrap_or(now),
@@ -919,6 +943,7 @@ impl Workspace {
                 Some(pid) => p.author_id == *pid || mentions(&p.content).contains(&pid.as_str()),
                 None => true,
             })
+            .filter(|p| filter.kind.map_or(true, |k| p.kind == k))
             .filter(|p| filter.from.map_or(true, |from| p.occurred_at >= from))
             .filter(|p| filter.to.map_or(true, |to| p.occurred_at < to))
             .filter(|p| matches.as_ref().map_or(true, |m| m.contains(&p.id)))
@@ -991,7 +1016,14 @@ impl Workspace {
         let text = self.post_plain_text(post);
         let author = self.profiles.get(&post.author_id).map_or("", |p| p.name.as_str());
         let files = post.media.iter().map(|m| m.name.as_str()).collect::<Vec<_>>().join(" ");
-        let fields = [Field { text: &text, weight: 1.0 }, Field { text: author, weight: 0.5 }, Field { text: &files, weight: 0.5 }];
+        let captions = post.media.iter().map(|m| m.caption.as_str()).collect::<Vec<_>>().join("\n");
+        let fields = [
+            Field { text: &post.title, weight: 2.5 },
+            Field { text: &text, weight: 1.0 },
+            Field { text: &captions, weight: 0.8 },
+            Field { text: author, weight: 0.5 },
+            Field { text: &files, weight: 0.5 },
+        ];
         let (key, tags, time) = (DocKey::new(DocKind::Post, id), hashtags(&post.content), post.occurred_at);
         self.index.upsert(key, &fields, &tags, time);
     }
@@ -1063,7 +1095,12 @@ impl Workspace {
                     results.totals.posts += 1;
                     if results.posts.len() < limit {
                         let post = &self.posts[&key.id];
-                        let snippet = search::snippet(&self.post_plain_text(post), &terms, 180);
+                        let mut text = self.post_plain_text(post);
+                        for m in post.media.iter().filter(|m| !m.caption.is_empty()) {
+                            text.push('\n');
+                            text.push_str(&m.caption);
+                        }
+                        let snippet = search::snippet(&text, &terms, 180);
                         results.posts.push(PostHit { post: post.clone(), snippet });
                     }
                 }
@@ -1243,13 +1280,16 @@ mod tests {
         assert!(shop.has_shop);
         ws.save_post(PostInput {
             id: None,
+            kind: Default::default(),
+            title: String::new(),
+            captions: Default::default(),
             author_id: owner.clone(),
             content: format!("Latte at @[profile:{}] with @[profile:{}] #coffee", shop.id, sarah.id),
             occurred_at: Some(1_000),
             media_ids: vec![],
         })
         .unwrap();
-        ws.save_post(PostInput { id: None, author_id: sarah.id.clone(), content: "Hi from Sarah".into(), occurred_at: Some(2_000), media_ids: vec![] })
+        ws.save_post(PostInput { kind: Default::default(), title: String::new(), captions: Default::default(), id: None, author_id: sarah.id.clone(), content: "Hi from Sarah".into(), occurred_at: Some(2_000), media_ids: vec![] })
             .unwrap();
         ws.save_item(ItemInput {
             id: None,
@@ -1325,7 +1365,7 @@ mod tests {
             "can't disable a shop that still lists items"
         );
 
-        ws.save_post(PostInput { id: None, author_id: page.id.clone(), content: "Meeting Friday".into(), occurred_at: None, media_ids: vec![] }).unwrap();
+        ws.save_post(PostInput { kind: Default::default(), title: String::new(), captions: Default::default(), id: None, author_id: page.id.clone(), content: "Meeting Friday".into(), occurred_at: None, media_ids: vec![] }).unwrap();
         ws.delete_profile(&page.id).unwrap();
         assert!(ws.posts.is_empty() && ws.items.is_empty());
 
@@ -1343,7 +1383,16 @@ mod tests {
     }
 
     fn post(author: &str, content: &str, media_ids: Vec<String>) -> PostInput {
-        PostInput { id: None, author_id: author.into(), content: content.into(), occurred_at: None, media_ids }
+        PostInput {
+            id: None,
+            kind: PostKind::Status,
+            title: String::new(),
+            captions: HashMap::new(),
+            author_id: author.into(),
+            content: content.into(),
+            occurred_at: None,
+            media_ids,
+        }
     }
 
     fn decrypt_saved(ws: &mut Workspace, id: &str) -> Vec<u8> {
@@ -1561,6 +1610,52 @@ mod tests {
         assert!(matches!(open_workspace(root.path(), "workspace_personal", "old password"), Err(Error::BadPassword)));
     }
 
+    #[test]
+    fn articles_and_albums() {
+        let root = tempfile::tempdir().unwrap();
+        let mut ws = create_workspace(root.path(), "", "Personal", "Alex", "correct horse", FAST).unwrap();
+        let owner = ws.owner_id().to_string();
+        let png = |n: u8| [&b"\x89PNG\r\n\x1a\n"[..], &[n; 100]].concat();
+        let kinded = |kind, title: &str, content: &str, media_ids: Vec<String>| PostInput { kind, title: title.into(), ..post(&owner, content, media_ids) };
+
+        // Validation.
+        assert!(ws.save_post(kinded(PostKind::Article, "", "body", vec![])).is_err(), "article needs a title");
+        assert!(ws.save_post(kinded(PostKind::Article, "Title", "", vec![])).is_err(), "article needs text");
+        assert!(ws.save_post(kinded(PostKind::Album, "Trip", "", vec![])).is_err(), "album needs media");
+        let status = ws.save_post(kinded(PostKind::Status, "ignored", "hello", vec![])).unwrap();
+        assert_eq!(status.title, "", "statuses have no title");
+
+        let article = ws.save_post(kinded(PostKind::Article, "  On Kayaking  ", "Long *form* text about paddles", vec![])).unwrap();
+        assert_eq!(article.title, "On Kayaking");
+
+        // An album with captions, larger than a normal post allows.
+        let ids: Vec<String> = (0..25).map(|i| ws.stage_media(&format!("{i}.png"), png(i)).unwrap().id).collect();
+        let mut input = kinded(PostKind::Album, "Lake weekend", "Two days by the water", ids.clone());
+        input.captions.insert(ids[0].clone(), "  Sunrise over the dock ".into());
+        let album = ws.save_post(input).unwrap();
+        assert_eq!(album.media.len(), 25);
+        assert_eq!(album.media[0].caption, "Sunrise over the dock");
+        assert!(ws.save_post(kinded(PostKind::Status, "", "too many", ids.clone())).is_err(), "statuses keep the 20 limit");
+
+        // Captions survive edits that don't mention them, and change when sent.
+        let mut reorder = PostInput { id: Some(album.id.clone()), ..kinded(PostKind::Album, "Lake weekend", "", vec![ids[1].clone(), ids[0].clone()]) };
+        reorder.captions.insert(ids[1].clone(), "New cover".into());
+        let album = ws.save_post(reorder).unwrap();
+        assert_eq!((album.media[0].id.as_str(), album.media[0].caption.as_str()), (ids[1].as_str(), "New cover"));
+        assert_eq!(album.media[1].caption, "Sunrise over the dock");
+        assert_eq!(fs::read_dir(root.path().join("workspace_personal/media")).unwrap().count(), 2, "dropped photos deleted");
+
+        // Persisted, filterable and searchable.
+        let ws = open_workspace(root.path(), "workspace_personal", "correct horse").unwrap();
+        assert_eq!(ws.posts[&album.id].media[1].caption, "Sunrise over the dock");
+        let albums = ws.query_posts(&PostFilter { kind: Some(PostKind::Album), ..Default::default() });
+        assert_eq!(albums.iter().map(|p| &p.id).collect::<Vec<_>>(), vec![&album.id]);
+        assert_eq!(ws.search("kayaking", 10).posts[0].post.id, article.id, "title is indexed");
+        let by_caption = ws.search("sunrise dock", 10);
+        assert_eq!(by_caption.posts[0].post.id, album.id, "captions are indexed");
+        assert!(by_caption.posts[0].snippet.contains("Sunrise"), "{}", by_caption.posts[0].snippet);
+    }
+
     /// Writes a workspace exactly as Phase 1 (format 1) did.
     fn write_phase1_workspace(root: &Path) -> (String, String) {
         let dir = root.join("workspace_old");
@@ -1612,7 +1707,7 @@ mod tests {
 
         // Editing one record before migrating writes it in the new format.
         let p = ws.posts[&post_id].clone();
-        ws.save_post(PostInput { id: Some(p.id.clone()), author_id: p.author_id, content: p.content, occurred_at: None, media_ids: vec![] }).unwrap();
+        ws.save_post(PostInput { kind: Default::default(), title: String::new(), captions: Default::default(), id: Some(p.id.clone()), author_id: p.author_id, content: p.content, occurred_at: None, media_ids: vec![] }).unwrap();
         assert_eq!(ws.migration_status().stale_files, 4);
 
         assert_eq!(ws.run_migration().unwrap(), 4);
@@ -1627,5 +1722,6 @@ mod tests {
         assert_eq!(ws.manifest.name, "Old Plaintext Name");
         assert_eq!(ws.profiles.len(), 2);
         assert_eq!(ws.posts[&post_id].occurred_at, 5);
+        assert_eq!(ws.posts[&post_id].kind, PostKind::Status, "old posts load as statuses");
     }
 }

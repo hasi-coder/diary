@@ -110,8 +110,14 @@ export function useResultRows(results: SearchResults | null): { group: string; r
                 <span className="font-medium text-slate-600">{author?.name ?? "Unknown"}</span> · {formatPostDate(post.occurredAt)}
                 {post.media.length > 0 && ` · ${post.media.length} attachment${post.media.length > 1 ? "s" : ""}`}
               </div>
+              {post.title && (
+                <div className="truncate text-sm font-semibold text-slate-800">
+                  <span className="font-normal text-slate-400">{post.kind === "album" ? "Album" : "Article"}: </span>
+                  <Highlight text={post.title} terms={t} />
+                </div>
+              )}
               <div className="line-clamp-2 text-sm text-slate-700">
-                {snippet ? <Highlight text={snippet} terms={t} /> : <span className="text-slate-400">(no text)</span>}
+                {snippet ? <Highlight text={snippet} terms={t} /> : !post.title && <span className="text-slate-400">(no text)</span>}
               </div>
             </div>
           </div>

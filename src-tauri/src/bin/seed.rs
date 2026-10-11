@@ -150,8 +150,59 @@ fn seed(ws: &mut Workspace) -> Result<(), Box<dyn std::error::Error>> {
         for (name, scene) in photos.iter().filter(|(a, _)| *a == ago).flat_map(|(_, p)| p) {
             media_ids.push(ws.stage_media(name, png(480, 320, |x, y| scene.pixel(x, y)))?.id);
         }
-        ws.save_post(PostInput { id: None, author_id: author.id.clone(), content, occurred_at: Some(now - ago), media_ids })?;
+        ws.save_post(PostInput { kind: Default::default(), title: String::new(), captions: Default::default(), id: None, author_id: author.id.clone(), content, occurred_at: Some(now - ago), media_ids })?;
     }
+
+    // An album with captions, and an article with a cover image.
+    let shots = [
+        ("dock.png", Scene::Sunrise, "First light from the dock"),
+        ("calm.png", Scene::Lake, "Not a ripple"),
+        ("thermos.png", Scene::Coffee, "Thermos coffee, essential equipment"),
+        ("evening.png", Scene::Sunset, "Paddling back at dusk"),
+        ("last.png", Scene::Lake, "One more lap"),
+    ];
+    let mut ids = Vec::new();
+    let mut captions = std::collections::HashMap::new();
+    for (name, scene, caption) in shots {
+        let id = ws.stage_media(name, png(480, 320, |x, y| scene.pixel(x, y)))?.id;
+        captions.insert(id.clone(), caption.to_string());
+        ids.push(id);
+    }
+    ws.save_post(PostInput {
+        id: None,
+        kind: PostKind::Album,
+        title: "Weekend at Lake Minnetonka".into(),
+        captions,
+        author_id: me_id.clone(),
+        content: format!("Two days of paddling with {}. #nature", mention(&dev)),
+        occurred_at: Some(now - 5 * DAY),
+        media_ids: ids,
+    })?;
+
+    let cover = ws.stage_media("cover.png", png(480, 320, |x, y| Scene::Sunset.pixel(x, y)))?.id;
+    ws.save_post(PostInput {
+        id: None,
+        kind: PostKind::Article,
+        title: "What six weeks of journaling taught me".into(),
+        captions: Default::default(),
+        author_id: me_id,
+        content: [
+            "I started this journal on a whim. Six weeks later, a few things stand out.",
+            "## Small moments add up",
+            &format!("Coffee with {} doesn't feel like an event, but reading back, those afternoons are the best part.", mention(&sarah)),
+            "## Writing it down changes what I notice",
+            "- I look for things worth writing about",
+            "- I remember conversations better",
+            "- [x] Write at least three times a week",
+            "- [ ] Add more photos",
+            "> The days are long but the years are short.",
+            "## Next",
+            "More kayaking. Fewer lattes. #reflection",
+        ]
+        .join("\n\n"),
+        occurred_at: Some(now - 6 * HOUR),
+        media_ids: vec![cover],
+    })?;
     Ok(())
 }
 

@@ -23,6 +23,7 @@ use crate::model::MediaKind;
 pub const MAX_IMAGE_BYTES: usize = 5 * 1024 * 1024;
 pub const MAX_VIDEO_BYTES: usize = 20 * 1024 * 1024;
 pub const MAX_MEDIA_PER_POST: usize = 20;
+pub const MAX_MEDIA_PER_ALBUM: usize = 500;
 /// Upper bound on decrypted media kept in memory.
 const CACHE_BUDGET_BYTES: usize = 256 * 1024 * 1024;
 
@@ -268,8 +269,17 @@ mod tests {
         video.extend((0..5000u32).map(|i| i as u8));
         let media = ws.stage_media("clip.mp4", video.clone()).unwrap();
         let owner = ws.owner_id().to_string();
-        ws.save_post(PostInput { id: None, author_id: owner, content: String::new(), occurred_at: None, media_ids: vec![media.id.clone()] })
-            .unwrap();
+        let input = PostInput {
+            id: None,
+            kind: Default::default(),
+            title: String::new(),
+            captions: Default::default(),
+            author_id: owner,
+            content: String::new(),
+            occurred_at: None,
+            media_ids: vec![media.id.clone()],
+        };
+        ws.save_post(input).unwrap();
         *state.workspace.lock().unwrap() = Some(ws);
 
         let full = get(&media.id, None);

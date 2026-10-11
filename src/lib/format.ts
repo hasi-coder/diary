@@ -89,3 +89,15 @@ export const STATUS: Record<ItemStatus, { label: string; className: string }> = 
   reserved: { label: "Reserved", className: "bg-amber-50 text-amber-700 ring-amber-200" },
   sold: { label: "Sold", className: "bg-slate-100 text-slate-500 ring-slate-200" },
 };
+
+export function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+/** Rough reading time for Markdown text, at ~200 words a minute. */
+export function readingMinutes(markdown: string): number {
+  const words = markdown.replace(/@\[profile:[^\]]+\]/g, "x").split(/\s+/).filter(Boolean).length;
+  return Math.max(1, Math.round(words / 200));
+}

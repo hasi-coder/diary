@@ -20,8 +20,13 @@ export interface Profile {
 
 export type ProfileInput = Omit<Profile, "id" | "createdAt" | "updatedAt"> & { id?: string };
 
+export type PostKind = "status" | "article" | "album";
+
 export interface Post {
   id: string;
+  kind: PostKind;
+  /** Articles and albums only. */
+  title: string;
   authorId: string;
   /** Markdown; mentions are stored as `@[profile:<uuid>]`. */
   content: string;
@@ -33,6 +38,10 @@ export interface Post {
 
 export interface PostInput {
   id?: string;
+  kind: PostKind;
+  title: string;
+  /** Caption per attachment id. */
+  captions: Record<string, string>;
   authorId: string;
   content: string;
   occurredAt?: number;
@@ -48,6 +57,7 @@ export interface MediaRef {
   mime: string;
   name: string;
   size: number;
+  caption: string;
 }
 
 // Mirrors src-tauri/src/media.rs.
@@ -81,6 +91,7 @@ export type ItemInput = Omit<Item, "id" | "createdAt" | "updatedAt"> & { id?: st
 
 export interface PostFilter {
   profileId?: string;
+  kind?: PostKind;
   from?: number;
   to?: number;
   search?: string;
