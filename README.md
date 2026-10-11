@@ -131,8 +131,25 @@ The composer has three modes:
 Every type can also carry Facebook-style extras, shown in the headline. For example: *"Alex
 Morgan is 😊 feeling happy with Sarah Jenkins and Dev Patel at The Rusty Bean."*
 
-- **Feeling / activity** (☺): one feeling (*happy*, *grateful*, *nostalgic*) and any number of
-  activities: *working as a nurse*, *attending an office party*, *wearing a saree*, *watching …*.
+- **Feeling / activity** (☺): build the post's story from **clauses**:
+  - a **feeling** (*happy*, *grateful*, *nostalgic*);
+  - **activities** (*working as a nurse*, *attending an office party*, *wearing a saree*,
+    *watching …*);
+  - **life events** (*got promoted*, *visited Japan*, *earned a BSc*), on any post.
+
+  In the story editor under the post, you can:
+  - drag clauses (or use ↑ ↓) into the order you want;
+  - reword each one;
+  - tag people on a single clause (*attending the ward Christmas party **with Dev***);
+  - add your own words (*wearing a saree **for the first time at work***).
+
+  A preview shows the sentence the feed will show, for example:
+
+  > Sarah Jenkins is 🥳 feeling festive, 💼 working as a nurse, 🎄 attending the ward Christmas
+  > party with Dev Patel and 🥻 wearing a saree for the first time at work.
+
+  Things that are done (life events) read without "is": *Alex 📈 got promoted with Dev after a
+  long week, and is 🏢 attending an office party.*
 - **Tag people** (👤+): people and pages you were with.
 - **Check in** (📍): a place, shop or page.
 
@@ -156,9 +173,12 @@ A post can say three different kinds of thing, and they are kept apart so nothin
 
 | | What it is | Example | Where |
 | --- | --- | --- | --- |
-| **Feeling** | One mood | 😊 feeling happy | `FEELINGS` in [catalog.ts](src/lib/catalog.ts) |
-| **Activities** | What's happening now, or in the moment the post is about. A post can have up to 8 | 💼 working as a nurse, 📅 attending an office party, 🥻 wearing a saree | `ACTIVITY_VERBS` in [catalog.ts](src/lib/catalog.ts) |
-| **Life events** | Real turning points, on milestone posts. Up to 5 can be combined | 🎓 Graduated from university **and** 💼 got a full-time offer | [lifeEvents.ts](src/lib/lifeEvents.ts), [lifeEventRoles.ts](src/lib/lifeEventRoles.ts) |
+| **Feeling** | One mood, as a clause | 😊 feeling happy | `FEELINGS` in [catalog.ts](src/lib/catalog.ts) |
+| **Activities** | What's happening now, or in the moment the post is about | 💼 working as a nurse, 📅 attending an office party, 🥻 wearing a saree | `ACTIVITY_VERBS` in [catalog.ts](src/lib/catalog.ts) |
+| **Life events** | Real turning points. On a milestone post they are the headline (up to 5 combined); on any post they can also be clauses of the story | 🎓 Graduated from university **and** 💼 got a full-time offer | [lifeEvents.ts](src/lib/lifeEvents.ts), [lifeEventRoles.ts](src/lib/lifeEventRoles.ts) |
+
+Feelings, activities and life events are all stored as **clauses** of a post (`activities[]`), in
+the author's order. A post can have up to 12. Each clause has its own tagged people and extra words.
 
 So "Sarah is 🥳 feeling festive, 💼 working as a nurse, 🎄 attending an office Christmas party and 🥻
 wearing a saree" is an ordinary post with a feeling and three activities, not a life event.
@@ -381,7 +401,7 @@ Defined in `src-tauri/src/model.rs` and mirrored in `src/lib/api.ts`.
 | --- | --- |
 | **Profile** | `kind` (me/person/page/shop/place), `name`, `tagline`, `bio`, `relationship`, `category`, `location`, `color`, `hasShop`, `genders[]`, `pronouns`, `terms` (neutral/feminine/masculine), `relationshipStatus`, `avatar`/`cover` (MediaRef), `coverPosition`, `relations[]` |
 | **Relation** (inside a profile) | `toId`, `kind` ("`toId` is my `kind`"), `label`/`inverseLabel` (custom), `since` |
-| **Post** | `kind` (status/article/album/milestone), `title`, `authorId`, `content` (Markdown), `occurredAt`, `withIds[]`, `placeId`, `feeling` {emoji, text}, `activities[]` {emoji, verb, object, thing}, `eventType` + `alsoEventTypes[]` (life-event ids, possibly bound: `travel.visited@jp`), `media[]` |
+| **Post** | `kind` (status/article/album/milestone), `title`, `authorId`, `content` (Markdown), `occurredAt`, `withIds[]`, `placeId`, `feeling` {emoji, text}, `activities[]` (ordered clauses: {emoji, verb, object, thing, withIds[], detail}; a feeling is `verb: "feeling"`, a life event has no verb and `thing: "event:<id>"`), `eventType` + `alsoEventTypes[]` (life-event ids, possibly bound: `travel.visited@jp`), `media[]` |
 | **MediaRef** (inside a post or profile) | `id`, `kind` (image/video), `mime`, `name`, `size`, `caption`, `tags[]` ({profileId, x, y} in 0..1) |
 | **Item** | `shopId`, `name`, `description`, `priceCents`, `currency`, `status` (available/reserved/sold) |
 | **Manifest** | workspace `name`, `ownerProfileId`, `createdAt` |
@@ -560,7 +580,7 @@ Where the build deliberately differs from `system_architecture_proposal.md`:
 | `54c8325` | **Password change:** re-wrap or full key rotation with crash-safe staging |
 | `1ef207d` | **Articles and albums:** post kinds, per-photo captions, album editor, the photo viewer, article reader, album pages |
 | `2d2a6c1` | **Facebook social features:** tag people, check-ins, feelings/activities, life events, photo tagging, relationships, profile pictures and cover photos |
-| *latest* | **Life for everyone:** shared vocabularies; multiple activities per post (verb + thing); ~7,500 life events from ~2,100 templates by category, sub-group (roles with their own milestones), life stage and tone (spicy, hard), combinable in one post; ~100 modern relationship kinds with gendered labels; non-binary gender identities, pronouns and relationship status |
+| *latest* | **Life for everyone:** shared vocabularies; an ordered story of clauses per post (feelings, activities and life events, each with its own people and words); ~7,500 life events from ~2,100 templates by category, sub-group (roles with their own milestones), life stage and tone (spicy, hard), combinable in one post; ~100 modern relationship kinds with gendered labels; non-binary gender identities, pronouns and relationship status |
 
 ---
 

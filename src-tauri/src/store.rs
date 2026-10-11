@@ -128,6 +128,7 @@ pub fn hashtags(content: &str) -> Vec<String> {
 pub fn involved(post: &Post) -> Vec<&str> {
     let mut ids: Vec<&str> = mentions(&post.content);
     ids.extend(post.with_ids.iter().map(String::as_str));
+    ids.extend(post.activities.iter().flat_map(|a| a.with_ids.iter().map(String::as_str)));
     ids.extend(post.place_id.as_deref());
     ids.extend(post.media.iter().flat_map(|m| m.tags.iter().map(|t| t.profile_id.as_str())));
     ids.sort_unstable();
@@ -181,7 +182,7 @@ fn clean_genders(genders: &[String]) -> Vec<String> {
 }
 
 /// Activities ("wearing a saree") one post can have.
-const MAX_ACTIVITIES: usize = 8;
+const MAX_ACTIVITIES: usize = 12;
 
 /// Extra life events one milestone can combine, besides its main one.
 const MAX_COMBINED_EVENTS: usize = 4;
@@ -1128,13 +1129,26 @@ impl Workspace {
             .as_ref()
             .map(|f| Feeling { emoji: short(&f.emoji, 16), text: short(&f.text, 80) })
             .filter(|f| !f.text.is_empty());
-        let activities: Vec<Activity> = input
-            .activities
-            .iter()
-            .map(|a| Activity { emoji: short(&a.emoji, 16), verb: short(&a.verb, 40), object: short(&a.object, 100), thing: short(&a.thing, 80) })
-            .filter(|a| !a.verb.is_empty() && !a.object.is_empty())
-            .take(MAX_ACTIVITIES)
-            .collect();
+        let mut activities: Vec<Activity> = Vec::new();
+        for a in input.activities.iter().filter(|a| !a.object.trim().is_empty()).take(MAX_ACTIVITIES) {
+            let mut clause_with: Vec<String> = Vec::new();
+            for id in &a.with_ids {
+                if !self.profiles.contains_key(id) {
+                    return Err(Error::NotFound(format!("tagged profile {id}")));
+                }
+                if !clause_with.contains(id) && clause_with.len() < 20 {
+                    clause_with.push(id.clone());
+                }
+            }
+            activities.push(Activity {
+                emoji: short(&a.emoji, 16),
+                verb: short(&a.verb, 40),
+                object: short(&a.object, 100),
+                thing: short(&a.thing, 120),
+                with_ids: clause_with,
+                detail: short(&a.detail, 120),
+            });
+        }
         let event_type = short(&input.event_type, 120);
         if input.kind == PostKind::Milestone && (title.is_empty() || event_type.is_empty()) {
             return Err(Error::Invalid("A life event needs a type and a title.".into()));
@@ -1323,7 +1337,7 @@ impl Workspace {
             .filter_map(|id| self.profiles.get(id).map(|p| p.name.as_str()))
             .collect::<Vec<_>>()
             .join(" ");
-        let activities = post.activities.iter().map(|a| format!("{} {}", a.verb, a.object)).collect::<Vec<_>>().join(" ");
+        let activities = post.activities.iter().map(|a| format!("{} {} {}", a.verb, a.object, a.detail)).collect::<Vec<_>>().join(" ");
         let extra = format!(
             "{} {} {} {}",
             post.feeling.as_ref().map_or("", |f| f.text.as_str()),
@@ -1998,7 +2012,7 @@ mod tests {
         assert_eq!(ws.search("happy", 10).totals.posts, 1, "feelings are searchable");
 
         // Several activities on one post, cleaned and searchable.
-        let act = |verb: &str, object: &str| Activity { emoji: "✨".into(), verb: verb.into(), object: object.into(), thing: String::new() };
+        let act = |verb: &str, object: &str| Activity { emoji: "✨".into(), verb: verb.into(), object: object.into(), ..Default::default() };
         let busy = ws
             .save_post(PostInput {
                 activities: vec![act("working as", " a nurse "), act("attending", "an office party"), act("wearing", "a saree"), act("eating", "")],
@@ -2009,7 +2023,18 @@ mod tests {
         assert_eq!(busy.activities[0].object, "a nurse");
         assert_eq!(ws.search("saree", 10).totals.posts, 1, "activities are searchable");
         let many = ws.save_post(PostInput { activities: (0..20).map(|i| act("doing", &format!("thing {i}"))).collect(), ..base() }).unwrap();
-        assert_eq!(many.activities.len(), 8);
+        assert_eq!(many.activities.len(), 12);
+
+        // A clause can tag its own people and add text; a life event clause has no verb.
+        let party = Activity { with_ids: vec![sarah.id.clone(), sarah.id.clone()], detail: " for the first time ".into(), ..act("attending", "an office party") };
+        let graduated = Activity { thing: "event:education.earned@bsc".into(), ..act("", "earned a BSc") };
+        let story = ws.save_post(PostInput { activities: vec![party.clone(), graduated], ..base() }).unwrap();
+        assert_eq!(story.activities[0].with_ids, vec![sarah.id.clone()]);
+        assert_eq!(story.activities[0].detail, "for the first time");
+        assert_eq!(story.activities[1].verb, "");
+        assert!(involved(&story).contains(&sarah.id.as_str()), "clause tags count as involvement");
+        let ghost = Activity { with_ids: vec!["missing".into()], ..party };
+        assert!(ws.save_post(PostInput { activities: vec![ghost], ..base() }).is_err());
 
         // Photo tags.
         let img = ws.stage_media("p.png", [&b"\x89PNG\r\n\x1a\n"[..], &[1u8; 50]].concat()).unwrap();

@@ -209,8 +209,10 @@ pub struct Feeling {
     pub text: String,
 }
 
-/// What someone is doing in a post: a verb and its object ("working as" + "a nurse",
-/// "wearing" + "a saree"). A post can have several, alongside one feeling.
+/// One clause of what a post is about, in the order the author arranged them:
+/// a feeling ("feeling" + "festive"), an activity ("working as" + "a nurse") or a
+/// life event (no verb; "graduated from university"). Each can tag its own people
+/// ("attending an office party with Dev") and add free text ("for the first time").
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Activity {
@@ -220,6 +222,12 @@ pub struct Activity {
     /// The vocabulary item it names, as `kind:id` (e.g. `role:nurse`); empty for free text.
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub thing: String,
+    /// People and pages this clause was with.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub with_ids: Vec<String>,
+    /// Free text after the clause: "for the first time", "after a 12-hour shift".
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub detail: String,
 }
 
 /// A person (or page) tagged at a spot on a photo; `x`/`y` are 0..1 of the image size.

@@ -22,7 +22,8 @@ import { useJournal } from "../lib/journal";
 import { fromDatetimeLocal, KINDS, toDatetimeLocal } from "../lib/format";
 import { AlbumEditor, AttachmentStrip, useAttachments } from "./Attachments";
 import { LifeEventBrowser, LifeEventForm } from "./LifeEventPicker";
-import { CheckInPicker, ExtrasChips, FeelingPicker, TagPeoplePicker } from "./PostExtras";
+import { CheckInPicker, clausesOf, ExtrasChips, FeelingPicker, TagPeoplePicker } from "./PostExtras";
+import { StoryEditor } from "./StoryEditor";
 import { RichEditor, type RichEditorHandle } from "./RichEditor";
 import { Avatar, Button, ErrorText } from "./ui";
 
@@ -53,8 +54,17 @@ export function Composer(props: { defaultAuthorId?: string; editing?: Post; onDo
   const [dragging, setDragging] = useState(false);
   const [withIds, setWithIds] = useState<string[]>(editing?.withIds ?? []);
   const [placeId, setPlaceId] = useState<string | null>(editing?.placeId ?? null);
-  const [feeling, setFeeling] = useState<Feeling | null>(editing?.feeling ?? null);
-  const [activities, setActivities] = useState<Activity[]>(editing?.activities ?? []);
+  // The story, clause by clause and in order: a feeling, activities and life events.
+  // (A feeling saved the old way becomes the first clause.)
+  const [activities, setActivities] = useState<Activity[]>(() => (editing ? clausesOf(editing) : []));
+  const setFeeling = (f: Feeling) => {
+    const word = f.text.replace(/^feeling /, "");
+    const clause: Activity = { emoji: f.emoji, verb: "feeling", object: word, thing: `feeling:${word}` };
+    setActivities((list) => {
+      const at = list.findIndex((a) => a.verb === "feeling");
+      return at >= 0 ? list.map((a, i) => (i === at ? { ...a, ...clause } : a)) : [clause, ...list];
+    });
+  };
   // Life events: the main one first, then any combined with it.
   // Typed templates ("Visited {country}") are edited unbound, with the thing as a field value.
   const [events, setEvents] = useState<string[]>(() => (editing ? eventsOf(editing).map((id) => unbindEvent(id).id) : []));
@@ -173,7 +183,7 @@ export function Composer(props: { defaultAuthorId?: string; editing?: Post; onDo
         captions: attachments.captions,
         withIds,
         placeId,
-        feeling,
+        feeling: null,
         activities,
         eventType: events[0] ? bindEvent(events[0], eventValues[events[0]] ?? {}) : "",
         alsoEventTypes: events.slice(1).map((id) => bindEvent(id, eventValues[id] ?? {})),
@@ -189,7 +199,6 @@ export function Composer(props: { defaultAuthorId?: string; editing?: Post; onDo
         setKind("status");
         setWithIds([]);
         setPlaceId(null);
-        setFeeling(null);
         setActivities([]);
         setEvents([]);
         setPicking(null);
@@ -390,15 +399,12 @@ export function Composer(props: { defaultAuthorId?: string; editing?: Post; onDo
                 <AttachmentStrip items={attachments.items} onRemove={attachments.remove} />
               </>
             )}
+            <StoryEditor clauses={activities} onChange={setActivities} authorId={authorId} withIds={withIds} placeId={placeId} />
             <ExtrasChips
               withIds={withIds}
               placeId={placeId}
-              feeling={feeling}
-              activities={activities}
-              onRemoveActivity={(i) => setActivities((list) => list.filter((_, x) => x !== i))}
               onRemoveWith={(id) => setWithIds((ids) => ids.filter((x) => x !== id))}
               onRemovePlace={() => setPlaceId(null)}
-              onRemoveFeeling={() => setFeeling(null)}
             />
 
             {showWhen && (
@@ -463,10 +469,10 @@ export function Composer(props: { defaultAuthorId?: string; editing?: Post; onDo
             {picker === "place" && <CheckInPicker onPick={setPlaceId} onClose={() => setPicker(null)} />}
           </div>
           <div className="relative">
-            <ToolButton title="Feeling / activity" active={!!feeling || activities.length > 0} onClick={() => setPicker(picker === "feeling" ? null : "feeling")}>
+            <ToolButton title="Feeling / activity" active={activities.length > 0} onClick={() => setPicker(picker === "feeling" ? null : "feeling")}>
               <SmileyIcon size={20} />
             </ToolButton>
-            {picker === "feeling" && <FeelingPicker onPick={setFeeling} onAddActivity={(a) => setActivities((list) => [...list, a].slice(0, 8))} onClose={() => setPicker(null)} />}
+            {picker === "feeling" && <FeelingPicker onPick={setFeeling} onAddActivity={(a) => setActivities((list) => [...list, a].slice(0, 12))} onClose={() => setPicker(null)} />}
           </div>
           <ToolButton title="Set the date" active={showWhen} onClick={() => setShowWhen((s) => !s)}>
             <CalendarBlankIcon size={20} />

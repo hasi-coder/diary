@@ -217,15 +217,20 @@ fn seed(ws: &mut Workspace) -> Result<(), Box<dyn std::error::Error>> {
         verb: verb.into(),
         object: object.into(),
         thing: thing.into(),
+        ..Default::default()
     };
     ws.save_post(PostInput {
         author_id: sarah.id.clone(),
         content: "Night shift swapped for the ward Christmas party. First time in a saree at work!".into(),
-        feeling: Some(Feeling { emoji: "🥳".into(), text: "feeling festive".into() }),
+        // In the author's order; the party clause tags Dev and adds its own words.
         activities: vec![
+            act("🥳", "feeling", "festive", "feeling:festive"),
             act("💼", "working as", "a nurse", "role:nurse"),
-            act("🎄", "attending", "an office Christmas party", "occasion:office_christmas_party"),
-            act("🥻", "wearing", "a saree", "clothing:saree"),
+            Activity {
+                with_ids: vec![dev.id.clone()],
+                ..act("🎄", "attending", "the ward Christmas party", "occasion:office_christmas_party")
+            },
+            Activity { detail: "for the first time at work".into(), ..act("🥻", "wearing", "a saree", "clothing:saree") },
         ],
         occurred_at: Some(now - 20 * DAY),
         ..Default::default()

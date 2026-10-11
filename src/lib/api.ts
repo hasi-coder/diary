@@ -50,12 +50,20 @@ export interface Feeling {
   text: string;
 }
 
-/** A verb and its object: "working as" + "a nurse". `thing` is the vocabulary item (`role:nurse`), if any. */
+/**
+ * One clause of a post's story, in the author's order: a feeling ("feeling" +
+ * "festive"), an activity ("working as" + "a nurse") or a life event (no verb:
+ * "earned a BSc"). `thing` is what it names (`role:nurse`, `event:education.earned@bsc`).
+ */
 export interface Activity {
   emoji: string;
   verb: string;
   object: string;
   thing?: string;
+  /** People this clause was with: "attending a party with Dev". */
+  withIds?: string[];
+  /** Free text after it: "for the first time". */
+  detail?: string;
 }
 
 export interface Post {
