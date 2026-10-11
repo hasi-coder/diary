@@ -150,3 +150,14 @@ pub fn discard_media(state: State<'_, AppState>, ids: Vec<String>) -> Result<()>
         Ok(())
     })
 }
+
+/// Full-text search across posts, profiles and items.
+#[tauri::command]
+pub fn search(state: State<'_, AppState>, query: String, limit: Option<usize>) -> Result<SearchResults> {
+    state.with_workspace(|ws| Ok(ws.search(&query, limit.unwrap_or(20).min(200))))
+}
+
+#[tauri::command]
+pub fn get_post(state: State<'_, AppState>, id: String) -> Result<Post> {
+    state.with_workspace(|ws| ws.posts.get(&id).cloned().ok_or_else(|| Error::NotFound(format!("post {id}"))))
+}

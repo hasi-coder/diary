@@ -125,6 +125,15 @@ export interface Snapshot {
   storage: StorageInfo;
 }
 
+export interface SearchResults {
+  /** Folded query terms, for highlighting. */
+  terms: string[];
+  posts: { post: Post; snippet: string }[];
+  profiles: { id: string; snippet: string }[];
+  items: { id: string; snippet: string }[];
+  totals: { posts: number; profiles: number; items: number };
+}
+
 export const isTauri = () => "__TAURI_INTERNALS__" in window;
 
 export const api = {
@@ -148,6 +157,8 @@ export const api = {
       headers: { "x-file-name": base64Utf8(file.name) },
     }),
   discardMedia: (ids: string[]) => invoke<void>("discard_media", { ids }),
+  search: (query: string, limit = 20) => invoke<SearchResults>("search", { query, limit }),
+  getPost: (id: string) => invoke<Post>("get_post", { id }),
 };
 
 export function errorMessage(e: unknown): string {

@@ -29,7 +29,15 @@ for the full design.
   There's a Facebook-style grid and a lightbox on posts, a **Media Gallery**, and a "Photos & videos"
   tab on every profile.
 
-Not yet built: SQLCipher cache, map view, password change.
+- **Rich-text editor** (Phase 4): headings, bold, italic, strikethrough, code, lists, checklists,
+  quotes, code blocks, tables, links, undo/redo, `@` mentions, ⌘↵ to save, and a distraction-free
+  focus mode. It's built on TipTap but **stores plain Markdown**, so entries don't depend on the
+  editor.
+- **Search** (Phase 4): press ⌘K (Ctrl K) or use the sidebar to search posts, profiles and shop
+  items, with ranked results and highlighted snippets. The timeline search box and `#tag` clicks
+  use the same index.
+
+Not yet built: map view, password change.
 
 ## On-disk format
 
@@ -83,6 +91,22 @@ brew install git-lfs && git lfs install
 ```
 
 Without it, media is committed as ordinary git blobs.
+
+## Search index
+
+`src-tauri/src/search.rs` holds an inverted index with BM25 ranking. It's built from the decrypted
+cache on unlock and updated on every write. It lives **only in memory**, so no plaintext or
+plaintext-derived term list is ever written to disk. That replaces the SQLCipher cache from the
+original proposal.
+
+- **Tokenizing:** words are split on Unicode word boundaries, so Sinhala, Tamil and other scripts
+  with combining marks stay whole. Text is NFKC-normalized, lower-cased and Latin accents are folded
+  (`cafe` finds `Café`).
+- **Matching:** every word must match. Words also match as prefixes (scored lower), so results
+  update as you type. `#tag` matches hashtags.
+- **What's indexed:** post text with mentions resolved to current names, the author's name,
+  attachment file names; profile names and details; item names, descriptions and shop names.
+  Renaming a profile re-indexes the posts that mention it.
 
 ## Migrations
 

@@ -37,6 +37,7 @@ use crate::media::{self, Bytes, MediaCache};
 use crate::migrate::{self, MigrationStatus};
 use crate::model::*;
 use crate::record::{self, Kind, CURRENT_SCHEMA};
+use crate::search::{self, DocKey, DocKind, Field, Query, SearchIndex};
 
 const CONFIG_FILE: &str = "workspace.json";
 const MANIFEST_FILE: &str = "manifest.enc";
@@ -277,10 +278,12 @@ pub fn create_workspace(
             stale: HashSet::new(),
             disk_schema: CURRENT_SCHEMA,
             media: MediaState::new(),
+            index: SearchIndex::default(),
         };
         ws.write_manifest()?;
         ws.write_record(Kind::Profile, &owner.id, &owner, json!({}))?;
-        ws.profiles.insert(owner.id.clone(), owner);
+        ws.profiles.insert(owner.id.clone(), owner.clone());
+        ws.index_profile(&owner.id);
         Ok(ws)
     })();
 
@@ -330,12 +333,14 @@ pub fn open_workspace(root: &Path, id: &str, password: &str) -> Result<Workspace
         stale,
         disk_schema: CURRENT_SCHEMA,
         media: MediaState::new(),
+        index: SearchIndex::default(),
     };
     ws.profiles = ws.load_all(Kind::Profile, &mut disk_schema)?;
     ws.posts = ws.load_all(Kind::Post, &mut disk_schema)?;
     ws.items = ws.load_all(Kind::Item, &mut disk_schema)?;
     ws.disk_schema = disk_schema;
     ws.reindex_media();
+    ws.rebuild_index();
     Ok(ws)
 }
 
@@ -389,6 +394,8 @@ pub struct Workspace {
     /// Oldest schema found when the workspace was opened.
     disk_schema: u32,
     media: MediaState,
+    /// Full-text index over the decrypted cache. Memory only.
+    index: SearchIndex,
 }
 
 impl Workspace {
@@ -611,6 +618,7 @@ impl Workspace {
 
         self.write_record(Kind::Profile, &profile.id, &profile, json!({}))?;
         self.profiles.insert(profile.id.clone(), profile.clone());
+        self.index_profile(&profile.id);
         Ok(profile)
     }
 
@@ -633,6 +641,13 @@ impl Workspace {
         }
         self.remove_record(Kind::Profile, id)?;
         self.profiles.remove(id);
+        self.index.remove(&DocKey::new(DocKind::Profile, id));
+        // Posts that mentioned it no longer contain its name.
+        let mentioning: Vec<String> =
+            self.posts.values().filter(|p| mentions(&p.content).contains(&id)).map(|p| p.id.clone()).collect();
+        for post_id in mentioning {
+            self.index_post(&post_id);
+        }
         Ok(())
     }
 
@@ -699,6 +714,7 @@ impl Workspace {
             previous.iter().filter(|m| !post.media.iter().any(|n| n.id == m.id)).map(|m| m.id.clone()).collect();
         self.posts.insert(post.id.clone(), post.clone());
         self.reindex_media();
+        self.index_post(&post.id);
         for id in detached {
             self.remove_media_file(&id)?;
         }
@@ -710,6 +726,7 @@ impl Workspace {
         let post = self.posts.remove(id).ok_or_else(|| Error::NotFound(format!("post {id}")))?;
         self.remove_record(Kind::Post, id)?;
         self.reindex_media();
+        self.index.remove(&DocKey::new(DocKind::Post, id));
         for m in &post.media {
             self.remove_media_file(&m.id)?;
         }
@@ -717,7 +734,12 @@ impl Workspace {
     }
 
     pub fn query_posts(&self, filter: &PostFilter) -> Vec<Post> {
-        let search = filter.search.as_ref().map(|s| s.trim().to_lowercase()).filter(|s| !s.is_empty());
+        let matches: Option<HashSet<String>> = filter
+            .search
+            .as_deref()
+            .map(Query::parse)
+            .filter(|q| !q.is_empty())
+            .map(|q| self.index.search(&q).into_iter().filter(|(k, _)| k.kind == DocKind::Post).map(|(k, _)| k.id).collect());
         let mut posts: Vec<Post> = self
             .posts
             .values()
@@ -727,7 +749,7 @@ impl Workspace {
             })
             .filter(|p| filter.from.map_or(true, |from| p.occurred_at >= from))
             .filter(|p| filter.to.map_or(true, |to| p.occurred_at < to))
-            .filter(|p| search.as_ref().map_or(true, |s| p.content.to_lowercase().contains(s)))
+            .filter(|p| matches.as_ref().map_or(true, |m| m.contains(&p.id)))
             .cloned()
             .collect();
         posts.sort_by(|a, b| b.occurred_at.cmp(&a.occurred_at).then(b.created_at.cmp(&a.created_at)));
@@ -767,6 +789,7 @@ impl Workspace {
         };
         self.write_record(Kind::Item, &item.id, &item, json!({}))?;
         self.items.insert(item.id.clone(), item.clone());
+        self.index_item(&item.id);
         Ok(item)
     }
 
@@ -775,7 +798,126 @@ impl Workspace {
         if self.items.remove(id).is_none() {
             return Err(Error::NotFound(format!("item {id}")));
         }
+        self.index.remove(&DocKey::new(DocKind::Item, id));
         self.remove_record(Kind::Item, id)
+    }
+
+    // ---- Search ----
+
+    /// Post text as a reader sees it: mentions resolved to names, Markdown stripped.
+    fn post_plain_text(&self, post: &Post) -> String {
+        let mut text = post.content.clone();
+        for id in mentions(&post.content) {
+            let name = self.profiles.get(id).map_or("", |p| p.name.as_str());
+            text = text.replace(&format!("{MENTION_PREFIX}{id}]"), &format!("@{name}"));
+        }
+        search::markdown_to_plain(&text)
+    }
+
+    fn index_post(&mut self, id: &str) {
+        let Some(post) = self.posts.get(id) else { return };
+        let text = self.post_plain_text(post);
+        let author = self.profiles.get(&post.author_id).map_or("", |p| p.name.as_str());
+        let files = post.media.iter().map(|m| m.name.as_str()).collect::<Vec<_>>().join(" ");
+        let fields = [Field { text: &text, weight: 1.0 }, Field { text: author, weight: 0.5 }, Field { text: &files, weight: 0.5 }];
+        let (key, tags, time) = (DocKey::new(DocKind::Post, id), hashtags(&post.content), post.occurred_at);
+        self.index.upsert(key, &fields, &tags, time);
+    }
+
+    /// Indexes the profile document alone.
+    fn index_profile_doc(&mut self, id: &str) {
+        let Some(p) = self.profiles.get(id) else { return };
+        let fields = [
+            Field { text: &p.name, weight: 3.0 },
+            Field { text: &p.tagline, weight: 1.5 },
+            Field { text: &p.relationship, weight: 1.5 },
+            Field { text: &p.category, weight: 1.5 },
+            Field { text: &p.bio, weight: 1.0 },
+            Field { text: &p.location, weight: 1.0 },
+        ];
+        self.index.upsert(DocKey::new(DocKind::Profile, id), &fields, &[], p.updated_at);
+    }
+
+    /// Indexes a profile, plus the posts and items whose text includes its name.
+    fn index_profile(&mut self, id: &str) {
+        self.index_profile_doc(id);
+        let posts: Vec<String> = self
+            .posts
+            .values()
+            .filter(|post| post.author_id == id || mentions(&post.content).contains(&id))
+            .map(|post| post.id.clone())
+            .collect();
+        for post_id in posts {
+            self.index_post(&post_id);
+        }
+        let items: Vec<String> = self.items.values().filter(|i| i.shop_id == id).map(|i| i.id.clone()).collect();
+        for item_id in items {
+            self.index_item(&item_id);
+        }
+    }
+
+    fn index_item(&mut self, id: &str) {
+        let Some(item) = self.items.get(id) else { return };
+        let shop = self.profiles.get(&item.shop_id).map_or("", |p| p.name.as_str());
+        let fields = [
+            Field { text: &item.name, weight: 3.0 },
+            Field { text: &item.description, weight: 1.0 },
+            Field { text: shop, weight: 0.5 },
+        ];
+        self.index.upsert(DocKey::new(DocKind::Item, id), &fields, &[], item.updated_at);
+    }
+
+    fn rebuild_index(&mut self) {
+        self.index = SearchIndex::default();
+        let profiles: Vec<String> = self.profiles.keys().cloned().collect();
+        let posts: Vec<String> = self.posts.keys().cloned().collect();
+        let items: Vec<String> = self.items.keys().cloned().collect();
+        profiles.iter().for_each(|id| self.index_profile_doc(id));
+        posts.iter().for_each(|id| self.index_post(id));
+        items.iter().for_each(|id| self.index_item(id));
+    }
+
+    /// Ranked results across posts, profiles and items, with snippets.
+    pub fn search(&self, input: &str, limit: usize) -> SearchResults {
+        let query = Query::parse(input);
+        let terms = query.highlight_terms();
+        let mut results = SearchResults { terms: terms.clone(), ..Default::default() };
+        if query.is_empty() {
+            return results;
+        }
+        for (key, _) in self.index.search(&query) {
+            match key.kind {
+                DocKind::Post => {
+                    results.totals.posts += 1;
+                    if results.posts.len() < limit {
+                        let post = &self.posts[&key.id];
+                        let snippet = search::snippet(&self.post_plain_text(post), &terms, 180);
+                        results.posts.push(PostHit { post: post.clone(), snippet });
+                    }
+                }
+                DocKind::Profile => {
+                    results.totals.profiles += 1;
+                    if results.profiles.len() < limit {
+                        let p = &self.profiles[&key.id];
+                        let text = [p.tagline.as_str(), &p.bio, &p.relationship, &p.category, &p.location]
+                            .iter()
+                            .filter(|s| !s.is_empty())
+                            .copied()
+                            .collect::<Vec<_>>()
+                            .join(" · ");
+                        results.profiles.push(Hit { id: key.id.clone(), snippet: search::snippet(&text, &terms, 120) });
+                    }
+                }
+                DocKind::Item => {
+                    results.totals.items += 1;
+                    if results.items.len() < limit {
+                        let item = &self.items[&key.id];
+                        results.items.push(Hit { id: key.id.clone(), snippet: search::snippet(&item.description, &terms, 120) });
+                    }
+                }
+            }
+        }
+        results
     }
 
     // ---- Views ----
@@ -1084,6 +1226,59 @@ mod tests {
 
         ws.delete_post(&saved.id).unwrap();
         assert_eq!(fs::read_dir(&media_dir).unwrap().count(), 0, "deleting a post deletes its media");
+    }
+
+    #[test]
+    fn search_tracks_every_change() {
+        let root = tempfile::tempdir().unwrap();
+        let mut ws = create_workspace(root.path(), "", "Personal", "Alex", "correct horse", FAST).unwrap();
+        let owner = ws.owner_id().to_string();
+        let sarah = ws.save_profile(ProfileInput { bio: "Loves crosswords".into(), ..person("Sarah Jenkins", ProfileKind::Person) }).unwrap();
+        let shop = ws.save_profile(person("The Rusty Bean", ProfileKind::Shop)).unwrap();
+        let p = ws
+            .save_post(post(&owner, &format!("Had a **latte** at @[profile:{}] with @[profile:{}] #Coffee", shop.id, sarah.id), vec![]))
+            .unwrap();
+        ws.save_item(ItemInput {
+            id: None,
+            shop_id: shop.id.clone(),
+            name: "Pour-over".into(),
+            description: "Single origin, brewed slowly".into(),
+            price_cents: None,
+            currency: String::new(),
+            status: ItemStatus::Available,
+        })
+        .unwrap();
+
+        let r = ws.search("sarah", 10);
+        assert_eq!((r.totals.profiles, r.totals.posts), (1, 1), "profile and the post mentioning her");
+        assert!(r.posts[0].snippet.contains("@Sarah Jenkins"), "mentions resolve to names: {}", r.posts[0].snippet);
+        assert!(!r.posts[0].snippet.contains("**"), "markdown stripped");
+        assert_eq!(ws.search("crossword", 10).profiles[0].snippet, "Loves crosswords");
+        assert_eq!(ws.search("#coffee", 10).totals.posts, 1);
+        assert_eq!(ws.search("brewed", 10).items[0].id, ws.items.keys().next().unwrap().clone());
+        assert_eq!(ws.search("rusty", 10).totals, SearchTotals { posts: 1, profiles: 1, items: 1 });
+        let timeline = ws.query_posts(&PostFilter { search: Some("lat".into()), ..Default::default() });
+        assert_eq!(timeline.len(), 1, "timeline search uses the index with prefixes");
+
+        // Renaming a profile re-indexes posts that mention it.
+        ws.save_profile(ProfileInput { id: Some(sarah.id.clone()), ..person("Sara Lee", ProfileKind::Person) }).unwrap();
+        assert_eq!(ws.search("lee", 10).totals.posts, 1);
+        assert_eq!(ws.search("jenkins", 10).totals.posts, 0);
+
+        // Editing a post replaces its terms.
+        ws.save_post(PostInput { id: Some(p.id.clone()), ..post(&owner, "Tea instead #tea", vec![]) }).unwrap();
+        assert_eq!(ws.search("latte", 10).totals.posts, 0);
+        assert_eq!(ws.search("#tea", 10).totals.posts, 1);
+
+        // Rebuilt from scratch on unlock.
+        let ws2 = open_workspace(root.path(), "workspace_personal", "correct horse").unwrap();
+        assert_eq!(ws2.search("tea", 10).totals.posts, 1);
+        assert_eq!(ws2.search("lee", 10).totals.profiles, 1);
+
+        ws.delete_profile(&shop.id).unwrap();
+        assert_eq!(ws.search("rusty", 10).totals, SearchTotals::default());
+        ws.delete_post(&p.id).unwrap();
+        assert_eq!(ws.search("tea", 10).totals.posts, 0);
     }
 
     /// Writes a workspace exactly as Phase 1 (format 1) did.

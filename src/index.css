@@ -91,3 +91,52 @@ button:not(:disabled) {
 .post-md td {
   @apply border border-slate-200 px-2 py-1;
 }
+
+/* Task lists: GFM output from react-markdown and the editor's checklist. */
+.post-md ul.contains-task-list,
+.post-md ul[data-type="taskList"] {
+  @apply list-none pl-0;
+}
+.post-md li.task-list-item {
+  @apply flex items-start gap-2;
+}
+.post-md li.task-list-item input,
+.post-md ul[data-type="taskList"] input {
+  @apply mt-1 accent-brand-600;
+}
+.post-md ul[data-type="taskList"] li {
+  @apply flex items-start gap-2;
+}
+.post-md ul[data-type="taskList"] li > div {
+  @apply flex-1;
+}
+.post-md a {
+  @apply text-brand-600 underline decoration-dotted;
+}
+.post-md hr {
+  @apply my-3 border-slate-200;
+}
+
+/* Rich editor */
+.rich-editor {
+  min-height: 72px;
+}
+.rich-editor:focus {
+  outline: none;
+}
+.rich-editor p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  @apply pointer-events-none float-left h-0 text-slate-400;
+}
+.rich-editor table {
+  @apply w-full border-collapse;
+}
+.rich-editor th {
+  @apply bg-slate-50 font-semibold;
+}
+.rich-editor .selectedCell {
+  @apply bg-brand-50;
+}
+.rich-editor .entity-tag {
+  @apply cursor-default;
+}

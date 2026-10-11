@@ -8,6 +8,8 @@ export type Route =
   | { view: "marketplace" }
   | { view: "settings" }
   | { view: "gallery" }
+  | { view: "search"; query: string }
+  | { view: "post"; id: string }
   | { view: "profile"; id: string; tab?: "posts" | "about" | "media" | "shop" };
 
 interface Journal {
@@ -21,6 +23,8 @@ interface Journal {
   replace: (snapshot: Snapshot) => void;
   route: Route;
   navigate: (route: Route) => void;
+  /** Returns to the previous view, or the timeline. */
+  back: () => void;
   lock: () => Promise<void>;
 }
 
@@ -30,7 +34,8 @@ export function JournalProvider(props: { initial: Snapshot; onLocked: () => void
   const { onLocked } = props;
   const [snapshot, setSnapshot] = useState(props.initial);
   const [version, setVersion] = useState(0);
-  const [route, setRoute] = useState<Route>({ view: "timeline" });
+  const [history, setHistory] = useState<Route[]>([{ view: "timeline" }]);
+  const route = history[history.length - 1];
 
   const refresh = useCallback(async () => {
     setSnapshot(await api.getSnapshot());
@@ -48,15 +53,17 @@ export function JournalProvider(props: { initial: Snapshot; onLocked: () => void
   }, [onLocked]);
 
   const navigate = useCallback((r: Route) => {
-    setRoute(r);
+    setHistory((h) => [...h.slice(-49), r]);
     document.getElementById("main-scroll")?.scrollTo({ top: 0 });
   }, []);
+
+  const back = useCallback(() => setHistory((h) => (h.length > 1 ? h.slice(0, -1) : [{ view: "timeline" }])), []);
 
   const value = useMemo<Journal>(() => {
     const profiles = new Map(snapshot.profiles.map((p) => [p.id, p]));
     const owner = profiles.get(snapshot.workspace.ownerProfileId)!;
-    return { snapshot, profiles, owner, version, refresh, replace, route, navigate, lock };
-  }, [snapshot, version, refresh, replace, route, navigate, lock]);
+    return { snapshot, profiles, owner, version, refresh, replace, route, navigate, back, lock };
+  }, [snapshot, version, refresh, replace, route, navigate, back, lock]);
 
   return <JournalContext.Provider value={value}>{props.children}</JournalContext.Provider>;
 }

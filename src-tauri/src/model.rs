@@ -259,3 +259,36 @@ pub struct WorkspaceSummary {
     pub name: String,
     pub owner_profile_id: String,
 }
+
+#[derive(Clone, Debug, Default, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SearchResults {
+    /// Folded query terms, for highlighting.
+    pub terms: Vec<String>,
+    pub posts: Vec<PostHit>,
+    pub profiles: Vec<Hit>,
+    pub items: Vec<Hit>,
+    pub totals: SearchTotals,
+}
+
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PostHit {
+    pub post: Post,
+    pub snippet: String,
+}
+
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Hit {
+    pub id: String,
+    pub snippet: String,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SearchTotals {
+    pub posts: usize,
+    pub profiles: usize,
+    pub items: usize,
+}
