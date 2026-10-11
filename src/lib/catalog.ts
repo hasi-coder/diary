@@ -8,6 +8,8 @@ export const FEELINGS: { emoji: string; text: string }[] = [
   ["😊", "happy"], ["🥰", "loved"], ["🙏", "grateful"], ["🤩", "excited"], ["😌", "relaxed"], ["😎", "proud"],
   ["💪", "motivated"], ["🥹", "nostalgic"], ["😇", "blessed"], ["🌱", "hopeful"], ["🤔", "thoughtful"], ["😴", "tired"],
   ["😢", "sad"], ["😔", "lonely"], ["😟", "worried"], ["😤", "frustrated"], ["🤒", "sick"], ["🥳", "festive"],
+  ["🥰", "in love"], ["😏", "flirty"], ["🔥", "sexy"], ["😳", "shy"], ["😬", "nervous"], ["😰", "anxious"], ["💔", "heartbroken"],
+  ["😒", "jealous"], ["🧳", "homesick"], ["🫠", "overwhelmed"], ["🪫", "burned out"], ["😌", "at peace"], ["💪", "strong"],
 ].map(([emoji, word]) => ({ emoji, text: `feeling ${word}` }));
 
 /**
@@ -18,7 +20,10 @@ export const FEELINGS: { emoji: string; text: string }[] = [
  */
 export interface ActivityVerb {
   emoji: string;
+  /** Empty for lists of whole clauses ("making out"), which need no verb. */
   verb: string;
+  /** Shown in the picker instead of "verb…". */
+  label?: string;
   kinds: VocabKind[];
   prompt: string;
 }
@@ -30,6 +35,9 @@ export const ACTIVITY_VERBS: ActivityVerb[] = [
   { emoji: "🏠", verb: "hosting", kinds: ["occasion"], prompt: "What are you hosting?" },
   { emoji: "👗", verb: "wearing", kinds: ["clothing"], prompt: "What are you wearing?" },
   { emoji: "✨", verb: "having", kinds: ["moment"], prompt: "What kind of moment?" },
+  { emoji: "🧭", verb: "on", kinds: ["occasion"], prompt: "On what? A road trip, a holiday, a date…" },
+  { emoji: "🌶️", verb: "", label: "Spicy & naughty…", kinds: ["spicy"], prompt: "Flirting, making out, a one-night stand…" },
+  { emoji: "💔", verb: "", label: "Hard times…", kinds: ["struggle"], prompt: "Crying, job hunting, grieving…" },
   { emoji: "📚", verb: "studying", kinds: ["subject", "exam"], prompt: "What are you studying?" },
   { emoji: "🏅", verb: "playing", kinds: ["sport", "instrument"], prompt: "What are you playing?" },
   { emoji: "🎯", verb: "practising", kinds: ["sport", "instrument", "hobby"], prompt: "What are you practising?" },

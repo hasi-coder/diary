@@ -142,7 +142,6 @@ const DATA = String.raw`
 🏠 Started homeschooling | Started homeschooling {person} | yam
 🎉 Hosted a child's birthday party | Threw {person}'s birthday party | yam
 # Family life
-👪 Family reunion | Family reunion at {place} |
 🌳 Traced our family tree | Traced our family tree back to {what:ancestor or year} | yame
 🧬 Did a DNA test | | tyame
 🧬 Found a biological relative | Found my biological {relation}, {person} | tyame
@@ -159,8 +158,6 @@ const DATA = String.raw`
 👨‍👩‍👦 Got a step-sibling | Got a new step-sibling, {person} | bcty
 🏡 Family moved house | We moved to {place} | bct
 🫂 Chosen family | Found my chosen family | tyame
-🍲 Hosted the family holiday dinner | | yame
-📸 Family photo shoot | |
 ⚖️ Became a legal guardian of a sibling | Became {person}'s legal guardian | yam
 🎗️ Became a carer for my child | | yam
 
@@ -277,7 +274,6 @@ const DATA = String.raw`
 🏆 Grade 5 scholarship exam | Sat the Grade 5 scholarship exam | c
 🏆 Passed the Grade 5 scholarship exam | | c
 🧒 Shichi-Go-San | | bc
-🎏 Children's Day celebration | | c
 🧑‍⚕️ Got glasses | | cty
 🦷 Got braces | | cty
 🦷 Braces off | | cty
@@ -557,15 +553,9 @@ const DATA = String.raw`
 # Love & intimacy
 💗 Fell in love | Fell in love with {person} | tyame
 💗 Realised I was in love | | tyame
-💌 Wrote a love letter | Wrote a love letter to {person} | ctyame
 🌹 First Valentine's Day together | | tyame
 🕯️ First romantic dinner | | tyame
-🌙 First night together | | tyame
-💞 First time being intimate | | tyame
-💞 Lost my virginity | | tyame
-💞 First intimate experience with a new partner | | tyame
 🗝️ Chose to wait until marriage | | tyame
-🌙 Wedding night | | yame
 🗣️ Talked about boundaries and consent | | tyame
 🗣️ Opened up about my needs | | tyame
 🌈 Explored my sexuality | | tyame
@@ -574,7 +564,6 @@ const DATA = String.raw`
 💊 Started PrEP | | tyame
 🫶 Rekindled the spark | | yame
 🛏️ Started a date-night ritual | | yame
-🏝️ Romantic getaway | Romantic getaway to {place} | tyame
 🛋️ Started couples therapy | | yame
 🛋️ Started sex therapy | | yame
 🩺 Overcame an intimacy challenge | | yame
@@ -601,7 +590,6 @@ const DATA = String.raw`
 🧑‍🤝‍🧑 Made a new friend | Met {person} |
 👯 Became best friends | Became best friends with {person} |
 🎉 Friendship anniversary | {n} years of friendship with {person} | ctyame
-✈️ Friends' trip | Trip with friends to {place} | tyame
 🫂 Reconnected with an old friend | Reconnected with {person} | tyame
 💌 Found a pen pal | | ctyame
 💔 Friendship break-up | | tyame
@@ -865,16 +853,12 @@ const DATA = String.raw`
 💸 Paid off the mortgage | | ame
 🏡 Sold our home | | yame
 🏡 Bought a holiday home | | ame
-🏠 Housewarming | | yame
 🪴 Grew our first vegetables | |
 🐝 Started keeping bees | | yame
 🐓 Started keeping chickens | | yame
 ☀️ Installed solar panels | | yame
 🔌 Went fully electric | | yame
 ♻️ Went zero-waste | | tyame
-🧹 Decluttered everything | | tyame
-🛋️ Furnished the place | | yame
-🎨 Painted the house | | yame
 🚗 Bought a car | Bought a {what:car} | tyame
 🚲 Went car-free | | tyame
 ⚡ Bought an electric car | | yame
@@ -888,28 +872,19 @@ const DATA = String.raw`
 🛳️ First cruise | |
 🚂 First long train journey | |
 🛂 First trip abroad | First trip abroad, to {place} |
-🎒 Backpacking trip | Backpacked through {place} | tyam
-🚗 Road trip | Road trip to {place} | tyame
-🏕️ Camping trip | Camped at {place} |
-🏝️ Island holiday | |
 🏔️ Climbed a mountain | Climbed {what:mountain} | tyame
 🏔️ Reached base camp | | yame
 ⛰️ Hiked a long-distance trail | Hiked the {what:trail} | tyame
 🌋 Saw a volcano | |
 🌌 Saw the northern lights | |
 🌑 Saw a total solar eclipse | |
-🐋 Went whale watching | |
 🦁 Went on safari | Safari in {place} |
 🪂 Went skydiving | | tyame
 🎈 Hot-air balloon ride | | tyame
-🐘 Visited an elephant sanctuary | |
 🏯 Visited a world wonder | Visited {what:wonder} |
-🗽 Visited a famous landmark | Visited {what:landmark} |
 🛕 Pilgrimage | Pilgrimage to {place} |
 ⛰️ Climbed Sri Pada (Adam's Peak) | | ctyame
 🏝️ Visited all the continents | | yame
-🧳 Solo travel | Travelled solo to {place} | tyame
-🏨 Worked remotely abroad | Worked from {place} | yame
 🌍 Visited my ancestral home | Visited {place}, where my family is from |
 🗺️ Country-count milestone | Visited {n} countries | tyame
 🧭 Took a sabbatical to travel | | yame
@@ -933,32 +908,18 @@ const FAITH = `
 ☸️ Took refuge (Buddhism) | | ctyame
 ☸️ Ordained as a monk or nun | | ctyame
 ☸️ Observed sil (eight precepts) | | ctyame
-☸️ Vesak | Celebrated Vesak |
-☸️ Poson | |
-🪔 Visited a dansala | |
 🍚 Gave a dana (almsgiving) | | tyame
 🍚 Hosted an almsgiving in memory | Almsgiving in memory of {person} | tyame
-📿 Pirith ceremony | |
 🛕 Visited the Temple of the Tooth | |
 🛕 Atamasthana pilgrimage | |
 🛕 Kataragama pilgrimage | |
 🌳 Visited Sri Maha Bodhi | |
-🧘 Meditation retreat | Retreat at {place} | tyame
-☀️ Sinhala and Tamil New Year | Celebrated Avurudu |
-🕉️ Diwali | Celebrated Diwali |
-🕉️ Thai Pongal | |
-🕉️ Holi | |
-🕉️ Navaratri | |
-🕉️ Shivaratri | |
 🕉️ Pilgrimage to Varanasi | | yame
 🕉️ Kumbh Mela | | yame
 🕉️ Housewarming puja (griha pravesh) | | yame
-🧵 Raksha Bandhan | |
 ☪️ Shahada | | tyame
 ☪️ Converted to Islam | | tyame
 ☪️ First Ramadan | |
-☪️ Eid al-Fitr | Celebrated Eid al-Fitr |
-☪️ Eid al-Adha | Celebrated Eid al-Adha |
 🕋 Performed Umrah | | tyame
 🕋 Performed Hajj | | yame
 📖 Completed the Quran | | ctyame
@@ -966,41 +927,20 @@ const FAITH = `
 ✝️ Baptised as an adult | | tyame
 ✝️ Became a Christian | | tyame
 ✝️ Received confirmation | | ct
-✝️ Christmas | Christmas with {person} |
-✝️ Easter | |
 ✝️ Pilgrimage to Jerusalem | | tyame
 ✝️ Pilgrimage to Rome | | tyame
 ✝️ Walked the Camino | | tyame
 ⛪ Joined a church | Joined {place} | tyame
 ⛪ Ordained | Ordained at {place} | yame
 ✡️ Converted to Judaism | | tyame
-✡️ Passover seder | Hosted a seder |
-✡️ Hanukkah | |
-✡️ Yom Kippur | |
 ✡️ Visited Israel on Birthright | | ty
 🪯 Amrit Sanchar | | tyame
-🪯 Vaisakhi | |
 🪯 Visited the Golden Temple | |
-☯️ Lunar New Year | Celebrated Lunar New Year |
-🏮 Mid-Autumn Festival | |
-🏮 Qingming (tomb sweeping) | |
-🎎 Obon | |
-⛩️ Hatsumōde | |
-🪔 Lit a lamp at a shrine | |
-🕯️ Day of the Dead | |
-🌍 Kwanzaa | |
-🌙 Nowruz | |
-🎃 Halloween | |
-🦃 Thanksgiving | |
-🎄 Hosted Christmas | | yame
 🌿 Joined a Pagan or Wiccan circle | | tyame
-🌙 Solstice celebration | |
 🔄 Converted | Converted to {what:faith} | tyame
 🧭 Left my faith | | tyame
 🧭 Found my spirituality | | tyame
 🙏 Became a religious teacher | | yame
-🙏 Went on a silent retreat | | tyame
-🎎 Celebrated my culture's festival | Celebrated {what:festival} |
 `;
 
 const OTHER_BLOCKS = String.raw`
@@ -1041,7 +981,6 @@ const OTHER_BLOCKS = String.raw`
 🦷 Dental implants | | ame
 🦠 Recovered from COVID-19 | |
 💉 Got vaccinated | Got vaccinated against {what:illness} |
-🩺 Annual check-up | |
 🩺 Chronic illness anniversary | |
 🌈 Surgery anniversary | |
 # Mental health
@@ -1147,7 +1086,6 @@ const OTHER_BLOCKS = String.raw`
 ✂️ Donated hair | | ctyame
 🧑‍🚒 Joined the volunteer fire service | | tyame
 🦺 Disaster-relief volunteer | | tyame
-🌳 Community clean-up | | ctyame
 🌳 Planted trees for the community | | ctyame
 🏘️ Joined a residents' association | | yame
 🏫 Joined the school board | | yame
@@ -1263,14 +1201,11 @@ const OTHER_BLOCKS = String.raw`
 @other
 # Other
 ⭐ Something worth remembering | |
-🍀 Lucky day | |
 🌈 A turning point | |
 📦 A fresh start | |
 💡 A big decision | |
 🧳 A new chapter | |
-🎉 A celebration | |
 🔁 Changed my mind about something | |
-🌤️ A perfect day | |
 📅 A day I'll never forget | |
 `;
 
@@ -1519,7 +1454,8 @@ export const categoryOf = (id: string) => CATEGORIES.find((c) => c.id === id) ??
 /** The template for a stored event type, falling back to the "Other" catch-all. */
 export function lifeEvent(id: string): LifeEventTemplate {
   const [base, thingId] = canonical(id).split("@");
-  const t = byId.get(base) ?? (base.startsWith("roles.") ? byId.get("roles") : undefined) ?? byId.get("other")!;
+  // An id that no longer exists falls back to its category's "Other …" template.
+  const t = byId.get(base) ?? byId.get(base.split(".")[0]) ?? byId.get("other")!;
   return thingId ? bind(t, thingId) : t;
 }
 

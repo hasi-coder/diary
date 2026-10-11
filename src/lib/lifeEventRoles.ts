@@ -385,41 +385,20 @@ export const STYLE = String.raw`
 👗 Wore something I was scared to wear | | tyame
 `;
 
+/**
+ * Love-life turning points. Spicy and naughty moments themselves ("making out",
+ * "a one-night stand") are things you do: see the "spicy" list in vocab.ts.
+ */
 export const LOVE_SPICY = String.raw`
 @relationship
-# Spicy & naughty
+# Intimate firsts
+## spicy
 💋 First make-out session | | tyame
-🌧️ Kissed in the rain | | tyame
-💋 Kissed a stranger | | tyame
-💋 Kissed my crush | Kissed {person} | tyame
-🚗 Made out in the car | | tyame
-😏 Flirted shamelessly | | tyame
-🤫 Secret relationship | | tyame
-🌙 Snuck out to see someone | | tyame
-😳 Got caught by my parents | | tyame
-💃 Dirty dancing at a party | | tyame
-📱 Sexting | | yame
-📸 Sent a risky photo | | yame
-🌊 Skinny dipping | | yame
-🍸 Hooked up at a party | | yame
-🌙 One-night stand | | yame
-🛏️ Friends with benefits | With {person} | yame
-🤷 Situationship | With {person} | yame
-📞 Late-night booty call | | yame
-🌅 Walk of shame | | yame
-🏨 Weekend in a hotel room | | yame
-🛍️ Visited an adult store | | yame
-🎁 Lingerie surprise | | yame
-🎭 Role-play night | | yame
-🔥 Tried something new in bed | | yame
-🧸 Bought our first toy | | yame
-🗝️ Explored a kink | | yame
-💞 Had a threesome | | yame
-✈️ Joined the mile-high club | | yame
-🚿 Showered together | | yame
-😈 Couldn't keep our hands off each other | | yame
-🔥 Spontaneous afternoon | | yame
-😈 Best night ever | | yame
+🌙 First night together | | tyame
+💞 First time being intimate | | tyame
+💞 Lost my virginity | | tyame
+💞 First intimate experience with a new partner | | tyame
+🌙 Wedding night | | yame
 # Heartache & mistakes
 💔 Unrequited love | | ctyame
 🙅 Got rejected by a crush | | ctyame
@@ -428,15 +407,12 @@ export const LOVE_SPICY = String.raw`
 👻 Ghosted someone | | tyame
 🎭 Got catfished | | tyame
 💸 Romance scam | | tyame
-📱 Drunk-texted an ex | | yame
-🔁 Slept with an ex | | yame
 😬 Regretted a hookup | | yame
 💔 Was cheated on | | tyame
 🕵️ Caught my partner cheating | | tyame
 😔 Cheated on my partner | | tyame
 🤐 Had an affair | | yame
 💘 Fell for someone who was taken | | tyame
-😤 Jealousy fight | | tyame
 📱 Broken up with by text | | tyame
 🌀 Was love-bombed | | tyame
 🧪 Pregnancy scare | | tyame
@@ -467,13 +443,7 @@ export const MORE_ROLES = String.raw`
 📈 Became executive secretary | | yame
 🧑‍💼 Became PA to the chairman | | ame
 🏅 Long-service award | | ame
-## spicy
-🌙 Late nights at the office | | yame
-🤫 Office affair | | yame
-🍸 Business-trip romance | | yame
-💐 Flowers from a secret admirer at work | | tyame
 ## hard
-😤 A boss who made my life hard | | yame
 🛡️ Reported harassment by the boss | | yame
 # ⌨️ Typist & stenographer
 ⌨️ Got my first typewriter | | tyame
@@ -543,100 +513,69 @@ export const MORE_ROLES = String.raw`
 🛵 First delivery | | tyame
 🌧️ Delivered through a storm | | tyame
 🎯 Hit {n} deliveries in a day | | tyame
+# 🔞 Adult content creator
+📸 Launched my page | | yame
+💵 First paying subscriber | | yame
+📈 Hit {n} subscribers | | yame
+🤝 First collab shoot | | yame
+💼 Went full-time | | yame
+🗣️ Told my family about my work | | yame
+🛡️ Got doxxed | | yame
+👋 Stopped creating | | yame
+# 💃 Exotic dancer
+👠 First night on stage | | yame
+💵 Best tips night ever | | yame
+🤸 Nailed a new pole trick | | yame
+⭐ Became a feature dancer | | yame
+👋 Hung up my heels | | yame
+# 🎬 Adult film performer
+🎬 First shoot | | yame
+🧪 First industry health test | | yame
+🏆 Industry award | | yame
+👋 Retired from adult film | | yame
+# 🌹 Sex worker & escort
+🌹 Started sex work | | yame
+🤝 Joined a sex workers' collective | | yame
+🛡️ Found a safer way to work | | yame
+😰 An unsafe client | | yame
+👋 Left sex work | | yame
+# 🎭 Burlesque performer
+🎭 First burlesque show | | tyame
+🧵 Made my own costume | | tyame
+⭐ Headlined a show | | yame
+# 🧑‍🏫 Sex educator & intimacy coordinator
+🎓 Certified as a sex educator | | yame
+🧑‍🏫 Ran my first workshop | | yame
+🎬 First film as an intimacy coordinator | | yame
+🛋️ Certified as a sex therapist | | yame
 # 🎒 Part-time job (while studying)
 💼 Got my first part-time job | Started at {company} | tyame
 💵 First part-time pay | | tyame
 ⚖️ Balancing work and studies | | tyame
 🧑‍🤝‍🧑 Made friends on the shift | | tyame
 👋 Quit my part-time job | | tyame
-## spicy
-😏 Flirted with a regular customer | | tyame
-📱 Got a customer's number | | tyame
-💋 Kissed a coworker after the shift | | tyame
-🌙 Shift romance | | tyame
 # 👦 Student — boys' school
-## spicy
-💌 Passed a love letter in class | | ct
-🏫 Crush on a girl from the sister school | | ct
-🏃 Bunked class for a date | | t
-🚌 School-bus romance | | ct
-🎪 Met a girl at the school carnival | | t
 # 👧 Student — girls' school
-## spicy
-💌 Got a love letter | | ct
-🏫 Crush on a boy from the brother school | | ct
-📞 Secret phone calls at night | | t
-🎪 Met a boy at the school carnival | | t
-🙈 Got caught with a love letter | | ct
 # 🧒 Student — mixed school
-## spicy
-💑 School sweetheart | With {person} | t
-🎒 Held hands behind the school building | | t
 # 🧑‍🎓 University student
-## spicy
-😍 Batch crush | | ty
-🏛️ Hostel romance | | ty
-🌙 Late-night canteen date | | ty
-💋 First kiss on campus | | ty
-😳 Got caught sneaking into the hostel | | ty
 ## hard
 😓 Failed the year | | ty
-💸 Ran out of money | | ty
-😔 Homesick | | ty
 # 🧑‍💻 Intern software engineer
-## spicy
-😍 Intern crush | | ty
-🍕 Late-night hackathon flirting | | ty
 # 🧑‍⚕️ Nurse
-## spicy
-🌙 Night-shift romance | | yame
-🩺 Dated a doctor | | yame
-💌 A patient asked me out | | yame
 ## hard
-😢 Cried in the supply room | | yame
 😤 Abused by a patient | | yame
 # 🩺 Doctor
-## spicy
-🌙 On-call room romance | | yame
-😍 Fell for a nurse | | yame
-💑 Married a fellow doctor | | yame
 ## hard
 ⚖️ Faced a complaint | | yame
-😴 Thirty-six hours without sleep | | yame
 # ✈️ Flight attendant / air hostess
-## spicy
-🌍 Layover romance | Romance in {place} | yame
-👨‍✈️ Dated a pilot | | yame
-📱 A passenger slipped me their number | | yame
-🏨 Crew-hotel party | | yame
 ## hard
-😤 Dealt with an unruly passenger | | yame
-⚖️ Weight and grooming pressure | | yame
 # 🧑‍🏫 Teacher
-## spicy
-☕ Staff-room crush | | yame
-💑 Dated a fellow teacher | | yame
 # 🧑‍🏫 Primary teacher
-## spicy
-☕ Staff-room crush | | yame
 # 🧑‍⚖️ Lawyer
-## spicy
-⚖️ Fell for opposing counsel | | yame
-🌙 Late nights preparing a case together | | yame
 # 📸 Model
-## spicy
-📸 Sizzling photoshoot | | yame
-💋 Romance with a photographer | | yame
 # 💃 Dancer
-## spicy
-💃 Partner-dance chemistry | | tyame
 # 👮 Police officer
-## spicy
-🚓 Romance with my patrol partner | | yame
 # 🪖 Armed forces
-## spicy
-💌 Letters to a sweetheart back home | | tyame
-🎖️ Uniform at a wedding turned heads | | yame
 `;
 
 /**
@@ -650,38 +589,20 @@ export const SHARED_ROLE_MOMENTS = String.raw`
 🪪 First day at a new workplace | First day at {company} | tyame
 🏅 Employee of the month | | tyame
 📈 Got a raise | | yame
-🎉 Office party to remember | | tyame
-🍰 Workplace birthday surprise | | tyame
 🤝 Made a work best friend | Became work best friends with {person} | tyame
 👋 Farewell from the team | | tyame
-## spicy
-😍 Crush on a colleague | | yame
-😏 Flirted at work | | yame
-💋 Kissed someone at a work party | | yame
-🤫 Secret workplace romance | | yame
-💑 Dated a coworker | Started dating {person} | yame
-🍸 Hooked up after a work night out | | yame
-😏 Crush on the boss | | yame
-📱 A customer or client asked me out | | yame
 ## hard
-😓 Toughest day at work | | yame
 😤 Bullied at work | | yame
 🛡️ Harassed at work | | yame
 🔥 Burned out | | yame
-🤔 Thought about quitting | | yame
 📉 Passed over for promotion | | yame
 💸 Pay cut or unpaid wages | | yame
 # School life
 🎖️ Got my prefect badge | | t
 🧑‍🤝‍🧑 Made lifelong friends at school | | ct
 🏅 Won a prize at prize-giving | | ct
-🎭 Performed at the school concert | | ct
-🏃 Sports meet | | ct
 🎓 Last day of school | | t
 ✍️ Signed each other's shirts | | t
-## spicy
-💌 First crush at school | | ct
-💌 Passed notes in class | | ct
 ## hard
 😬 Got into trouble at school | | ct
 😢 Bullied at school | | ct
@@ -695,14 +616,10 @@ export const PARENT_CHILD = String.raw`
 💇 Braided her hair for school | | yame
 🍳 Taught her to cook | Taught {person} to cook {what:dish} | yame
 🥻 Draped her first saree | | yame
-🛍️ Shopping trip together | | 
-👗 Matching outfits | | 
 🌸 Talked her through her first period | | yame
 💄 Did her makeup for the first time | | yame
 👰 Helped her dress on her wedding day | | ame
 💌 She wrote me a letter | | 
-☕ Mother–daughter coffee date | | 
-🧳 Mother–daughter trip | Trip with {person} to {place} | 
 🤱 Became a grandmother through her | | me
 🫂 She became my best friend | | 
 💬 Our first real grown-up talk | | 
@@ -716,8 +633,6 @@ export const PARENT_CHILD = String.raw`
 💐 He bought me flowers with his own money | | 
 🚗 He drove me for the first time | | ame
 🫂 He hugged me in front of his friends | | 
-☕ Mother–son coffee date | | 
-🧳 Mother–son trip | Trip with {person} to {place} | 
 💬 He came to me for advice | | 
 # 👨‍👧 Father & daughter
 👨‍👧 First father–daughter date | With {person} | yame
@@ -735,15 +650,11 @@ export const PARENT_CHILD = String.raw`
 🪒 Taught him to shave | | ame
 🚗 Taught him to drive | | ame
 🍺 First drink together | | ame
-🔧 Fixed the car together | | 
 🎓 Proud dad at his graduation | | ame
 🤝 He asked for my advice as a man | | ame
 # 👪 Parent & child
 👣 Their first day of school | | yame
-📖 Bedtime story tradition | | yame
 🎂 Baked their birthday cake | | yame
-🏕️ Camped in the backyard | | yame
-🎨 Made something together | | 
 🫂 They said "I love you" first | | 
 💬 They told me a secret | | 
 🙏 They thanked me | | 
@@ -759,10 +670,6 @@ export const PARENT_CHILD = String.raw`
 🧶 Made them something by hand | | me
 👧 My grandparent taught me something | {person} taught me to {what:skill} | ct
 # 👫 Siblings
-👫 Sibling day out | With {person} | 
 🤫 Kept a sibling's secret | | 
-👊 Sibling fight | | ct
 🤝 Defended my sibling | | 
-🎉 Sibling surprise | | 
-🧳 Sibling trip | Trip with {person} to {place} | 
 `;

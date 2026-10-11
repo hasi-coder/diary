@@ -139,8 +139,8 @@ Every type can also carry a story and Facebook-style extras, shown in the headli
   | Group | Example clause | Reads |
   | --- | --- | --- |
   | 😊 **Feeling** | feeling festive | *is / was* 🥳 feeling festive |
-  | 🎬 **Doing** (a verb, then a thing or your own words) | attending + an office party | *is / was* 🎄 attending an office party |
-  | 🏁 **Life events** (~7,500, grouped by category) | got promoted, visited Japan | 📈 got promoted (a done thing: no *is/was*) |
+  | 🎬 **Doing** (a verb, then a thing or your own words; plus 🌶️ **Spicy & naughty** and 💔 **Hard times** lists of whole clauses) | attending + an office party · making out · crying at work | *is / was* 🎄 attending an office party · *was* 💋 making out with Dev |
+  | 🏁 **Life events** (~5,400, grouped by category) | got promoted, visited Japan | 📈 got promoted (a done thing: no *is/was*) |
   | 🧑‍⚕️ **As** (roles) | *as a nurse* joins the clause before it; *a nurse* stands alone | 🎄 attending the party **as a nurse** · *was* a nurse |
 
   In the story editor under the post, you can:
@@ -194,7 +194,11 @@ A post's story is a list of **clauses** (`activities[]`), up to 12, in the autho
 
 **Shared vocabularies** ([vocab.ts](src/lib/vocab.ts)) list each thing once:
 
-- about 210 roles, 75 pieces of clothing, 90 occasions and 90 everyday moments
+- about 185 roles (including adult work: content creator, exotic dancer, sex worker, cam model…),
+  75 pieces of clothing, 130 occasions (festivals such as Vesak, Diwali, Eid and Christmas,
+  parties, trips, dates) and 100 everyday moments
+- 58 spicy & naughty moments and 28 hard times, each a whole clause ("skinny dipping",
+  "having a one-night stand", "job hunting")
 - every country, about 100 sports, 28 races, 90 hobbies, 47 instruments and 108 languages
 - pets, exams (including O/L and A/L), degrees and subjects
 
@@ -207,20 +211,27 @@ Doing, As and typed life events all pick from them:
 - Search expands typed life events, so "japan" finds Visited Japan, Moved to Japan, Started
   learning Japanese and so on.
 
-**Life events** (about 2,100 templates covering about 7,500 concrete events) are in 27 categories,
+**Life events** (about 1,900 templates covering about 5,400 concrete events) are in 27 categories,
 each split into sub-groups:
 
 | Area | Examples |
 | --- | --- |
 | Family, baby, childhood, teen | First smile, first steps, Kiri bath, Akuru kiyaweema, Grade 5 scholarship exam, first period, bar/bat/b-mitzvah, quinceañera, Seijin no Hi; mother & daughter, mother & son, father & daughter, father & son, grandparent and sibling moments |
-| Work & school life | Milestones grouped by role, from getting in and the first uniform to leaving, plus shared **Work life** and **School life** moments. The 50 groups are: school students (boys', girls', mixed), university student, intern and software engineer, part-time, primary, preschool and secondary teacher, nurse, midwife, flight attendant, doctor, lawyer, secretary, typist, telephone operator, government clerk, postal worker, bus conductor, tea plucker, housemaid, beautician, hairdresser, fashion designer, model, dancer, receptionist, bank officer, garment worker, working abroad, homemaker, nanny, police, armed forces, pilot, chef, engineer, accountant, and part-time jobs. Combine any of them with an **As** clause ("got my wings as a flight attendant") |
+| Work & school life | Milestones grouped by role, from getting in and the first uniform to leaving, plus shared **Work life** and **School life** moments. Spicy moments and passing hard times are not life events: tell them with **Doing** and **As**
+("was 🌙 having a night-shift romance 🧑‍⚕️ as a nurse"). The 56 groups are: school students (boys', girls', mixed), university student, intern and software engineer, part-time, primary, preschool and secondary teacher, nurse, midwife, flight attendant, doctor, lawyer, secretary, typist, telephone operator, government clerk, postal worker, bus conductor, tea plucker, housemaid, beautician, hairdresser, fashion designer, model, dancer, receptionist, bank officer, garment worker, working abroad, homemaker, nanny, police, armed forces, pilot, chef, engineer, accountant, part-time jobs, and adult work (content creator, exotic dancer, adult film performer, sex worker, burlesque performer, sex educator). Combine any of them with an **As** clause ("got my wings as a flight attendant") |
 | Education and career | Exams, degrees and fields of study (typed); `Became {role}`; work anniversaries |
-| Love, weddings and identity | Dating, love and intimacy, **spicy & naughty**, **heartache & mistakes**, polyamory and queerplatonic partnerships, Poruwa ceremony, Nikah, Anand Karaj, coming out, transition, Pride |
+| Love, weddings and identity | Dating, love and intimacy, **intimate firsts** (🌶️), **heartache & mistakes** (💔), polyamory and queerplatonic partnerships, Poruwa ceremony, Nikah, Anand Karaj, coming out, transition, Pride |
 | Women's and reproductive health | Fertility and IVF, pregnancy week by week, birth types, NICU, loss, menopause |
 | Everything else | Travel (typed by country), sports and races, hobbies and music, languages, pets, faith and culture, civic life, money, health and sobriety, style firsts, birthdays 1–110, anniversaries, later life, loss and remembrance |
 
 The **Life events** tab filters by **category**, **sub-group**, **life stage** (baby to later
-life) and **tone** (🌶️ spicy & naughty or 💔 hard times), plus full-text search.
+life) and **tone** (🌶️ intimate firsts or 💔 hard times), plus full-text search.
+
+What counts as a life event is a turning point: a first, a start, an end, a change. Things that
+happen often or for a while are **Doing**: festivals and celebrations (*celebrating Vesak*), trips
+and outings (*on a road trip*), dates and nights out, everyday moments, spicy moments and passing
+hard times. They were moved out of the life-event catalog, which now has about 1,900 templates
+covering about 5,400 events.
 
 Old ids keep working:
 
@@ -583,7 +594,7 @@ Where the build deliberately differs from `system_architecture_proposal.md`:
 | `54c8325` | **Password change:** re-wrap or full key rotation with crash-safe staging |
 | `1ef207d` | **Articles and albums:** post kinds, per-photo captions, album editor, the photo viewer, article reader, album pages |
 | `2d2a6c1` | **Facebook social features:** tag people, check-ins, feelings/activities, life events, photo tagging, relationships, profile pictures and cover photos |
-| *latest* | **Life for everyone:** stories: every post tells an ordered sentence of clauses (feelings, doing, ~7,500 life events, *as* roles), each with is/was, its own people and words, replacing the separate life-event post; shared vocabularies; life events by category, sub-group, life stage and tone (spicy, hard); ~100 modern relationship kinds with gendered labels; non-binary gender identities, pronouns and relationship status |
+| *latest* | **Life for everyone:** stories: every post tells an ordered sentence of clauses (feelings, doing, ~5,400 life events, *as* roles), each with is/was, its own people and words, replacing the separate life-event post; shared vocabularies; life events by category, sub-group, life stage and tone (spicy, hard); ~100 modern relationship kinds with gendered labels; non-binary gender identities, pronouns and relationship status |
 
 ---
 

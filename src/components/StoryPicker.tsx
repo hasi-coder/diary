@@ -72,15 +72,15 @@ function Doing({ onAdd }: { onAdd: (c: Activity) => void }) {
     return (
       <div className="grid grid-cols-2 gap-1 sm:grid-cols-4">
         {ACTIVITY_VERBS.map((a) => (
-          <button key={a.verb} type="button" onClick={() => setVerb(a)} className="flex items-center gap-2 rounded-lg px-2 py-2 text-left text-sm hover:bg-slate-50">
-            <span className="text-xl">{a.emoji}</span> <span className="capitalize">{a.verb}…</span>
+          <button key={a.label ?? a.verb} type="button" onClick={() => setVerb(a)} className="flex items-center gap-2 rounded-lg px-2 py-2 text-left text-sm hover:bg-slate-50">
+            <span className="text-xl">{a.emoji}</span> <span className="first-letter:uppercase">{a.label ?? `${a.verb}…`}</span>
           </button>
         ))}
       </div>
     );
   return (
     <ThingChooser
-      title={`${verb.emoji} ${verb.verb}…`}
+      title={`${verb.emoji} ${verb.label ?? `${verb.verb}…`}`}
       placeholder={verb.prompt}
       things={(q) => searchThings(verb.kinds, q, 120)}
       showKind={verb.kinds.length > 1}

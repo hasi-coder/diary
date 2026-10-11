@@ -16,7 +16,8 @@ export type ClauseKind = "state" | "done" | "as";
 export function kindOf(c: Activity): ClauseKind {
   if (c.verb === "as") return "as";
   if (c.thing?.startsWith("event:")) return "done";
-  if (c.verb !== "" || c.thing?.startsWith("role:") || /^(an?|the)\s|^\w+ing\b/.test(c.object)) return "state";
+  // Roles, spicy moments and hard times are whole clauses that follow is/was ("was a nurse", "was slow dancing").
+  if (c.verb !== "" || /^(role|spicy|struggle):/.test(c.thing ?? "") || /^(an?|the)\s|^\w+ing\b/.test(c.object)) return "state";
   return "done";
 }
 
