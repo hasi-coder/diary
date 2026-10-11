@@ -1,0 +1,93 @@
+@import "@fontsource-variable/inter";
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter Variable", ui-sans-serif, system-ui, sans-serif;
+  --color-brand-50: #f0fdfa;
+  --color-brand-100: #ccfbf1;
+  --color-brand-200: #99f6e4;
+  --color-brand-300: #5eead4;
+  --color-brand-500: #14b8a6;
+  --color-brand-600: #0d9488;
+  --color-brand-700: #0f766e;
+  --color-brand-900: #134e4a;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  overflow: hidden;
+}
+
+body {
+  @apply bg-slate-50 text-slate-900 antialiased;
+}
+
+button:not(:disabled) {
+  cursor: pointer;
+}
+
+.thin-scroll::-webkit-scrollbar {
+  width: 6px;
+}
+.thin-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+.thin-scroll::-webkit-scrollbar-thumb {
+  background-color: #cbd5e1;
+  border-radius: 20px;
+}
+
+.glass-panel {
+  background: rgba(255, 255, 255, 0.75);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.5);
+}
+
+.entity-tag {
+  @apply rounded-md bg-brand-50 px-1.5 py-0.5 font-medium text-brand-600 transition-colors hover:bg-brand-100 hover:underline;
+}
+
+/* Minimal Markdown styling for post bodies. */
+.post-md > * + * {
+  margin-top: 0.6em;
+}
+.post-md ul {
+  @apply list-disc pl-5;
+}
+.post-md ol {
+  @apply list-decimal pl-5;
+}
+.post-md h1 {
+  @apply text-lg font-bold text-slate-800;
+}
+.post-md h2 {
+  @apply text-base font-bold text-slate-800;
+}
+.post-md h3 {
+  @apply font-semibold text-slate-800;
+}
+.post-md strong {
+  @apply font-semibold text-slate-800;
+}
+.post-md blockquote {
+  @apply border-l-4 border-slate-200 pl-3 text-slate-500 italic;
+}
+.post-md code {
+  @apply rounded bg-slate-100 px-1 py-0.5 font-mono text-[0.85em];
+}
+.post-md pre {
+  @apply overflow-x-auto rounded-lg bg-slate-100 p-3;
+}
+.post-md pre code {
+  @apply bg-transparent p-0;
+}
+.post-md table {
+  @apply text-left text-sm;
+}
+.post-md th,
+.post-md td {
+  @apply border border-slate-200 px-2 py-1;
+}
