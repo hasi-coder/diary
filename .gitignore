@@ -27,6 +27,7 @@ Cargo.lock
 
 # Journal data: decrypted caches and the generated demo workspace never get committed
 data_sources/*/.cache/
+data_sources/*/.rotate/
 data_sources/workspace_demo/
 *.enc.tmp
 

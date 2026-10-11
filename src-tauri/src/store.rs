@@ -44,6 +44,10 @@ const MANIFEST_FILE: &str = "manifest.enc";
 const MANIFEST_ID: &str = "manifest";
 pub const WORKSPACE_PREFIX: &str = "workspace_";
 const MENTION_PREFIX: &str = "@[profile:";
+/// Staging area for a key rotation; see [`Workspace::change_password`].
+const ROTATE_DIR: &str = ".rotate";
+/// Written once everything is staged. Its presence means "roll forward".
+const ROTATE_READY: &str = "READY";
 
 /// Argon2id cost parameters.
 #[derive(Clone, Copy, Debug)]
@@ -179,6 +183,93 @@ fn write_config(dir: &Path, config: &WorkspaceConfig) -> Result<()> {
     atomic_write(&dir.join(CONFIG_FILE), &serde_json::to_vec_pretty(config)?)
 }
 
+/// Builds a fresh `workspace.json` that wraps `key` under `password`.
+fn wrap_key(key: &Key, password: &str, cost: KdfCost) -> Result<WorkspaceConfig> {
+    let salt = crypto::random_bytes::<16>();
+    let kek = crypto::derive_key(password.as_bytes(), &salt, cost.memory_kib, cost.iterations, cost.parallelism)?;
+    Ok(WorkspaceConfig {
+        format_version: CURRENT_SCHEMA,
+        name: None,
+        kdf: KdfParams {
+            algorithm: "argon2id".into(),
+            memory_kib: cost.memory_kib,
+            iterations: cost.iterations,
+            parallelism: cost.parallelism,
+            salt: B64.encode(salt),
+        },
+        wrapped_key: B64.encode(crypto::seal(&kek, "keywrap", key.as_ref())?),
+    })
+}
+
+/// Unwraps the data key from `config` with `password`.
+fn unwrap_key(config: &WorkspaceConfig, password: &str) -> Result<Key> {
+    let salt = B64.decode(&config.kdf.salt).map_err(|_| Error::Invalid("Corrupt KDF salt.".into()))?;
+    let wrapped = B64.decode(&config.wrapped_key).map_err(|_| Error::Invalid("Corrupt wrapped key.".into()))?;
+    let kdf = &config.kdf;
+    let kek = crypto::derive_key(password.as_bytes(), &salt, kdf.memory_kib, kdf.iterations, kdf.parallelism)?;
+    let raw = crypto::open(&kek, "keywrap", &wrapped).map_err(|_| Error::BadPassword)?;
+    Ok(Zeroizing::new(raw.as_slice().try_into().map_err(|_| Error::BadPassword)?))
+}
+
+fn write_synced(path: &Path, bytes: &[u8]) -> Result<()> {
+    use std::io::Write;
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent)?;
+    }
+    let mut file = fs::File::create(path)?;
+    file.write_all(bytes)?;
+    file.sync_all()?;
+    Ok(())
+}
+
+/// Path of a record relative to the workspace folder.
+fn record_rel_path(kind: Kind, id: &str) -> PathBuf {
+    match kind {
+        Kind::Manifest => PathBuf::from(MANIFEST_FILE),
+        _ => Path::new(kind.dir()).join(format!("{id}.enc")),
+    }
+}
+
+/// Moves a fully staged rotation into place. Idempotent, so it can be re-run
+/// after a crash. `workspace.json` moves last because it decides which key
+/// the files are read with; recovery always finishes the job first.
+fn commit_rotation(dir: &Path) -> Result<()> {
+    let staging = dir.join(ROTATE_DIR);
+    for sub in Kind::RECORDS.iter().chain([Kind::Media].iter()).map(|k| k.dir()) {
+        let from = staging.join(sub);
+        if !from.exists() {
+            continue;
+        }
+        fs::create_dir_all(dir.join(sub))?;
+        for entry in fs::read_dir(&from)? {
+            let path = entry?.path();
+            if let Some(name) = path.file_name() {
+                fs::rename(&path, dir.join(sub).join(name))?;
+            }
+        }
+    }
+    for file in [MANIFEST_FILE, CONFIG_FILE] {
+        if staging.join(file).exists() {
+            fs::rename(staging.join(file), dir.join(file))?;
+        }
+    }
+    fs::remove_dir_all(&staging)?;
+    Ok(())
+}
+
+/// Finishes (if fully staged) or discards (if not) an interrupted key rotation.
+fn recover_rotation(dir: &Path) -> Result<()> {
+    let staging = dir.join(ROTATE_DIR);
+    if !staging.exists() {
+        return Ok(());
+    }
+    if staging.join(ROTATE_READY).exists() {
+        commit_rotation(dir)
+    } else {
+        Ok(fs::remove_dir_all(&staging)?)
+    }
+}
+
 fn label_of(id: &str) -> String {
     id.strip_prefix(WORKSPACE_PREFIX).unwrap_or(id).to_string()
 }
@@ -227,21 +318,8 @@ pub fn create_workspace(
         return Err(Error::Invalid(format!("A workspace folder named \"{id}\" already exists.")));
     }
 
-    let salt = crypto::random_bytes::<16>();
-    let kek = crypto::derive_key(password.as_bytes(), &salt, cost.memory_kib, cost.iterations, cost.parallelism)?;
     let data_key = crypto::random_key();
-    let config = WorkspaceConfig {
-        format_version: CURRENT_SCHEMA,
-        name: None,
-        kdf: KdfParams {
-            algorithm: "argon2id".into(),
-            memory_kib: cost.memory_kib,
-            iterations: cost.iterations,
-            parallelism: cost.parallelism,
-            salt: B64.encode(salt),
-        },
-        wrapped_key: B64.encode(crypto::seal(&kek, "keywrap", data_key.as_ref())?),
-    };
+    let config = wrap_key(&data_key, password, cost)?;
 
     fs::create_dir_all(&dir)?;
     let result = (|| {
@@ -297,6 +375,7 @@ pub fn create_workspace(
 pub fn open_workspace(root: &Path, id: &str, password: &str) -> Result<Workspace> {
     validate_workspace_id(id)?;
     let dir = root.join(id);
+    recover_rotation(&dir)?;
     let config = read_config(&dir)?;
     if config.format_version > CURRENT_SCHEMA {
         return Err(Error::Invalid("This workspace was created by a newer version of My Diary. Update the app.".into()));
@@ -305,12 +384,7 @@ pub fn open_workspace(root: &Path, id: &str, password: &str) -> Result<Workspace
         return Err(Error::Invalid("Unsupported key derivation algorithm.".into()));
     }
 
-    let salt = B64.decode(&config.kdf.salt).map_err(|_| Error::Invalid("Corrupt KDF salt.".into()))?;
-    let wrapped = B64.decode(&config.wrapped_key).map_err(|_| Error::Invalid("Corrupt wrapped key.".into()))?;
-    let kdf = &config.kdf;
-    let kek = crypto::derive_key(password.as_bytes(), &salt, kdf.memory_kib, kdf.iterations, kdf.parallelism)?;
-    let raw_key = crypto::open(&kek, "keywrap", &wrapped).map_err(|_| Error::BadPassword)?;
-    let key: Key = Zeroizing::new(raw_key.as_slice().try_into().map_err(|_| Error::BadPassword)?);
+    let key = unwrap_key(&config, password)?;
 
     let mut stale = HashSet::new();
     let manifest_bytes = fs::read(dir.join(MANIFEST_FILE))?;
@@ -522,6 +596,104 @@ impl Workspace {
 
     fn config_is_stale(&self) -> bool {
         self.config.format_version < CURRENT_SCHEMA || self.config.name.is_some()
+    }
+
+    // ---- Password ----
+
+    /// Changes the workspace password.
+    ///
+    /// Without `rotate`, the existing data key is re-wrapped under the new
+    /// password and only `workspace.json` changes. Git history still holds the
+    /// old wrapping, so the old password keeps working on old clones, and on
+    /// anything written later with the same key.
+    ///
+    /// With `rotate`, a new data key is generated and every file is
+    /// re-encrypted under it (completing any pending migration on the way).
+    /// Files are staged in `.rotate/`, a `READY` marker is synced, then they
+    /// are moved into place; `open_workspace` rolls an interrupted commit
+    /// forward, or discards a half-staged one.
+    pub fn change_password(&mut self, current: &str, new: &str, rotate: bool, cost: KdfCost) -> Result<PasswordChange> {
+        if new.chars().count() < 8 {
+            return Err(Error::Invalid("The new password must be at least 8 characters.".into()));
+        }
+        if new == current {
+            return Err(Error::Invalid("The new password must be different from the current one.".into()));
+        }
+        if unwrap_key(&self.config, current)?.as_ref() != self.key.as_ref() {
+            return Err(Error::BadPassword);
+        }
+
+        if !rotate {
+            let config = WorkspaceConfig {
+                format_version: self.config.format_version,
+                name: self.config.name.clone(),
+                ..wrap_key(&self.key, new, cost)?
+            };
+            write_config(&self.dir, &config)?;
+            self.config = config;
+            return Ok(PasswordChange { rotated: false, files_rewritten: 1 });
+        }
+
+        let new_key = crypto::random_key();
+        let config = wrap_key(&new_key, new, cost)?;
+        let staging = self.dir.join(ROTATE_DIR);
+        if staging.exists() {
+            fs::remove_dir_all(&staging)?;
+        }
+        let files = match self.stage_rotation(&staging, &new_key, &config) {
+            Ok(n) => n,
+            Err(e) => {
+                let _ = fs::remove_dir_all(&staging);
+                return Err(e);
+            }
+        };
+        commit_rotation(&self.dir)?;
+
+        self.key = new_key;
+        self.config = config;
+        self.manifest.format_version = CURRENT_SCHEMA;
+        self.stale.clear();
+        self.disk_schema = CURRENT_SCHEMA;
+        Ok(PasswordChange { rotated: true, files_rewritten: files })
+    }
+
+    /// Writes every file, encrypted under `key`, into `staging`. Returns the file count.
+    fn stage_rotation(&self, staging: &Path, key: &Key, config: &WorkspaceConfig) -> Result<usize> {
+        let mut count = 0;
+        let mut put = |rel: PathBuf, bytes: Vec<u8>| -> Result<()> {
+            count += 1;
+            write_synced(&staging.join(rel), &bytes)
+        };
+
+        let manifest = Manifest { format_version: CURRENT_SCHEMA, ..self.manifest.clone() };
+        put(record_rel_path(Kind::Manifest, MANIFEST_ID), record::encode(key, Kind::Manifest, MANIFEST_ID, serde_json::to_value(&manifest)?, json!({}))?)?;
+        for p in self.profiles.values() {
+            put(record_rel_path(Kind::Profile, &p.id), record::encode(key, Kind::Profile, &p.id, serde_json::to_value(p)?, json!({}))?)?;
+        }
+        for p in self.posts.values() {
+            put(record_rel_path(Kind::Post, &p.id), record::encode(key, Kind::Post, &p.id, serde_json::to_value(p)?, post_meta(p))?)?;
+        }
+        for i in self.items.values() {
+            put(record_rel_path(Kind::Item, &i.id), record::encode(key, Kind::Item, &i.id, serde_json::to_value(i)?, json!({}))?)?;
+        }
+
+        let media_dir = self.dir.join(Kind::Media.dir());
+        if media_dir.exists() {
+            for entry in fs::read_dir(&media_dir)? {
+                let path = entry?.path();
+                if path.extension().and_then(|e| e.to_str()) != Some("enc") {
+                    continue;
+                }
+                let Some(id) = path.file_stem().and_then(|s| s.to_str()).map(str::to_owned) else { continue };
+                let plain = record::decode_blob(&self.key, &id, &fs::read(&path)?)
+                    .map_err(|_| Error::Invalid(format!("Could not decrypt {}; nothing was changed.", path.display())))?;
+                put(record_rel_path(Kind::Media, &id), record::encode_blob(key, &id, &plain)?)?;
+            }
+        }
+
+        put(PathBuf::from(CONFIG_FILE), serde_json::to_vec_pretty(config)?)?;
+        write_synced(&staging.join(ROTATE_READY), b"")?;
+        Ok(count)
     }
 
     // ---- Migrations ----
@@ -1279,6 +1451,114 @@ mod tests {
         assert_eq!(ws.search("rusty", 10).totals, SearchTotals::default());
         ws.delete_post(&p.id).unwrap();
         assert_eq!(ws.search("tea", 10).totals.posts, 0);
+    }
+
+    /// A workspace with a profile, a post and an attached image.
+    fn populated(root: &Path) -> (Workspace, Vec<u8>, String) {
+        let mut ws = create_workspace(root, "", "Personal", "Alex", "old password", FAST).unwrap();
+        let owner = ws.owner_id().to_string();
+        let sarah = ws.save_profile(person("Sarah", ProfileKind::Person)).unwrap();
+        let png = [&b"\x89PNG\r\n\x1a\n"[..], &[3u8; 5000]].concat();
+        let media = ws.stage_media("p.png", png.clone()).unwrap();
+        ws.save_post(post(&owner, &format!("Walk with @[profile:{}]", sarah.id), vec![media.id.clone()])).unwrap();
+        (ws, png, media.id)
+    }
+
+    fn snapshot_files(root: &Path) -> HashMap<PathBuf, Vec<u8>> {
+        walk(root).into_iter().map(|p| (p.clone(), fs::read(&p).unwrap())).collect()
+    }
+
+    #[test]
+    fn change_password_rewraps_key() {
+        let root = tempfile::tempdir().unwrap();
+        let (mut ws, _, _) = populated(root.path());
+        assert!(matches!(ws.change_password("wrong", "new password", false, FAST), Err(Error::BadPassword)));
+        assert!(ws.change_password("old password", "short", false, FAST).is_err());
+        assert!(ws.change_password("old password", "old password", false, FAST).is_err());
+
+        let before = snapshot_files(root.path());
+        let change = ws.change_password("old password", "new password", false, FAST).unwrap();
+        assert_eq!((change.rotated, change.files_rewritten), (false, 1));
+        let after = snapshot_files(root.path());
+        for (path, bytes) in &before {
+            let same = &after[path] == bytes;
+            assert_eq!(same, !path.ends_with(CONFIG_FILE), "{}", path.display());
+        }
+
+        assert!(matches!(open_workspace(root.path(), "workspace_personal", "old password"), Err(Error::BadPassword)));
+        let reopened = open_workspace(root.path(), "workspace_personal", "new password").unwrap();
+        assert_eq!(reopened.posts.len(), 1);
+        // The session keeps working with the new password.
+        assert!(ws.change_password("new password", "third password", false, FAST).is_ok());
+    }
+
+    #[test]
+    fn change_password_rotates_key() {
+        let root = tempfile::tempdir().unwrap();
+        let (mut ws, png, media_id) = populated(root.path());
+        let before = snapshot_files(root.path());
+
+        let change = ws.change_password("old password", "new password", true, FAST).unwrap();
+        assert!(change.rotated);
+        assert_eq!(change.files_rewritten, 6, "manifest, 2 profiles, post, media, config");
+        let after = snapshot_files(root.path());
+        assert_eq!(before.len(), after.len(), "same set of files");
+        for (path, bytes) in &before {
+            assert_ne!(&after[path], bytes, "{} was not re-encrypted", path.display());
+        }
+        assert!(!root.path().join("workspace_personal").join(ROTATE_DIR).exists());
+
+        // The live session uses the new key: saving and reading media still work.
+        let owner = ws.owner_id().to_string();
+        ws.save_post(post(&owner, "after rotation", vec![])).unwrap();
+        assert_eq!(decrypt_saved(&mut ws, &media_id), png);
+
+        assert!(matches!(open_workspace(root.path(), "workspace_personal", "old password"), Err(Error::BadPassword)));
+        let mut reopened = open_workspace(root.path(), "workspace_personal", "new password").unwrap();
+        assert_eq!(reopened.posts.len(), 2);
+        assert_eq!(decrypt_saved(&mut reopened, &media_id), png);
+        assert_eq!(reopened.search("walk", 10).totals.posts, 1);
+    }
+
+    #[test]
+    fn rotation_completes_pending_migration() {
+        let root = tempfile::tempdir().unwrap();
+        write_phase1_workspace(root.path());
+        let mut ws = open_workspace(root.path(), "workspace_old", "correct horse").unwrap();
+        assert!(ws.migration_status().stale_files > 0);
+        ws.change_password("correct horse", "brand new pass", true, FAST).unwrap();
+        assert_eq!(ws.migration_status().stale_files, 0);
+        assert_no_plaintext(root.path(), &["Old Plaintext Name"]);
+        let ws = open_workspace(root.path(), "workspace_old", "brand new pass").unwrap();
+        assert_eq!(ws.migration_status().stale_files, 0);
+        assert_eq!(ws.manifest.name, "Old Plaintext Name");
+    }
+
+    #[test]
+    fn recovers_from_interrupted_rotation() {
+        // Crash while staging: the half-staged copy is discarded.
+        let root = tempfile::tempdir().unwrap();
+        let (ws, _, _) = populated(root.path());
+        let dir = root.path().join("workspace_personal");
+        fs::create_dir_all(dir.join(ROTATE_DIR).join("posts")).unwrap();
+        fs::write(dir.join(ROTATE_DIR).join("posts/junk.enc"), b"partial").unwrap();
+        drop(ws);
+        let ws = open_workspace(root.path(), "workspace_personal", "old password").unwrap();
+        assert!(!dir.join(ROTATE_DIR).exists());
+
+        // Crash halfway through the commit: unlocking rolls it forward.
+        let new_key = crypto::random_key();
+        let config = wrap_key(&new_key, "new password", FAST).unwrap();
+        ws.stage_rotation(&dir.join(ROTATE_DIR), &new_key, &config).unwrap();
+        fs::rename(dir.join(ROTATE_DIR).join(MANIFEST_FILE), dir.join(MANIFEST_FILE)).unwrap();
+        let first_profile = fs::read_dir(dir.join(ROTATE_DIR).join("entities")).unwrap().next().unwrap().unwrap().path();
+        fs::rename(&first_profile, dir.join("entities").join(first_profile.file_name().unwrap())).unwrap();
+        drop(ws);
+
+        let ws = open_workspace(root.path(), "workspace_personal", "new password").unwrap();
+        assert!(!dir.join(ROTATE_DIR).exists());
+        assert_eq!((ws.profiles.len(), ws.posts.len()), (2, 1));
+        assert!(matches!(open_workspace(root.path(), "workspace_personal", "old password"), Err(Error::BadPassword)));
     }
 
     /// Writes a workspace exactly as Phase 1 (format 1) did.

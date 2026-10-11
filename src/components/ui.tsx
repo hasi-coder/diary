@@ -148,3 +148,41 @@ export function EmptyState(props: { icon: ReactNode; title: string; children?: R
     </div>
   );
 }
+
+const COMMON_PASSWORDS = ["password", "12345678", "123456789", "qwerty", "letmein", "iloveyou", "admin123", "welcome1"];
+
+/** Rough strength estimate from length and character variety. A guide, not a guarantee. */
+export function passwordStrength(pw: string): { score: 0 | 1 | 2 | 3 | 4; label: string } {
+  if (pw.length < 8) return { score: 0, label: pw ? "Too short (8+ characters)" : "" };
+  let pool = 0;
+  if (/[a-z]/.test(pw)) pool += 26;
+  if (/[A-Z]/.test(pw)) pool += 26;
+  if (/[0-9]/.test(pw)) pool += 10;
+  if (/[^A-Za-z0-9\s]/.test(pw) && /[\x21-\x7e]/.test(pw)) pool += 33;
+  if (/\s/.test(pw)) pool += 1;
+  if (/[^\x00-\x7f]/.test(pw)) pool += 100;
+  let bits = pw.length * Math.log2(Math.max(pool, 2));
+  const lower = pw.toLowerCase();
+  if (COMMON_PASSWORDS.some((c) => lower.includes(c)) || /^(.)\1+$/.test(pw)) bits = Math.min(bits, 20);
+  if (bits < 40) return { score: 1, label: "Weak" };
+  if (bits < 60) return { score: 2, label: "Fair" };
+  if (bits < 80) return { score: 3, label: "Good" };
+  return { score: 4, label: "Strong" };
+}
+
+const STRENGTH_COLORS = ["bg-slate-200", "bg-rose-500", "bg-amber-500", "bg-lime-500", "bg-emerald-500"];
+
+export function PasswordStrength({ password }: { password: string }) {
+  const { score, label } = passwordStrength(password);
+  if (!password) return null;
+  return (
+    <div className="mt-1.5 flex items-center gap-2">
+      <div className="flex flex-1 gap-1">
+        {[1, 2, 3, 4].map((i) => (
+          <span key={i} className={`h-1 flex-1 rounded-full ${i <= score ? STRENGTH_COLORS[score] : "bg-slate-200"}`} />
+        ))}
+      </div>
+      <span className="w-40 text-right text-xs text-slate-500">{label}</span>
+    </div>
+  );
+}

@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import { CircleNotchIcon, LockKeyIcon, LockKeyOpenIcon, PlusIcon, ShieldCheckIcon } from "@phosphor-icons/react";
 import { api, errorMessage, isTauri, type Snapshot, type WorkspaceInfo } from "../lib/api";
+import { PasswordStrength } from "./ui";
 
 const slugify = (s: string) =>
   s
@@ -117,7 +118,10 @@ export function UnlockScreen({ onUnlocked }: { onUnlocked: (s: Snapshot) => void
                 </p>
               </div>
               <input className={glassInput} placeholder="Your name" value={ownerName} onChange={(e) => setOwnerName(e.target.value)} autoFocus />
-              <input type="password" className={glassInput} placeholder="Master password (8+ characters)" value={password} onChange={(e) => setPassword(e.target.value)} />
+              <div>
+                <input type="password" className={glassInput} placeholder="Master password (8+ characters)" value={password} onChange={(e) => setPassword(e.target.value)} />
+                <PasswordStrength password={password} />
+              </div>
               <input type="password" className={glassInput} placeholder="Confirm password" value={confirm} onChange={(e) => setConfirm(e.target.value)} />
             </>
           )}

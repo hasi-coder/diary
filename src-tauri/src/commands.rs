@@ -6,7 +6,7 @@ use std::sync::Mutex;
 use base64::engine::general_purpose::STANDARD as B64;
 use base64::Engine;
 use tauri::ipc::{InvokeBody, Request};
-use tauri::State;
+use tauri::{AppHandle, Manager, State};
 use zeroize::Zeroizing;
 
 use crate::error::{Error, Result};
@@ -160,4 +160,15 @@ pub fn search(state: State<'_, AppState>, query: String, limit: Option<usize>) -
 #[tauri::command]
 pub fn get_post(state: State<'_, AppState>, id: String) -> Result<Post> {
     state.with_workspace(|ws| ws.posts.get(&id).cloned().ok_or_else(|| Error::NotFound(format!("post {id}"))))
+}
+
+/// Changes the password, optionally rotating the data key (see `Workspace::change_password`).
+#[tauri::command]
+pub async fn change_password(app: AppHandle, current: String, new_password: String, rotate_key: bool) -> Result<PasswordChange> {
+    let (current, new_password) = (Zeroizing::new(current), Zeroizing::new(new_password));
+    blocking(move || {
+        app.state::<AppState>()
+            .with_workspace(|ws| ws.change_password(&current, &new_password, rotate_key, store::DEFAULT_KDF))
+    })
+    .await
 }

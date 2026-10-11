@@ -134,6 +134,11 @@ export interface SearchResults {
   totals: { posts: number; profiles: number; items: number };
 }
 
+export interface PasswordChange {
+  rotated: boolean;
+  filesRewritten: number;
+}
+
 export const isTauri = () => "__TAURI_INTERNALS__" in window;
 
 export const api = {
@@ -159,6 +164,8 @@ export const api = {
   discardMedia: (ids: string[]) => invoke<void>("discard_media", { ids }),
   search: (query: string, limit = 20) => invoke<SearchResults>("search", { query, limit }),
   getPost: (id: string) => invoke<Post>("get_post", { id }),
+  changePassword: (current: string, newPassword: string, rotateKey: boolean) =>
+    invoke<PasswordChange>("change_password", { current, newPassword, rotateKey }),
 };
 
 export function errorMessage(e: unknown): string {

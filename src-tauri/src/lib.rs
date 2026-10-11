@@ -31,6 +31,7 @@ pub fn run() {
             commands::discard_media,
             commands::search,
             commands::get_post,
+            commands::change_password,
         ])
         // Serves decrypted attachments to the webview; see media.rs.
         .register_asynchronous_uri_scheme_protocol("journal", |ctx, request, responder| {

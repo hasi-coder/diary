@@ -37,7 +37,11 @@ for the full design.
   items, with ranked results and highlighted snippets. The timeline search box and `#tag` clicks
   use the same index.
 
-Not yet built: map view, password change.
+- **Password change** (Phase 5): in **Settings → Password**, either re-wrap the key (instant) or
+  generate a new key and re-encrypt everything. There's a strength meter here and when creating a
+  workspace.
+
+Not yet built: map view.
 
 ## On-disk format
 
@@ -107,6 +111,26 @@ original proposal.
 - **What's indexed:** post text with mentions resolved to current names, the author's name,
   attachment file names; profile names and details; item names, descriptions and shop names.
   Renaming a profile re-indexes the posts that mention it.
+
+## Changing the password
+
+The password only unwraps a random data key, so there are two ways to change it:
+
+| Mode | What changes | Old password still opens… |
+| --- | --- | --- |
+| **Change password** | `workspace.json` only (new salt, current Argon2id settings, key re-wrapped) | old clones and git history, **and** anything written later, because the data key is the same |
+| **Re-encrypt everything** | A new data key; every record and media file is re-encrypted (this also completes pending migrations) | only old clones and git history, frozen at the change |
+
+Use re-encryption if the old password may be known to someone. Neither mode can change what's
+already in git history; that would need a history rewrite or a fresh repository.
+
+Re-encryption is crash-safe:
+
+1. Every file is written and fsynced into `<workspace>/.rotate/` (git-ignored), followed by a
+   `READY` marker.
+2. The files are moved into place, with `workspace.json` moved last.
+3. When you next unlock, a run that has `READY` is rolled forward. A run without it is discarded,
+   and the old password still works.
 
 ## Migrations
 

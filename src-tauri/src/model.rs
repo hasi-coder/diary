@@ -292,3 +292,11 @@ pub struct SearchTotals {
     pub profiles: usize,
     pub items: usize,
 }
+
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PasswordChange {
+    /// Whether a new data key was generated and every file re-encrypted.
+    pub rotated: bool,
+    pub files_rewritten: usize,
+}

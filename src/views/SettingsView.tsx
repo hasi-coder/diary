@@ -1,14 +1,16 @@
 // Workspace details, what's visible in the repository, and storage migrations.
 import { useState, type ReactNode } from "react";
-import { ArrowsClockwiseIcon, CheckCircleIcon, EyeIcon, EyeSlashIcon, GearIcon, ShieldCheckIcon, WarningIcon } from "@phosphor-icons/react";
+import { ArrowsClockwiseIcon, CheckCircleIcon, EyeIcon, EyeSlashIcon, GearIcon, KeyIcon, ShieldCheckIcon, WarningIcon } from "@phosphor-icons/react";
 import { api, errorMessage } from "../lib/api";
 import { useJournal } from "../lib/journal";
+import { ChangePasswordDialog } from "../components/ChangePassword";
 import { Page } from "../components/Shell";
 import { Button, ErrorText } from "../components/ui";
 
 export function SettingsView() {
   const { snapshot, owner } = useJournal();
   const { workspace, storage } = snapshot;
+  const [changingPassword, setChangingPassword] = useState(false);
 
   return (
     <Page
@@ -43,6 +45,16 @@ export function SettingsView() {
           />
         </Card>
 
+        <Card title="Password" icon={<KeyIcon className="text-brand-500" />}>
+          <p className="mb-4 text-sm text-slate-500">
+            The password unlocks a random encryption key. Changing it only re-wraps that key, unless you also choose to
+            re-encrypt everything with a new key.
+          </p>
+          <Button variant="outline" onClick={() => setChangingPassword(true)}>
+            <KeyIcon /> Change password…
+          </Button>
+        </Card>
+
         <Card title="What the repository reveals">
           <div className="grid gap-4 sm:grid-cols-2">
             <List
@@ -64,6 +76,7 @@ export function SettingsView() {
           </div>
         </Card>
       </div>
+      {changingPassword && <ChangePasswordDialog onClose={() => setChangingPassword(false)} />}
     </Page>
   );
 }
