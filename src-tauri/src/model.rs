@@ -4,14 +4,16 @@ use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
 
-/// Plaintext `workspace.json`. Holds only what is needed to derive the key:
-/// the display name (already visible as the folder name), KDF parameters and
-/// the wrapped data key.
+/// Plaintext `workspace.json`. Holds only what is needed to unlock: the format
+/// version, KDF parameters and the wrapped data key. The workspace name lives
+/// in the encrypted manifest.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct WorkspaceConfig {
     pub format_version: u32,
-    pub name: String,
+    /// Phase 1 stored the name in plaintext; migrations remove it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
     pub kdf: KdfParams,
     /// Random data key, sealed with the password-derived key (base64).
     pub wrapped_key: String,
@@ -183,8 +185,10 @@ pub struct PostFilter {
 #[derive(Clone, Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct WorkspaceInfo {
+    /// Folder name, e.g. `workspace_personal`.
     pub id: String,
-    pub name: String,
+    /// Folder name without the prefix. The real name is encrypted.
+    pub label: String,
 }
 
 #[derive(Clone, Debug, Default, Serialize)]
@@ -205,12 +209,27 @@ pub struct Snapshot {
     /// `occurred_at` of every post, so the UI can build the year/month scrubber
     /// in the viewer's local time zone.
     pub post_dates: Vec<i64>,
+    pub migration: crate::migrate::MigrationStatus,
+    pub storage: StorageInfo,
+}
+
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StorageInfo {
+    pub path: String,
+    pub cipher: String,
+    pub kdf: String,
+    pub kdf_memory_kib: u32,
+    pub kdf_iterations: u32,
+    pub kdf_parallelism: u32,
+    pub pad_block: usize,
 }
 
 #[derive(Clone, Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct WorkspaceSummary {
     pub id: String,
+    pub label: String,
     pub name: String,
     pub owner_profile_id: String,
 }

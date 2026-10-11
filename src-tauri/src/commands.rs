@@ -47,13 +47,15 @@ pub fn list_workspaces(state: State<'_, AppState>) -> Result<Vec<WorkspaceInfo>>
 #[tauri::command]
 pub async fn create_workspace(
     state: State<'_, AppState>,
+    folder: String,
     name: String,
     owner_name: String,
     password: String,
 ) -> Result<Snapshot> {
     let password = Zeroizing::new(password);
     let root = state.root.clone();
-    let ws = blocking(move || store::create_workspace(&root, &name, &owner_name, &password, store::DEFAULT_KDF)).await?;
+    let ws =
+        blocking(move || store::create_workspace(&root, &folder, &name, &owner_name, &password, store::DEFAULT_KDF)).await?;
     Ok(state.install(ws))
 }
 
@@ -109,4 +111,13 @@ pub fn save_item(state: State<'_, AppState>, input: ItemInput) -> Result<Item> {
 #[tauri::command]
 pub fn delete_item(state: State<'_, AppState>, id: String) -> Result<()> {
     state.with_workspace(|ws| ws.delete_item(&id))
+}
+
+/// Rewrites files still stored in an older format, then returns the fresh snapshot.
+#[tauri::command]
+pub fn run_migration(state: State<'_, AppState>) -> Result<Snapshot> {
+    state.with_workspace(|ws| {
+        ws.run_migration()?;
+        Ok(ws.snapshot())
+    })
 }

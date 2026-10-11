@@ -11,7 +11,7 @@ use std::fs;
 use my_diary_lib::model::*;
 use my_diary_lib::store::{self, now_millis, Workspace};
 
-const NAME: &str = "Demo";
+const NAME: &str = "Demo Journal";
 const PASSWORD: &str = "demo-password";
 const DAY: i64 = 24 * 60 * 60 * 1000;
 const HOUR: i64 = 60 * 60 * 1000;
@@ -38,7 +38,7 @@ fn mention(p: &Profile) -> String {
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let force = std::env::args().any(|a| a == "--force");
     let root = store::data_root();
-    let dir = root.join(format!("{}{}", store::WORKSPACE_PREFIX, store::slugify(NAME)));
+    let dir = root.join(format!("{}demo", store::WORKSPACE_PREFIX));
     if dir.exists() {
         if !force {
             eprintln!("{} already exists; pass --force to recreate it.", dir.display());
@@ -48,7 +48,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
     fs::create_dir_all(&root)?;
 
-    let mut ws = store::create_workspace(&root, NAME, "Alex Morgan", PASSWORD, store::DEFAULT_KDF)?;
+    let mut ws = store::create_workspace(&root, "demo", NAME, "Alex Morgan", PASSWORD, store::DEFAULT_KDF)?;
     seed(&mut ws)?;
     println!("Created {} ({} profiles, {} posts, {} items)", dir.display(), ws.profiles.len(), ws.posts.len(), ws.items.len());
     println!("Password: {PASSWORD}");

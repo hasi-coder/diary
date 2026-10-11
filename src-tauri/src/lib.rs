@@ -1,7 +1,9 @@
 pub mod commands;
 pub mod crypto;
 pub mod error;
+pub mod migrate;
 pub mod model;
+pub mod record;
 pub mod store;
 
 pub fn run() {
@@ -20,6 +22,7 @@ pub fn run() {
             commands::delete_post,
             commands::save_item,
             commands::delete_item,
+            commands::run_migration,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

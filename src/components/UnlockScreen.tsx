@@ -3,6 +3,13 @@ import { useEffect, useState } from "react";
 import { CircleNotchIcon, LockKeyIcon, LockKeyOpenIcon, PlusIcon, ShieldCheckIcon } from "@phosphor-icons/react";
 import { api, errorMessage, isTauri, type Snapshot, type WorkspaceInfo } from "../lib/api";
 
+const slugify = (s: string) =>
+  s
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+
 const glassInput =
   "w-full rounded-xl border border-slate-200 bg-white/60 px-4 py-3 text-slate-800 placeholder-slate-400 transition-all focus:bg-white focus:ring-2 focus:ring-brand-500 focus:outline-none";
 
@@ -13,6 +20,7 @@ export function UnlockScreen({ onUnlocked }: { onUnlocked: (s: Snapshot) => void
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [name, setName] = useState("Personal");
+  const [folder, setFolder] = useState("");
   const [ownerName, setOwnerName] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -43,7 +51,7 @@ export function UnlockScreen({ onUnlocked }: { onUnlocked: (s: Snapshot) => void
     setBusy(true);
     try {
       const snapshot =
-        mode === "unlock" ? await api.unlockWorkspace(selected, password) : await api.createWorkspace(name, ownerName, password);
+        mode === "unlock" ? await api.unlockWorkspace(selected, password) : await api.createWorkspace(folder, name, ownerName, password);
       setPassword("");
       setConfirm("");
       onUnlocked(snapshot);
@@ -68,7 +76,7 @@ export function UnlockScreen({ onUnlocked }: { onUnlocked: (s: Snapshot) => void
           <>
             <h1 className="mb-2 text-2xl font-bold text-slate-800">Unlock Workspace</h1>
             <p className="mb-6 text-sm text-slate-500">
-              Enter the root password to decrypt <span className="font-semibold text-slate-700">{current?.name ?? "your journal"}</span>.
+              Enter the root password to decrypt <span className="font-semibold text-slate-700">{current?.label ?? "your journal"}</span>.
             </p>
           </>
         ) : (
@@ -87,7 +95,7 @@ export function UnlockScreen({ onUnlocked }: { onUnlocked: (s: Snapshot) => void
                 <select className={glassInput} value={selected} onChange={(e) => setSelected(e.target.value)} aria-label="Workspace">
                   {workspaces.map((w) => (
                     <option key={w.id} value={w.id}>
-                      {w.name}
+                      {w.label}
                     </option>
                   ))}
                 </select>
@@ -96,7 +104,18 @@ export function UnlockScreen({ onUnlocked }: { onUnlocked: (s: Snapshot) => void
             </>
           ) : (
             <>
-              <input className={glassInput} placeholder="Workspace name (e.g. Personal)" value={name} onChange={(e) => setName(e.target.value)} />
+              <input className={glassInput} placeholder="Workspace name (encrypted)" value={name} onChange={(e) => setName(e.target.value)} />
+              <div>
+                <input
+                  className={glassInput}
+                  placeholder={`Folder label (default: ${slugify(name) || "personal"})`}
+                  value={folder}
+                  onChange={(e) => setFolder(e.target.value)}
+                />
+                <p className="mt-1 px-1 text-xs text-slate-500">
+                  The only name visible in the repo: <code>workspace_{slugify(folder) || slugify(name) || "…"}</code>. Pick something generic if the name is private.
+                </p>
+              </div>
               <input className={glassInput} placeholder="Your name" value={ownerName} onChange={(e) => setOwnerName(e.target.value)} autoFocus />
               <input type="password" className={glassInput} placeholder="Master password (8+ characters)" value={password} onChange={(e) => setPassword(e.target.value)} />
               <input type="password" className={glassInput} placeholder="Confirm password" value={confirm} onChange={(e) => setConfirm(e.target.value)} />

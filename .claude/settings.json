@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "deny": [
+      "Read(./data_sources/**)",
+      "Edit(./data_sources/**)",
+      "Write(./data_sources/**)"
+    ]
+  }
+}

@@ -6,6 +6,7 @@ import { Composer } from "../components/Composer";
 import { PostCard } from "../components/PostCard";
 import { Page } from "../components/Shell";
 import { EmptyState, ErrorText } from "../components/ui";
+import { MigrationBanner } from "./SettingsView";
 
 type Period = { year: number; month?: number };
 
@@ -45,7 +46,8 @@ export function TimelineView() {
       rail={<TimelineRail period={period} onPeriod={setPeriod} profileId={profileId} onProfile={setProfileId} />}
     >
       <div className="space-y-6">
-        <Composer defaultAuthorId={undefined} />
+        <MigrationBanner />
+        <Composer />
 
         {filtered && (
           <div className="flex flex-wrap items-center gap-2 text-sm">

@@ -1,17 +1,21 @@
 //! On-disk workspace layout and the in-memory decrypted cache.
 //!
 //! ```text
-//! data_sources/workspace_<slug>/
-//! ├── workspace.json   plaintext: name, Argon2id params, wrapped data key
-//! ├── manifest.enc     workspace metadata (owner profile, created time)
+//! data_sources/workspace_<label>/
+//! ├── workspace.json        plaintext: format version, Argon2id params, wrapped data key
+//! ├── manifest.enc          workspace name, owner profile, created time
 //! ├── entities/<uuid>.enc   profiles (me, people, pages, shops, places)
 //! ├── posts/<uuid>.enc      journal entries
 //! └── items/<uuid>.enc      shop listings
 //! ```
 //!
+//! The folder label is chosen by the user and is the only name visible in the
+//! repository. Record files are described in `record.rs`.
+//!
 //! Unlocking derives a key-encryption key from the password, unwraps the random
-//! data key, and decrypts every record into memory. Dropping the [`Workspace`]
-//! (on lock or exit) zeroizes the data key.
+//! data key, and decrypts every record into memory, upgrading older schemas on
+//! the fly (see `migrate.rs`). Dropping the [`Workspace`] (on lock or exit)
+//! zeroizes the data key.
 
 use std::collections::{HashMap, HashSet};
 use std::fs;
@@ -22,16 +26,19 @@ use base64::engine::general_purpose::STANDARD as B64;
 use base64::Engine;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
+use serde_json::{json, Value};
 use uuid::Uuid;
 use zeroize::Zeroizing;
 
 use crate::crypto::{self, Key};
 use crate::error::{Error, Result};
+use crate::migrate::{self, MigrationStatus};
 use crate::model::*;
+use crate::record::{self, Kind, CURRENT_SCHEMA};
 
-const FORMAT_VERSION: u32 = 1;
 const CONFIG_FILE: &str = "workspace.json";
 const MANIFEST_FILE: &str = "manifest.enc";
+const MANIFEST_ID: &str = "manifest";
 pub const WORKSPACE_PREFIX: &str = "workspace_";
 const MENTION_PREFIX: &str = "@[profile:";
 
@@ -45,34 +52,6 @@ pub struct KdfCost {
 
 /// OWASP-recommended Argon2id settings (64 MiB, 3 passes).
 pub const DEFAULT_KDF: KdfCost = KdfCost { memory_kib: 64 * 1024, iterations: 3, parallelism: 1 };
-
-#[derive(Clone, Copy)]
-enum Kind {
-    Profile,
-    Post,
-    Item,
-}
-
-impl Kind {
-    const ALL: [Kind; 3] = [Kind::Profile, Kind::Post, Kind::Item];
-
-    fn dir(self) -> &'static str {
-        match self {
-            Kind::Profile => "entities",
-            Kind::Post => "posts",
-            Kind::Item => "items",
-        }
-    }
-
-    fn aad(self, id: &str) -> String {
-        let tag = match self {
-            Kind::Profile => "profile",
-            Kind::Post => "post",
-            Kind::Item => "item",
-        };
-        format!("{tag}:{id}")
-    }
-}
 
 pub fn now_millis() -> i64 {
     SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_millis() as i64).unwrap_or(0)
@@ -112,6 +91,38 @@ pub fn mentions(content: &str) -> Vec<&str> {
         }
     }
     out
+}
+
+/// Unique lower-cased `#tags` (must contain a letter; `#1` is not a tag).
+pub fn hashtags(content: &str) -> Vec<String> {
+    let chars: Vec<char> = content.chars().collect();
+    let mut out: Vec<String> = Vec::new();
+    let mut i = 0;
+    while i < chars.len() {
+        let at_boundary = i == 0 || chars[i - 1].is_whitespace() || chars[i - 1] == '(';
+        if chars[i] == '#' && at_boundary {
+            let mut j = i + 1;
+            while j < chars.len() && (chars[j].is_alphanumeric() || chars[j] == '_' || chars[j] == '-') {
+                j += 1;
+            }
+            let tag: String = chars[i + 1..j].iter().collect::<String>().to_lowercase();
+            if tag.chars().any(char::is_alphabetic) && !out.contains(&tag) {
+                out.push(tag);
+            }
+            i = j;
+        } else {
+            i += 1;
+        }
+    }
+    out
+}
+
+/// Pre-built front matter stored (encrypted) alongside a post.
+fn post_meta(post: &Post) -> Value {
+    let mut ids: Vec<&str> = mentions(&post.content);
+    ids.sort_unstable();
+    ids.dedup();
+    json!({ "mentions": ids, "tags": hashtags(&post.content) })
 }
 
 fn validate_workspace_id(id: &str) -> Result<()> {
@@ -154,6 +165,14 @@ fn read_config(dir: &Path) -> Result<WorkspaceConfig> {
     Ok(serde_json::from_slice(&fs::read(path)?)?)
 }
 
+fn write_config(dir: &Path, config: &WorkspaceConfig) -> Result<()> {
+    atomic_write(&dir.join(CONFIG_FILE), &serde_json::to_vec_pretty(config)?)
+}
+
+fn label_of(id: &str) -> String {
+    id.strip_prefix(WORKSPACE_PREFIX).unwrap_or(id).to_string()
+}
+
 pub fn list_workspaces(root: &Path) -> Result<Vec<WorkspaceInfo>> {
     let mut out = Vec::new();
     if !root.exists() {
@@ -161,19 +180,20 @@ pub fn list_workspaces(root: &Path) -> Result<Vec<WorkspaceInfo>> {
     }
     for entry in fs::read_dir(root)? {
         let entry = entry?;
-        if !entry.file_type()?.is_dir() {
-            continue;
-        }
-        if let Ok(config) = read_config(&entry.path()) {
-            out.push(WorkspaceInfo { id: entry.file_name().to_string_lossy().into_owned(), name: config.name });
+        if entry.file_type()?.is_dir() && entry.path().join(CONFIG_FILE).exists() {
+            let id = entry.file_name().to_string_lossy().into_owned();
+            out.push(WorkspaceInfo { label: label_of(&id), id });
         }
     }
-    out.sort_by_key(|w| w.name.to_lowercase());
+    out.sort_by_key(|w| w.label.clone());
     Ok(out)
 }
 
+/// Creates `data_sources/workspace_<folder>`. `folder` is visible in the repo;
+/// `name` is encrypted. An empty `folder` falls back to the slugified name.
 pub fn create_workspace(
     root: &Path,
+    folder: &str,
     name: &str,
     owner_name: &str,
     password: &str,
@@ -184,11 +204,14 @@ pub fn create_workspace(
     if password.chars().count() < 8 {
         return Err(Error::Invalid("Password must be at least 8 characters.".into()));
     }
-    let slug = slugify(&name);
-    if slug.is_empty() {
-        return Err(Error::Invalid("Workspace name must contain letters or digits.".into()));
+    let label = match slugify(folder) {
+        l if l.is_empty() => slugify(&name),
+        l => l,
+    };
+    if label.is_empty() {
+        return Err(Error::Invalid("Folder name must contain letters or digits.".into()));
     }
-    let id = format!("{WORKSPACE_PREFIX}{slug}");
+    let id = format!("{WORKSPACE_PREFIX}{label}");
     let dir = root.join(&id);
     if dir.exists() {
         return Err(Error::Invalid(format!("A workspace folder named \"{id}\" already exists.")));
@@ -198,8 +221,8 @@ pub fn create_workspace(
     let kek = crypto::derive_key(password.as_bytes(), &salt, cost.memory_kib, cost.iterations, cost.parallelism)?;
     let data_key = crypto::random_key();
     let config = WorkspaceConfig {
-        format_version: FORMAT_VERSION,
-        name: name.clone(),
+        format_version: CURRENT_SCHEMA,
+        name: None,
         kdf: KdfParams {
             algorithm: "argon2id".into(),
             memory_kib: cost.memory_kib,
@@ -212,10 +235,10 @@ pub fn create_workspace(
 
     fs::create_dir_all(&dir)?;
     let result = (|| {
-        for kind in Kind::ALL {
+        for kind in Kind::RECORDS {
             fs::create_dir_all(dir.join(kind.dir()))?;
         }
-        atomic_write(&dir.join(CONFIG_FILE), &serde_json::to_vec_pretty(&config)?)?;
+        write_config(&dir, &config)?;
 
         let now = now_millis();
         let owner = Profile {
@@ -232,20 +255,22 @@ pub fn create_workspace(
             created_at: now,
             updated_at: now,
         };
-        let manifest =
-            Manifest { format_version: FORMAT_VERSION, name, owner_profile_id: owner.id.clone(), created_at: now };
+        let manifest = Manifest { format_version: CURRENT_SCHEMA, name, owner_profile_id: owner.id.clone(), created_at: now };
         let mut ws = Workspace {
             id: id.clone(),
             dir: dir.clone(),
             key: data_key,
+            config,
             manifest,
             profiles: HashMap::new(),
             posts: HashMap::new(),
             items: HashMap::new(),
+            stale: HashSet::new(),
+            disk_schema: CURRENT_SCHEMA,
         };
-        ws.write_record(Kind::Profile, &owner.id, &owner)?;
+        ws.write_manifest()?;
+        ws.write_record(Kind::Profile, &owner.id, &owner, json!({}))?;
         ws.profiles.insert(owner.id.clone(), owner);
-        atomic_write(&dir.join(MANIFEST_FILE), &ws.seal_json("manifest", &ws.manifest)?)?;
         Ok(ws)
     })();
 
@@ -260,8 +285,11 @@ pub fn open_workspace(root: &Path, id: &str, password: &str) -> Result<Workspace
     validate_workspace_id(id)?;
     let dir = root.join(id);
     let config = read_config(&dir)?;
-    if config.format_version != FORMAT_VERSION || config.kdf.algorithm != "argon2id" {
-        return Err(Error::Invalid("Unsupported workspace format.".into()));
+    if config.format_version > CURRENT_SCHEMA {
+        return Err(Error::Invalid("This workspace was created by a newer version of My Diary. Update the app.".into()));
+    }
+    if config.kdf.algorithm != "argon2id" {
+        return Err(Error::Invalid("Unsupported key derivation algorithm.".into()));
     }
 
     let salt = B64.decode(&config.kdf.salt).map_err(|_| Error::Invalid("Corrupt KDF salt.".into()))?;
@@ -271,22 +299,31 @@ pub fn open_workspace(root: &Path, id: &str, password: &str) -> Result<Workspace
     let raw_key = crypto::open(&kek, "keywrap", &wrapped).map_err(|_| Error::BadPassword)?;
     let key: Key = Zeroizing::new(raw_key.as_slice().try_into().map_err(|_| Error::BadPassword)?);
 
+    let mut stale = HashSet::new();
     let manifest_bytes = fs::read(dir.join(MANIFEST_FILE))?;
-    let manifest: Manifest =
-        serde_json::from_slice(&crypto::open(&key, "manifest", &manifest_bytes).map_err(|_| Error::BadPassword)?)?;
+    let decoded = record::decode(&key, Kind::Manifest, MANIFEST_ID, &manifest_bytes).map_err(|_| Error::BadPassword)?;
+    let mut disk_schema = config.format_version.min(decoded.schema);
+    if decoded.schema < CURRENT_SCHEMA {
+        stale.insert((Kind::Manifest, MANIFEST_ID.to_string()));
+    }
+    let manifest: Manifest = serde_json::from_value(migrate::upgrade(Kind::Manifest, decoded.schema, decoded.data)?)?;
 
     let mut ws = Workspace {
         id: id.to_string(),
         dir,
         key,
+        config,
         manifest,
         profiles: HashMap::new(),
         posts: HashMap::new(),
         items: HashMap::new(),
+        stale,
+        disk_schema: CURRENT_SCHEMA,
     };
-    ws.profiles = ws.load_all(Kind::Profile)?;
-    ws.posts = ws.load_all(Kind::Post)?;
-    ws.items = ws.load_all(Kind::Item)?;
+    ws.profiles = ws.load_all(Kind::Profile, &mut disk_schema)?;
+    ws.posts = ws.load_all(Kind::Post, &mut disk_schema)?;
+    ws.items = ws.load_all(Kind::Item, &mut disk_schema)?;
+    ws.disk_schema = disk_schema;
     Ok(ws)
 }
 
@@ -295,36 +332,53 @@ pub struct Workspace {
     pub id: String,
     dir: PathBuf,
     key: Key,
+    config: WorkspaceConfig,
     pub manifest: Manifest,
     pub profiles: HashMap<String, Profile>,
     pub posts: HashMap<String, Post>,
     pub items: HashMap<String, Item>,
+    /// Records still on disk in an older schema.
+    stale: HashSet<(Kind, String)>,
+    /// Oldest schema found when the workspace was opened.
+    disk_schema: u32,
 }
 
 impl Workspace {
-    fn seal_json<T: Serialize>(&self, aad: &str, value: &T) -> Result<Vec<u8>> {
-        let plaintext = Zeroizing::new(serde_json::to_vec(value)?);
-        crypto::seal(&self.key, aad, &plaintext)
-    }
-
     fn record_path(&self, kind: Kind, id: &str) -> PathBuf {
-        self.dir.join(kind.dir()).join(format!("{id}.enc"))
+        match kind {
+            Kind::Manifest => self.dir.join(MANIFEST_FILE),
+            _ => self.dir.join(kind.dir()).join(format!("{id}.enc")),
+        }
     }
 
-    fn write_record<T: Serialize>(&self, kind: Kind, id: &str, value: &T) -> Result<()> {
-        let dir = self.dir.join(kind.dir());
-        fs::create_dir_all(&dir)?;
-        atomic_write(&self.record_path(kind, id), &self.seal_json(&kind.aad(id), value)?)
+    fn write_record<T: Serialize>(&mut self, kind: Kind, id: &str, value: &T, meta: Value) -> Result<()> {
+        if kind != Kind::Manifest {
+            fs::create_dir_all(self.dir.join(kind.dir()))?;
+        }
+        let bytes = record::encode(&self.key, kind, id, serde_json::to_value(value)?, meta)?;
+        atomic_write(&self.record_path(kind, id), &bytes)?;
+        self.stale.remove(&(kind, id.to_string()));
+        Ok(())
     }
 
-    fn remove_record(&self, kind: Kind, id: &str) -> Result<()> {
+    fn write_manifest(&mut self) -> Result<()> {
+        let manifest = self.manifest.clone();
+        self.write_record(Kind::Manifest, MANIFEST_ID, &manifest, json!({}))
+    }
+
+    fn write_post(&mut self, post: &Post) -> Result<()> {
+        self.write_record(Kind::Post, &post.id, post, post_meta(post))
+    }
+
+    fn remove_record(&mut self, kind: Kind, id: &str) -> Result<()> {
+        self.stale.remove(&(kind, id.to_string()));
         match fs::remove_file(self.record_path(kind, id)) {
             Err(e) if e.kind() != std::io::ErrorKind::NotFound => Err(e.into()),
             _ => Ok(()),
         }
     }
 
-    fn load_all<T: DeserializeOwned>(&self, kind: Kind) -> Result<HashMap<String, T>> {
+    fn load_all<T: DeserializeOwned>(&mut self, kind: Kind, disk_schema: &mut u32) -> Result<HashMap<String, T>> {
         let mut out = HashMap::new();
         let dir = self.dir.join(kind.dir());
         if !dir.exists() {
@@ -336,15 +390,73 @@ impl Workspace {
                 continue;
             }
             let Some(id) = path.file_stem().and_then(|s| s.to_str()).map(str::to_owned) else { continue };
-            let plaintext = crypto::open(&self.key, &kind.aad(&id), &fs::read(&path)?)
-                .map_err(|_| Error::Invalid(format!("Could not decrypt {}", path.display())))?;
-            out.insert(id, serde_json::from_slice(&plaintext)?);
+            let decoded = record::decode(&self.key, kind, &id, &fs::read(&path)?).map_err(|e| match e {
+                Error::Invalid(msg) => Error::Invalid(msg),
+                _ => Error::Invalid(format!("Could not decrypt {}", path.display())),
+            })?;
+            if decoded.schema < CURRENT_SCHEMA {
+                self.stale.insert((kind, id.clone()));
+                *disk_schema = (*disk_schema).min(decoded.schema);
+            }
+            let data = migrate::upgrade(kind, decoded.schema, decoded.data)?;
+            out.insert(id, serde_json::from_value(data)?);
         }
         Ok(out)
     }
 
     pub fn owner_id(&self) -> &str {
         &self.manifest.owner_profile_id
+    }
+
+    fn config_is_stale(&self) -> bool {
+        self.config.format_version < CURRENT_SCHEMA || self.config.name.is_some()
+    }
+
+    // ---- Migrations ----
+
+    pub fn migration_status(&self) -> MigrationStatus {
+        let stale_files = self.stale.len() + usize::from(self.config_is_stale());
+        let disk_schema = if stale_files == 0 { CURRENT_SCHEMA } else { self.disk_schema };
+        migrate::status(disk_schema, stale_files)
+    }
+
+    /// Rewrites every stale file in the current format. Each file is replaced
+    /// atomically and the reader handles mixed formats, so an interrupted run
+    /// is safe to resume. Returns the number of files rewritten.
+    pub fn run_migration(&mut self) -> Result<usize> {
+        let mut stale: Vec<(Kind, String)> = self.stale.iter().cloned().collect();
+        stale.sort_by_key(|(kind, id)| (kind.name(), id.clone()));
+        let mut rewritten = 0;
+        for (kind, id) in stale {
+            match kind {
+                Kind::Manifest => {
+                    self.manifest.format_version = CURRENT_SCHEMA;
+                    self.write_manifest()?
+                }
+                Kind::Profile => {
+                    let p = self.profiles[&id].clone();
+                    self.write_record(kind, &id, &p, json!({}))?
+                }
+                Kind::Post => {
+                    let p = self.posts[&id].clone();
+                    self.write_post(&p)?
+                }
+                Kind::Item => {
+                    let i = self.items[&id].clone();
+                    self.write_record(kind, &id, &i, json!({}))?
+                }
+            }
+            rewritten += 1;
+        }
+        // Rewrite workspace.json last: it is what marks the workspace as current.
+        if self.config_is_stale() {
+            self.config.format_version = CURRENT_SCHEMA;
+            self.config.name = None;
+            write_config(&self.dir, &self.config)?;
+            rewritten += 1;
+        }
+        self.disk_schema = CURRENT_SCHEMA;
+        Ok(rewritten)
     }
 
     // ---- Profiles ----
@@ -390,13 +502,13 @@ impl Workspace {
             return Err(Error::Invalid("Remove this profile's listed items before turning off its shop.".into()));
         }
 
-        self.write_record(Kind::Profile, &profile.id, &profile)?;
+        self.write_record(Kind::Profile, &profile.id, &profile, json!({}))?;
         self.profiles.insert(profile.id.clone(), profile.clone());
         Ok(profile)
     }
 
     /// Deletes a profile together with the posts it authored and the items it lists.
-    /// Mentions of it in other posts are left as-is and render as an unknown profile.
+    /// Mentions of it in other posts are left as-is and render as a deleted profile.
     pub fn delete_profile(&mut self, id: &str) -> Result<()> {
         validate_record_id(id)?;
         let profile = self.profiles.get(id).ok_or_else(|| Error::NotFound(format!("profile {id}")))?;
@@ -446,7 +558,7 @@ impl Workspace {
                 updated_at: now,
             },
         };
-        self.write_record(Kind::Post, &post.id, &post)?;
+        self.write_post(&post)?;
         self.posts.insert(post.id.clone(), post.clone());
         Ok(post)
     }
@@ -508,7 +620,7 @@ impl Workspace {
             created_at,
             updated_at: now,
         };
-        self.write_record(Kind::Item, &item.id, &item)?;
+        self.write_record(Kind::Item, &item.id, &item, json!({}))?;
         self.items.insert(item.id.clone(), item.clone());
         Ok(item)
     }
@@ -541,9 +653,11 @@ impl Workspace {
         let mut items: Vec<Item> = self.items.values().cloned().collect();
         items.sort_by_key(|i| std::cmp::Reverse(i.created_at));
 
+        let kdf = &self.config.kdf;
         Snapshot {
             workspace: WorkspaceSummary {
                 id: self.id.clone(),
+                label: label_of(&self.id),
                 name: self.manifest.name.clone(),
                 owner_profile_id: self.manifest.owner_profile_id.clone(),
             },
@@ -551,6 +665,16 @@ impl Workspace {
             items,
             stats,
             post_dates: self.posts.values().map(|p| p.occurred_at).collect(),
+            migration: self.migration_status(),
+            storage: StorageInfo {
+                path: self.dir.display().to_string(),
+                cipher: "AES-256-GCM".into(),
+                kdf: "Argon2id".into(),
+                kdf_memory_kib: kdf.memory_kib,
+                kdf_iterations: kdf.iterations,
+                kdf_parallelism: kdf.parallelism,
+                pad_block: record::PAD_BLOCK,
+            },
         }
     }
 }
@@ -576,6 +700,29 @@ mod tests {
         }
     }
 
+    fn walk(dir: &Path) -> Vec<PathBuf> {
+        let mut out = Vec::new();
+        for entry in fs::read_dir(dir).unwrap() {
+            let path = entry.unwrap().path();
+            if path.is_dir() {
+                out.extend(walk(&path));
+            } else {
+                out.push(path);
+            }
+        }
+        out
+    }
+
+    /// Asserts that none of `needles` appear anywhere under `root`.
+    fn assert_no_plaintext(root: &Path, needles: &[&str]) {
+        for path in walk(root) {
+            let text = String::from_utf8_lossy(&fs::read(&path).unwrap()).to_string();
+            for needle in needles {
+                assert!(!text.contains(needle), "{} leaks {needle:?}", path.display());
+            }
+        }
+    }
+
     #[test]
     fn slugify_names() {
         assert_eq!(slugify("  Personal Journal! "), "personal_journal");
@@ -584,40 +731,52 @@ mod tests {
     }
 
     #[test]
-    fn parses_mentions() {
+    fn parses_mentions_and_tags() {
         let content = "Coffee at @[profile:a] with @[profile:b] and @[profile:a]. Broken @[profile:c";
         assert_eq!(mentions(content), vec!["a", "b", "a"]);
+        assert_eq!(hashtags("#Coffee time (#family) #coffee x#no #1 #a-b_c"), vec!["coffee", "family", "a-b_c"]);
     }
 
     #[test]
     fn create_and_unlock() {
         let root = tempfile::tempdir().unwrap();
-        let ws = create_workspace(root.path(), "Personal", "Alex", "correct horse", FAST).unwrap();
+        let ws = create_workspace(root.path(), "", "Personal", "Alex", "correct horse", FAST).unwrap();
         assert_eq!(ws.id, "workspace_personal");
         assert_eq!(ws.profiles[ws.owner_id()].kind, ProfileKind::Me);
+        assert!(ws.migration_status().pending.is_empty());
 
         let listed = list_workspaces(root.path()).unwrap();
         assert_eq!(listed.len(), 1);
-        assert_eq!(listed[0].name, "Personal");
+        assert_eq!(listed[0].label, "personal");
 
         assert!(matches!(open_workspace(root.path(), &ws.id, "wrong password"), Err(Error::BadPassword)));
         let reopened = open_workspace(root.path(), &ws.id, "correct horse").unwrap();
         assert_eq!(reopened.owner_id(), ws.owner_id());
-        assert_eq!(reopened.profiles.len(), 1);
+        assert_eq!(reopened.manifest.name, "Personal");
+        assert_eq!(reopened.snapshot().migration.stale_files, 0);
+    }
+
+    #[test]
+    fn folder_label_hides_the_name() {
+        let root = tempfile::tempdir().unwrap();
+        let ws = create_workspace(root.path(), "Journal 2", "Secret Affairs", "Alex Hidden", "correct horse", FAST).unwrap();
+        assert_eq!(ws.id, "workspace_journal_2");
+        assert_no_plaintext(root.path(), &["Secret", "Affairs", "Alex", "Hidden"]);
+        assert_eq!(open_workspace(root.path(), &ws.id, "correct horse").unwrap().manifest.name, "Secret Affairs");
     }
 
     #[test]
     fn rejects_short_password_and_duplicate_workspace() {
         let root = tempfile::tempdir().unwrap();
-        assert!(create_workspace(root.path(), "A", "Me", "short", FAST).is_err());
-        create_workspace(root.path(), "A", "Me", "long enough", FAST).unwrap();
-        assert!(create_workspace(root.path(), "A", "Me", "long enough", FAST).is_err());
+        assert!(create_workspace(root.path(), "", "A", "Me", "short", FAST).is_err());
+        create_workspace(root.path(), "", "A", "Me", "long enough", FAST).unwrap();
+        assert!(create_workspace(root.path(), "a", "Other", "Me", "long enough", FAST).is_err());
     }
 
     #[test]
     fn records_persist_encrypted() {
         let root = tempfile::tempdir().unwrap();
-        let mut ws = create_workspace(root.path(), "Personal", "Alex", "correct horse", FAST).unwrap();
+        let mut ws = create_workspace(root.path(), "", "Personal", "Alex", "correct horse", FAST).unwrap();
         let owner = ws.owner_id().to_string();
 
         let sarah = ws.save_profile(person("Sarah Secretname", ProfileKind::Person)).unwrap();
@@ -626,7 +785,7 @@ mod tests {
         ws.save_post(PostInput {
             id: None,
             author_id: owner.clone(),
-            content: format!("Latte at @[profile:{}] with @[profile:{}]", shop.id, sarah.id),
+            content: format!("Latte at @[profile:{}] with @[profile:{}] #coffee", shop.id, sarah.id),
             occurred_at: Some(1_000),
         })
         .unwrap();
@@ -643,19 +802,23 @@ mod tests {
         })
         .unwrap();
 
-        // Nothing readable on disk.
-        for entry in walk(root.path()) {
-            if entry.extension().and_then(|e| e.to_str()) == Some("enc") {
-                let bytes = fs::read(&entry).unwrap();
-                let text = String::from_utf8_lossy(&bytes);
-                assert!(!text.contains("Secretname") && !text.contains("Latte"), "{} leaks plaintext", entry.display());
-            }
+        assert_no_plaintext(root.path(), &["Secretname", "Latte", "Rusty", "Pour-over", "Personal", "coffee"]);
+        for path in walk(root.path()).into_iter().filter(|p| p.extension().is_some_and(|e| e == "enc")) {
+            let len = fs::metadata(&path).unwrap().len() as usize;
+            assert_eq!((len - 5 - 12 - 16) % record::PAD_BLOCK, 0, "{} not padded", path.display());
         }
 
         let ws = open_workspace(root.path(), "workspace_personal", "correct horse").unwrap();
         assert_eq!(ws.profiles.len(), 3);
         assert_eq!(ws.items.len(), 1);
         assert_eq!(ws.items.values().next().unwrap().currency, "USD");
+
+        // Posts carry pre-built front matter.
+        let post = ws.posts.values().find(|p| p.author_id == owner).unwrap();
+        let bytes = fs::read(root.path().join("workspace_personal/posts").join(format!("{}.enc", post.id))).unwrap();
+        let meta = record::decode(&ws.key, Kind::Post, &post.id, &bytes).unwrap().meta;
+        assert_eq!(meta["tags"], json!(["coffee"]));
+        assert_eq!(meta["mentions"].as_array().unwrap().len(), 2);
 
         let snap = ws.snapshot();
         assert_eq!(snap.stats[&sarah.id].mentions, 1);
@@ -674,7 +837,7 @@ mod tests {
     #[test]
     fn profile_rules_and_cascading_delete() {
         let root = tempfile::tempdir().unwrap();
-        let mut ws = create_workspace(root.path(), "Personal", "Alex", "correct horse", FAST).unwrap();
+        let mut ws = create_workspace(root.path(), "", "Personal", "Alex", "correct horse", FAST).unwrap();
         let owner = ws.owner_id().to_string();
 
         assert!(ws.save_profile(person("Second me", ProfileKind::Me)).is_err());
@@ -692,10 +855,13 @@ mod tests {
         };
         assert!(ws.save_item(item.clone()).is_err(), "page without a shop can't sell");
 
-        let page = ws.save_profile(ProfileInput { id: Some(page.id.clone()), has_shop: true, ..person("Book Club", ProfileKind::Page) }).unwrap();
+        let page = ws
+            .save_profile(ProfileInput { id: Some(page.id.clone()), has_shop: true, ..person("Book Club", ProfileKind::Page) })
+            .unwrap();
         assert_eq!(ws.save_item(item).unwrap().currency, "LKR");
         assert!(
-            ws.save_profile(ProfileInput { id: Some(page.id.clone()), has_shop: false, ..person("Book Club", ProfileKind::Page) }).is_err(),
+            ws.save_profile(ProfileInput { id: Some(page.id.clone()), has_shop: false, ..person("Book Club", ProfileKind::Page) })
+                .is_err(),
             "can't disable a shop that still lists items"
         );
 
@@ -712,20 +878,75 @@ mod tests {
     fn rejects_path_traversal() {
         let root = tempfile::tempdir().unwrap();
         assert!(open_workspace(root.path(), "../etc", "x").is_err());
-        let mut ws = create_workspace(root.path(), "P", "Me", "long enough", FAST).unwrap();
+        let mut ws = create_workspace(root.path(), "", "P", "Me", "long enough", FAST).unwrap();
         assert!(ws.delete_post("../../workspace.json").is_err());
     }
 
-    fn walk(dir: &Path) -> Vec<PathBuf> {
-        let mut out = Vec::new();
-        for entry in fs::read_dir(dir).unwrap() {
-            let path = entry.unwrap().path();
-            if path.is_dir() {
-                out.extend(walk(&path));
-            } else {
-                out.push(path);
-            }
+    /// Writes a workspace exactly as Phase 1 (format 1) did.
+    fn write_phase1_workspace(root: &Path) -> (String, String) {
+        let dir = root.join("workspace_old");
+        for d in ["entities", "posts", "items"] {
+            fs::create_dir_all(dir.join(d)).unwrap();
         }
-        out
+        let salt = [9u8; 16];
+        let kek = crypto::derive_key(b"correct horse", &salt, FAST.memory_kib, FAST.iterations, FAST.parallelism).unwrap();
+        let key = crypto::random_key();
+        let config = json!({
+            "formatVersion": 1,
+            "name": "Old Plaintext Name",
+            "kdf": { "algorithm": "argon2id", "memoryKib": FAST.memory_kib, "iterations": FAST.iterations,
+                     "parallelism": FAST.parallelism, "salt": B64.encode(salt) },
+            "wrappedKey": B64.encode(crypto::seal(&kek, "keywrap", key.as_ref()).unwrap()),
+        });
+        fs::write(dir.join(CONFIG_FILE), serde_json::to_vec_pretty(&config).unwrap()).unwrap();
+
+        let me = Uuid::new_v4().to_string();
+        let sarah = Uuid::new_v4().to_string();
+        let post = Uuid::new_v4().to_string();
+        let seal = |aad: &str, v: Value| crypto::seal(&key, aad, &serde_json::to_vec(&v).unwrap()).unwrap();
+        let manifest = json!({"formatVersion": 1, "name": "Old Plaintext Name", "ownerProfileId": me, "createdAt": 1});
+        fs::write(dir.join(MANIFEST_FILE), seal("manifest", manifest)).unwrap();
+        for (id, kind, name) in [(&me, "me", "Alex"), (&sarah, "person", "Sarah")] {
+            let p = json!({"id": id, "kind": kind, "name": name, "createdAt": 1, "updatedAt": 1});
+            fs::write(dir.join("entities").join(format!("{id}.enc")), seal(&format!("profile:{id}"), p)).unwrap();
+        }
+        let p = json!({"id": post, "authorId": me, "content": format!("Tea with @[profile:{sarah}] #tea"),
+                       "occurredAt": 5, "createdAt": 5, "updatedAt": 5});
+        fs::write(dir.join("posts").join(format!("{post}.enc")), seal(&format!("post:{post}"), p)).unwrap();
+        (post, sarah)
+    }
+
+    #[test]
+    fn migrates_phase1_workspace() {
+        let root = tempfile::tempdir().unwrap();
+        let (post_id, sarah) = write_phase1_workspace(root.path());
+
+        let mut ws = open_workspace(root.path(), "workspace_old", "correct horse").unwrap();
+        let status = ws.migration_status();
+        assert_eq!(status.disk_schema, 1);
+        assert_eq!(status.stale_files, 5, "config + manifest + 2 profiles + 1 post");
+        assert_eq!(status.pending.len(), 1);
+        // Readable before migrating, and nothing has been touched on disk yet.
+        assert_eq!(ws.manifest.name, "Old Plaintext Name");
+        assert_eq!(ws.snapshot().stats[&sarah].mentions, 1);
+        assert!(fs::read_to_string(root.path().join("workspace_old").join(CONFIG_FILE)).unwrap().contains("Old Plaintext Name"));
+
+        // Editing one record before migrating writes it in the new format.
+        let p = ws.posts[&post_id].clone();
+        ws.save_post(PostInput { id: Some(p.id.clone()), author_id: p.author_id, content: p.content, occurred_at: None }).unwrap();
+        assert_eq!(ws.migration_status().stale_files, 4);
+
+        assert_eq!(ws.run_migration().unwrap(), 4);
+        assert!(ws.migration_status().pending.is_empty());
+        assert_no_plaintext(root.path(), &["Old Plaintext Name", "Alex", "Sarah", "Tea"]);
+        for path in walk(root.path()).into_iter().filter(|p| p.extension().is_some_and(|e| e == "enc")) {
+            assert_eq!(&fs::read(&path).unwrap()[..4], record::RECORD_MAGIC, "{}", path.display());
+        }
+
+        let ws = open_workspace(root.path(), "workspace_old", "correct horse").unwrap();
+        assert_eq!(ws.migration_status().stale_files, 0);
+        assert_eq!(ws.manifest.name, "Old Plaintext Name");
+        assert_eq!(ws.profiles.len(), 2);
+        assert_eq!(ws.posts[&post_id].occurred_at, 5);
     }
 }

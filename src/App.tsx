@@ -6,6 +6,7 @@ import { UnlockScreen } from "./components/UnlockScreen";
 import { MarketplaceView } from "./views/MarketplaceView";
 import { ProfilesView } from "./views/ProfilesView";
 import { ProfileView } from "./views/ProfileView";
+import { SettingsView } from "./views/SettingsView";
 import { TimelineView } from "./views/TimelineView";
 
 export default function App() {
@@ -41,6 +42,7 @@ function Workspace() {
       {route.view === "timeline" && <TimelineView />}
       {route.view === "profiles" && <ProfilesView />}
       {route.view === "marketplace" && <MarketplaceView />}
+      {route.view === "settings" && <SettingsView />}
       {route.view === "profile" && <ProfileView key={route.id} id={route.id} tab={route.tab} />}
     </div>
   );

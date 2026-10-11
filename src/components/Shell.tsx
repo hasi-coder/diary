@@ -2,6 +2,7 @@
 import type { ReactNode } from "react";
 import {
   BookOpenIcon,
+  GearIcon,
   LockIcon,
   ShieldCheckIcon,
   ShoppingBagIcon,
@@ -69,8 +70,17 @@ export function Sidebar() {
         )}
       </nav>
 
-      <div className="border-t border-slate-100 p-4 text-xs text-slate-400">
-        <div className="flex items-center gap-1.5">
+      <div className="space-y-2 border-t border-slate-100 p-4">
+        <button
+          onClick={() => navigate({ view: "settings" })}
+          className={`flex w-full items-center gap-3 rounded-lg px-4 py-2 text-sm transition-colors ${
+            route.view === "settings" ? "bg-brand-50 text-brand-600" : "text-slate-500 hover:text-slate-800"
+          }`}
+        >
+          <GearIcon size={18} /> Settings
+          {snapshot.migration.pending.length > 0 && <span className="ml-auto h-2 w-2 rounded-full bg-amber-500" title="Migration available" />}
+        </button>
+        <div className="flex items-center gap-1.5 px-4 text-xs text-slate-400">
           <ShieldCheckIcon className="text-brand-500" /> AES-256-GCM · Argon2id
         </div>
       </div>

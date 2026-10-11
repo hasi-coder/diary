@@ -30,22 +30,56 @@ SQLCipher cache, map view, password change.
 ## On-disk format
 
 ```
-data_sources/workspace_personal/
-├── workspace.json      plaintext: name, Argon2id params, wrapped data key
-├── manifest.enc        owner profile id, created time
+data_sources/workspace_<label>/
+├── workspace.json      plaintext: format version, Argon2id params, wrapped data key
+├── manifest.enc        workspace name, owner profile, created time
 ├── entities/<uuid>.enc profiles
 ├── posts/<uuid>.enc    journal entries
 └── items/<uuid>.enc    shop listings
 ```
 
-Each `.enc` file is `MDJ1 | 12-byte nonce | ciphertext+tag`. The associated data (for example
-`post:<uuid>`) binds the file to its identity, so renamed or swapped files are rejected.
+Each record file looks like this:
+
+```
+"MDJ2" | kind byte | 12-byte nonce | AES-256-GCM( pad_1KiB( envelope ) )
+envelope = { "schema": 2, "kind": "post", "meta": { mentions, tags }, "data": { ... } }
+```
+
+The 5-byte header is the only plaintext in a record. It names the record kind, so migration
+tooling can route files. The header and the record id are authenticated as associated data, so a
+renamed, swapped or relabelled file fails to decrypt.
+
+**What the repo reveals:** the folder label you chose, the format version, the KDF parameters, the
+number of records of each kind, their sizes in 1 KiB steps, and git commit times. Everything else
+is ciphertext.
+
+## Migrations
+
+Storage formats are versioned (`record::CURRENT_SCHEMA`), and `src-tauri/src/migrate.rs` holds an
+ordered list of steps. On unlock, older records are upgraded **in memory**, so the app works
+immediately. Files on disk change only when you click **Settings → Run migration**. That rewrites
+the stale files atomically, and you review and commit the diff.
+
+Derived front matter (`meta`) is recomputed on every write. So a migration that only adds new
+pre-built metadata just bumps the schema; it doesn't need a data transform.
+
+To add a migration:
+
+1. Bump `CURRENT_SCHEMA`.
+2. Append a `Step` to `migrate.rs`.
+3. Add a test that builds a fixture in the previous format. See `migrates_phase1_workspace`.
+
+## Keeping agents out
+
+`.claude/settings.json` denies Claude Code read and write access to `data_sources/`. The files are
+ciphertext anyway. What actually protects the content is that the password is only ever typed into
+the app.
 
 ## Development
 
 ```bash
 npm install
-npm run seed:demo     # creates data_sources/workspace_demo (password: demo-password)
+npm run seed:demo     # (re)creates data_sources/workspace_demo (password: demo-password)
 npm run tauri:dev     # desktop app with hot reload
 npm run test:rust     # backend unit tests
 npm run typecheck

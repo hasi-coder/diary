@@ -1,13 +1,13 @@
-//! Key derivation and authenticated encryption.
+//! Key derivation, authenticated encryption and length padding.
 //!
-//! Every file written to a workspace is sealed with AES-256-GCM:
+//! [`seal`] produces a self-contained box used for key wrapping:
 //!
 //! ```text
 //! MDJ1 | 12-byte nonce | ciphertext + 16-byte tag
 //! ```
 //!
-//! The associated data binds each ciphertext to its logical identity
-//! (e.g. `post:<uuid>`), so files cannot be swapped or renamed undetected.
+//! Records use [`seal_raw`] behind their own header (see `record.rs`), and
+//! [`pad`] their plaintext so file sizes only reveal a coarse length bucket.
 
 use aes_gcm::aead::rand_core::RngCore;
 use aes_gcm::aead::{Aead, AeadCore, KeyInit, OsRng, Payload};
@@ -17,8 +17,9 @@ use zeroize::Zeroizing;
 
 use crate::error::{Error, Result};
 
-pub const MAGIC: &[u8; 4] = b"MDJ1";
+pub const BOX_MAGIC: &[u8; 4] = b"MDJ1";
 const NONCE_LEN: usize = 12;
+const LEN_PREFIX: usize = 4;
 
 pub type Key = Zeroizing<[u8; 32]>;
 
@@ -50,32 +51,61 @@ pub fn derive_key(
     Ok(key)
 }
 
-pub fn seal(key: &Key, aad: &str, plaintext: &[u8]) -> Result<Vec<u8>> {
+/// AES-256-GCM with a random nonce: returns `nonce | ciphertext + tag`.
+pub fn seal_raw(key: &Key, aad: &[u8], plaintext: &[u8]) -> Result<Vec<u8>> {
     let cipher = Aes256Gcm::new_from_slice(key.as_ref()).map_err(|_| Error::Crypto)?;
     let nonce = Aes256Gcm::generate_nonce(&mut OsRng);
     let ciphertext = cipher
-        .encrypt(&nonce, Payload { msg: plaintext, aad: aad.as_bytes() })
+        .encrypt(&nonce, Payload { msg: plaintext, aad })
         .map_err(|_| Error::Crypto)?;
-
-    let mut out = Vec::with_capacity(MAGIC.len() + NONCE_LEN + ciphertext.len());
-    out.extend_from_slice(MAGIC);
+    let mut out = Vec::with_capacity(NONCE_LEN + ciphertext.len());
     out.extend_from_slice(&nonce);
     out.extend_from_slice(&ciphertext);
     Ok(out)
 }
 
-/// Decrypts a sealed blob. Fails with [`Error::Crypto`] if the key is wrong,
-/// the data was tampered with, or the blob belongs to a different `aad`.
-pub fn open(key: &Key, aad: &str, sealed: &[u8]) -> Result<Zeroizing<Vec<u8>>> {
-    if sealed.len() < MAGIC.len() + NONCE_LEN || &sealed[..MAGIC.len()] != MAGIC {
+/// Inverse of [`seal_raw`]. Fails if the key is wrong, the data was tampered
+/// with, or the data was sealed under different associated data.
+pub fn open_raw(key: &Key, aad: &[u8], sealed: &[u8]) -> Result<Zeroizing<Vec<u8>>> {
+    if sealed.len() < NONCE_LEN {
         return Err(Error::Crypto);
     }
-    let (nonce, ciphertext) = sealed[MAGIC.len()..].split_at(NONCE_LEN);
+    let (nonce, ciphertext) = sealed.split_at(NONCE_LEN);
     let cipher = Aes256Gcm::new_from_slice(key.as_ref()).map_err(|_| Error::Crypto)?;
     cipher
-        .decrypt(Nonce::from_slice(nonce), Payload { msg: ciphertext, aad: aad.as_bytes() })
+        .decrypt(Nonce::from_slice(nonce), Payload { msg: ciphertext, aad })
         .map(Zeroizing::new)
         .map_err(|_| Error::Crypto)
+}
+
+pub fn seal(key: &Key, aad: &str, plaintext: &[u8]) -> Result<Vec<u8>> {
+    let mut out = BOX_MAGIC.to_vec();
+    out.extend(seal_raw(key, aad.as_bytes(), plaintext)?);
+    Ok(out)
+}
+
+pub fn open(key: &Key, aad: &str, sealed: &[u8]) -> Result<Zeroizing<Vec<u8>>> {
+    match sealed.strip_prefix(BOX_MAGIC.as_slice()) {
+        Some(rest) => open_raw(key, aad.as_bytes(), rest),
+        None => Err(Error::Crypto),
+    }
+}
+
+/// Length-prefixes `data` and zero-pads it to a multiple of `block` bytes.
+pub fn pad(data: &[u8], block: usize) -> Result<Zeroizing<Vec<u8>>> {
+    let len = u32::try_from(data.len()).map_err(|_| Error::Invalid("record too large".into()))?;
+    let total = (LEN_PREFIX + data.len()).div_ceil(block) * block;
+    let mut out = Zeroizing::new(Vec::with_capacity(total));
+    out.extend_from_slice(&len.to_le_bytes());
+    out.extend_from_slice(data);
+    out.resize(total, 0);
+    Ok(out)
+}
+
+pub fn unpad(padded: &[u8]) -> Result<&[u8]> {
+    let prefix: [u8; LEN_PREFIX] = padded.get(..LEN_PREFIX).ok_or(Error::Crypto)?.try_into().map_err(|_| Error::Crypto)?;
+    let len = u32::from_le_bytes(prefix) as usize;
+    padded.get(LEN_PREFIX..LEN_PREFIX + len).ok_or(Error::Crypto)
 }
 
 #[cfg(test)]
@@ -113,5 +143,17 @@ mod tests {
         let c = derive_key(b"pw2", b"saltsaltsaltsalt", 1024, 1, 1).unwrap();
         assert_eq!(a.as_ref(), b.as_ref());
         assert_ne!(a.as_ref(), c.as_ref());
+    }
+
+    #[test]
+    fn padding_hides_length() {
+        let short = pad(b"hi", 1024).unwrap();
+        let long = pad(&[7u8; 900], 1024).unwrap();
+        assert_eq!(short.len(), 1024);
+        assert_eq!(long.len(), 1024);
+        assert_eq!(pad(&[7u8; 1021], 1024).unwrap().len(), 2048);
+        assert_eq!(unpad(&short).unwrap(), b"hi");
+        assert_eq!(unpad(&long).unwrap(), &[7u8; 900][..]);
+        assert!(unpad(&[255, 255, 0, 0, 1]).is_err());
     }
 }

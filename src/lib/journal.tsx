@@ -6,6 +6,7 @@ export type Route =
   | { view: "timeline" }
   | { view: "profiles" }
   | { view: "marketplace" }
+  | { view: "settings" }
   | { view: "profile"; id: string; tab?: "posts" | "about" | "shop" };
 
 interface Journal {
@@ -15,6 +16,8 @@ interface Journal {
   /** Bumped after every mutation so post lists refetch. */
   version: number;
   refresh: () => Promise<void>;
+  /** Replace the snapshot directly (e.g. with the one a command returned). */
+  replace: (snapshot: Snapshot) => void;
   route: Route;
   navigate: (route: Route) => void;
   lock: () => Promise<void>;
@@ -33,6 +36,11 @@ export function JournalProvider(props: { initial: Snapshot; onLocked: () => void
     setVersion((v) => v + 1);
   }, []);
 
+  const replace = useCallback((s: Snapshot) => {
+    setSnapshot(s);
+    setVersion((v) => v + 1);
+  }, []);
+
   const lock = useCallback(async () => {
     await api.lockWorkspace();
     onLocked();
@@ -46,8 +54,8 @@ export function JournalProvider(props: { initial: Snapshot; onLocked: () => void
   const value = useMemo<Journal>(() => {
     const profiles = new Map(snapshot.profiles.map((p) => [p.id, p]));
     const owner = profiles.get(snapshot.workspace.ownerProfileId)!;
-    return { snapshot, profiles, owner, version, refresh, route, navigate, lock };
-  }, [snapshot, version, refresh, route, navigate, lock]);
+    return { snapshot, profiles, owner, version, refresh, replace, route, navigate, lock };
+  }, [snapshot, version, refresh, replace, route, navigate, lock]);
 
   return <JournalContext.Provider value={value}>{props.children}</JournalContext.Provider>;
 }

@@ -61,8 +61,27 @@ export interface PostFilter {
 }
 
 export interface WorkspaceInfo {
+  /** Folder name, e.g. `workspace_personal`. */
   id: string;
-  name: string;
+  /** Folder name without the prefix. The real name is encrypted. */
+  label: string;
+}
+
+export interface MigrationStatus {
+  currentSchema: number;
+  diskSchema: number;
+  staleFiles: number;
+  pending: { version: number; title: string; detail: string }[];
+}
+
+export interface StorageInfo {
+  path: string;
+  cipher: string;
+  kdf: string;
+  kdfMemoryKib: number;
+  kdfIterations: number;
+  kdfParallelism: number;
+  padBlock: number;
 }
 
 export interface ProfileStats {
@@ -71,19 +90,21 @@ export interface ProfileStats {
 }
 
 export interface Snapshot {
-  workspace: { id: string; name: string; ownerProfileId: string };
+  workspace: { id: string; label: string; name: string; ownerProfileId: string };
   profiles: Profile[];
   items: Item[];
   stats: Record<string, ProfileStats>;
   postDates: number[];
+  migration: MigrationStatus;
+  storage: StorageInfo;
 }
 
 export const isTauri = () => "__TAURI_INTERNALS__" in window;
 
 export const api = {
   listWorkspaces: () => invoke<WorkspaceInfo[]>("list_workspaces"),
-  createWorkspace: (name: string, ownerName: string, password: string) =>
-    invoke<Snapshot>("create_workspace", { name, ownerName, password }),
+  createWorkspace: (folder: string, name: string, ownerName: string, password: string) =>
+    invoke<Snapshot>("create_workspace", { folder, name, ownerName, password }),
   unlockWorkspace: (id: string, password: string) => invoke<Snapshot>("unlock_workspace", { id, password }),
   lockWorkspace: () => invoke<void>("lock_workspace"),
   getSnapshot: () => invoke<Snapshot>("get_snapshot"),
@@ -94,6 +115,7 @@ export const api = {
   deletePost: (id: string) => invoke<void>("delete_post", { id }),
   saveItem: (input: ItemInput) => invoke<Item>("save_item", { input }),
   deleteItem: (id: string) => invoke<void>("delete_item", { id }),
+  runMigration: () => invoke<Snapshot>("run_migration"),
 };
 
 export function errorMessage(e: unknown): string {
