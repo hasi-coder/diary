@@ -14,6 +14,12 @@ export interface Profile {
   location: string;
   color: string;
   hasShop: boolean;
+  /** Free-form gender identities (up to 10), e.g. ["Non-binary", "Two-Spirit"]. */
+  genders: string[];
+  pronouns: string;
+  /** Words used for this profile in relationship labels. */
+  terms: "neutral" | "feminine" | "masculine";
+  relationshipStatus: string;
   avatar: MediaRef | null;
   cover: MediaRef | null;
   /** Vertical focus of the cover, 0 (top) to 100 (bottom). */

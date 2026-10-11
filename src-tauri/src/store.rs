@@ -140,37 +140,44 @@ fn post_meta(post: &Post) -> Value {
     json!({ "mentions": involved(post), "tags": hashtags(&post.content) })
 }
 
-/// Relationship kinds and their inverses: if B is A's `parent`, A is B's `child`.
-const RELATION_KINDS: &[(&str, &str)] = &[
-    ("parent", "child"),
-    ("child", "parent"),
-    ("sibling", "sibling"),
-    ("grandparent", "grandchild"),
-    ("grandchild", "grandparent"),
-    ("relative", "relative"),
-    ("spouse", "spouse"),
-    ("partner", "partner"),
-    ("friend", "friend"),
-    ("best_friend", "best_friend"),
-    ("colleague", "colleague"),
-    ("neighbour", "neighbour"),
-    ("workplace", "employee"),
-    ("employee", "workplace"),
-    ("school", "student"),
-    ("student", "school"),
-    ("club", "member"),
-    ("member", "club"),
-    ("home", "resident"),
-    ("resident", "home"),
-    ("hometown", "native"),
-    ("native", "hometown"),
-    ("favourite", "regular"),
-    ("regular", "favourite"),
-    ("custom", "custom"),
-];
+/// Relationship kinds, shared with the UI (`src/lib/relations.json`).
+#[derive(serde::Deserialize)]
+struct RelationCatalog {
+    kinds: Vec<RelationKindDef>,
+}
 
+#[derive(serde::Deserialize)]
+struct RelationKindDef {
+    kind: String,
+    inverse: String,
+}
+
+fn relation_kinds() -> &'static HashMap<String, String> {
+    static KINDS: std::sync::OnceLock<HashMap<String, String>> = std::sync::OnceLock::new();
+    KINDS.get_or_init(|| {
+        let catalog: RelationCatalog =
+            serde_json::from_str(include_str!("../../src/lib/relations.json")).expect("relations.json is valid");
+        catalog.kinds.into_iter().map(|k| (k.kind, k.inverse)).collect()
+    })
+}
+
+/// If B is A's `kind`, A is B's `inverse_relation(kind)` (e.g. parent / child).
 fn inverse_relation(kind: &str) -> Option<&'static str> {
-    RELATION_KINDS.iter().find(|(k, _)| *k == kind).map(|(_, inv)| *inv)
+    relation_kinds().get(kind).map(String::as_str)
+}
+
+/// Words used for relationship labels: "Sister", "Brother" or "Sibling".
+const TERMS: [&str; 3] = ["neutral", "feminine", "masculine"];
+
+/// Up to 10 gender identities (as Facebook allows), trimmed and de-duplicated.
+fn clean_genders(genders: &[String]) -> Vec<String> {
+    let mut out: Vec<String> = Vec::new();
+    for g in genders.iter().map(|g| short(g, 40)).filter(|g| !g.is_empty()) {
+        if !out.iter().any(|x| x.eq_ignore_ascii_case(&g)) && out.len() < 10 {
+            out.push(g);
+        }
+    }
+    out
 }
 
 fn short(value: &str, max: usize) -> String {
@@ -385,6 +392,10 @@ pub fn create_workspace(
             location: String::new(),
             color: "teal".into(),
             has_shop: false,
+            genders: Vec::new(),
+            pronouns: String::new(),
+            terms: "neutral".into(),
+            relationship_status: String::new(),
             avatar: None,
             cover: None,
             cover_position: 50,
@@ -868,6 +879,10 @@ impl Workspace {
                 ProfileKind::Page => input.has_shop,
                 _ => false,
             },
+            genders: clean_genders(&input.genders),
+            pronouns: short(&input.pronouns, 40),
+            terms: if TERMS.contains(&input.terms.as_str()) { input.terms.clone() } else { "neutral".into() },
+            relationship_status: short(&input.relationship_status, 60),
             // Photos and relationships have their own commands; edits keep them.
             avatar: existing.as_ref().and_then(|p| p.avatar.clone()),
             cover: existing.as_ref().and_then(|p| p.cover.clone()),
@@ -1107,7 +1122,7 @@ impl Workspace {
             .as_ref()
             .map(|f| Feeling { emoji: short(&f.emoji, 16), text: short(&f.text, 80) })
             .filter(|f| !f.text.is_empty());
-        let event_type = short(&input.event_type, 40);
+        let event_type = short(&input.event_type, 80);
         if input.kind == PostKind::Milestone && (title.is_empty() || event_type.is_empty()) {
             return Err(Error::Invalid("A life event needs a type and a title.".into()));
         }
@@ -1466,6 +1481,10 @@ mod tests {
             location: String::new(),
             color: "pink".into(),
             has_shop: false,
+            genders: Vec::new(),
+            pronouns: String::new(),
+            terms: "neutral".into(),
+            relationship_status: String::new(),
         }
     }
 
@@ -2010,6 +2029,41 @@ mod tests {
         ws.delete_relation(&owner, &id).unwrap();
         let ws = open_workspace(root.path(), "workspace_personal", "correct horse").unwrap();
         assert!(ws.profiles[&owner].relations.is_empty());
+    }
+
+    #[test]
+    fn relation_catalog_is_consistent() {
+        let kinds = relation_kinds();
+        assert!(kinds.len() > 50);
+        for (kind, inverse) in kinds {
+            assert_eq!(inverse_relation(inverse), Some(kind.as_str()), "{kind} ↔ {inverse}");
+        }
+        // Modern kinds are accepted by the backend.
+        for kind in ["queerplatonic_partner", "metamour", "co_parent", "chosen_family", "pibling"] {
+            assert!(kinds.contains_key(kind), "{kind}");
+        }
+    }
+
+    #[test]
+    fn gender_and_identity_fields() {
+        let root = tempfile::tempdir().unwrap();
+        let mut ws = create_workspace(root.path(), "", "Personal", "Alex", "correct horse", FAST).unwrap();
+        let mut input = person("Robin", ProfileKind::Person);
+        input.genders = vec![" Non-binary ".into(), "non-binary".into(), "".into(), "Two-Spirit".into()];
+        input.pronouns = "they/them".into();
+        input.terms = "robot".into();
+        input.relationship_status = "In a queerplatonic relationship".into();
+        let robin = ws.save_profile(input).unwrap();
+        assert_eq!(robin.genders, ["Non-binary", "Two-Spirit"], "trimmed and deduplicated");
+        assert_eq!(robin.terms, "neutral", "unknown terms fall back");
+        assert_eq!(robin.pronouns, "they/them");
+
+        let many: Vec<String> = (0..20).map(|i| format!("gender {i}")).collect();
+        let lots = ws.save_profile(ProfileInput { genders: many, ..person("Kai", ProfileKind::Person) }).unwrap();
+        assert_eq!(lots.genders.len(), 10);
+
+        let ws = open_workspace(root.path(), "workspace_personal", "correct horse").unwrap();
+        assert_eq!(ws.profiles[&robin.id].relationship_status, "In a queerplatonic relationship");
     }
 
     #[test]

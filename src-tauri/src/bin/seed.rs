@@ -28,6 +28,10 @@ fn profile(kind: ProfileKind, name: &str, color: &str) -> ProfileInput {
         location: String::new(),
         color: color.into(),
         has_shop: false,
+        genders: Vec::new(),
+        pronouns: String::new(),
+        terms: "neutral".into(),
+        relationship_status: String::new(),
     }
 }
 
@@ -63,6 +67,9 @@ fn seed(ws: &mut Workspace) -> Result<(), Box<dyn std::error::Error>> {
         tagline: "Writing it all down.".into(),
         bio: "Software engineer, amateur photographer, chronic coffee drinker.".into(),
         location: "Minneapolis".into(),
+        genders: vec!["Non-binary".into()],
+        pronouns: "they/them".into(),
+        relationship_status: "In a queerplatonic relationship".into(),
         ..profile(ProfileKind::Me, &me.name, "teal")
     })?;
 
@@ -71,12 +78,26 @@ fn seed(ws: &mut Workspace) -> Result<(), Box<dyn std::error::Error>> {
         tagline: "Usually found reading.".into(),
         bio: "Usually found reading or complaining about the weather.".into(),
         location: "St. Paul".into(),
+        genders: vec!["Woman".into()],
+        pronouns: "she/her".into(),
+        terms: "feminine".into(),
+        relationship_status: "Married".into(),
         ..profile(ProfileKind::Person, "Sarah Jenkins", "pink")
     })?;
     let dev = ws.save_profile(ProfileInput {
         relationship: "Best friend".into(),
         bio: "Climbing partner. Owes me $20.".into(),
+        genders: vec!["Man".into()],
+        pronouns: "he/him".into(),
+        terms: "masculine".into(),
         ..profile(ProfileKind::Person, "Dev Patel", "indigo")
+    })?;
+    let robin = ws.save_profile(ProfileInput {
+        relationship: "Queerplatonic partner".into(),
+        bio: "Plant parent, sourdough evangelist.".into(),
+        genders: vec!["Genderqueer".into(), "Two-Spirit".into()],
+        pronouns: "they/them".into(),
+        ..profile(ProfileKind::Person, "Robin Okafor", "emerald")
     })?;
     let bean = ws.save_profile(ProfileInput {
         category: "Coffee shop".into(),
@@ -173,9 +194,11 @@ fn seed(ws: &mut Workspace) -> Result<(), Box<dyn std::error::Error>> {
 
     // Life events.
     for (event_type, title, ago, body) in [
-        ("home", "Moved to Minneapolis", 300 * DAY, "New city, new lakes."),
-        ("work", "Started a new role as Senior Engineer", 200 * DAY, ""),
-        ("achievement", "Paddled the whole north shore", 33 * DAY + HOUR, "About 14 km. Sore arms, very happy."),
+        ("home.moved_to_a_new_city", "Moved to Minneapolis", 300 * DAY, "New city, new lakes."),
+        ("career.started_a_new_job", "Started a new job as Senior Engineer at Northwind", 200 * DAY, ""),
+        ("relationship.queerplatonic_partnership", "Became queerplatonic partners with Robin Okafor", 120 * DAY, "No rings, just a shared sourdough starter."),
+        ("travel.visited_jp", "Visited Japan", 60 * DAY, "Two weeks, four cities, too many konbini snacks."),
+        ("fitness.started_kayaking", "Took up kayaking", 33 * DAY + HOUR, "Paddled the whole north shore. About 14 km. Sore arms, very happy."),
     ] {
         ws.save_post(PostInput {
             kind: PostKind::Milestone,
@@ -199,6 +222,7 @@ fn seed(ws: &mut Workspace) -> Result<(), Box<dyn std::error::Error>> {
     };
     ws.save_relation(&me_id, relate(&sarah, "sibling", ""))?;
     ws.save_relation(&me_id, relate(&dev, "best_friend", "2015"))?;
+    ws.save_relation(&me_id, relate(&robin, "queerplatonic_partner", "2025"))?;
     ws.save_relation(&me_id, relate(&bean, "favourite", "2024"))?;
     ws.save_relation(&me_id, relate(&lake, "favourite", ""))?;
     ws.save_relation(&sarah.id, relate(&club, "club", "2023"))?;

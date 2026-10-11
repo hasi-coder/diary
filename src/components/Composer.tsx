@@ -16,12 +16,13 @@ import {
   XIcon,
   type Icon,
 } from "@phosphor-icons/react";
-import { api, errorMessage, type Feeling, type Post, type PostKind } from "../lib/api";
-import { lifeEvent } from "../lib/catalog";
+import { api, errorMessage, type Feeling, type Post, type PostKind, type Profile } from "../lib/api";
+import { fillTitle, lifeEvent } from "../lib/lifeEvents";
 import { useJournal } from "../lib/journal";
 import { fromDatetimeLocal, KINDS, toDatetimeLocal } from "../lib/format";
 import { AlbumEditor, AttachmentStrip, useAttachments } from "./Attachments";
-import { CheckInPicker, ExtrasChips, FeelingPicker, LifeEventTypePicker, TagPeoplePicker } from "./PostExtras";
+import { LifeEventBrowser, LifeEventForm } from "./LifeEventPicker";
+import { CheckInPicker, ExtrasChips, FeelingPicker, TagPeoplePicker } from "./PostExtras";
 import { RichEditor, type RichEditorHandle } from "./RichEditor";
 import { Avatar, Button, ErrorText } from "./ui";
 
@@ -54,6 +55,11 @@ export function Composer(props: { defaultAuthorId?: string; editing?: Post; onDo
   const [placeId, setPlaceId] = useState<string | null>(editing?.placeId ?? null);
   const [feeling, setFeeling] = useState<Feeling | null>(editing?.feeling ?? null);
   const [eventType, setEventType] = useState(editing?.eventType ?? "");
+  // Life-event template inputs, the profiles picked for them, and whether the
+  // title was typed by hand (then it stops following the template).
+  const [eventValues, setEventValues] = useState<Record<string, string>>({});
+  const [eventLinks, setEventLinks] = useState<Record<string, Profile>>({});
+  const [titleEdited, setTitleEdited] = useState(!!editing);
   const [picker, setPicker] = useState<"with" | "place" | "feeling" | null>(null);
 
   const fullScreen = expanded || kind !== "status";
@@ -75,6 +81,35 @@ export function Composer(props: { defaultAuthorId?: string; editing?: Post; onDo
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   });
+
+  const unlink = (p: Profile | undefined) => {
+    if (!p) return;
+    setWithIds((ids) => ids.filter((x) => x !== p.id));
+    setPlaceId((id) => (id === p.id ? null : id));
+  };
+  const link = (p: Profile) => {
+    if (p.kind === "person" || p.kind === "me") setWithIds((ids) => (ids.includes(p.id) || p.id === authorId ? ids : [...ids, p.id]));
+    else setPlaceId(p.id);
+  };
+
+  const chooseEvent = (id: string) => {
+    Object.values(eventLinks).forEach(unlink);
+    setEventLinks({});
+    setEventValues({});
+    setEventType(id);
+    if (id && !titleEdited) setTitle(fillTitle(lifeEvent(id), {}) ?? lifeEvent(id).label);
+  };
+
+  const setEventValue = (key: string, value: string, profile: Profile | null) => {
+    const values = { ...eventValues, [key]: value };
+    setEventValues(values);
+    if (eventLinks[key]?.id !== profile?.id) {
+      unlink(eventLinks[key]);
+      if (profile) link(profile);
+      setEventLinks(({ [key]: _, ...rest }) => (profile ? { ...rest, [key]: profile } : rest));
+    }
+    if (!titleEdited) setTitle(fillTitle(lifeEvent(eventType), values) ?? lifeEvent(eventType).label);
+  };
 
   const hasText = content.trim() !== "";
   const ready = !busy && !attachments.uploading && !attachments.failed;
@@ -120,6 +155,9 @@ export function Composer(props: { defaultAuthorId?: string; editing?: Post; onDo
         setPlaceId(null);
         setFeeling(null);
         setEventType("");
+        setEventValues({});
+        setEventLinks({});
+        setTitleEdited(false);
       }
       await refresh();
       onDone?.();
@@ -195,9 +233,12 @@ export function Composer(props: { defaultAuthorId?: string; editing?: Post; onDo
   const titleInput = kind !== "status" && (
     <input
       value={title}
-      onChange={(e) => setTitle(e.target.value)}
+      onChange={(e) => {
+        setTitle(e.target.value);
+        if (kind === "milestone") setTitleEdited(e.target.value !== "");
+      }}
       autoFocus={!editing}
-      placeholder={kind === "article" ? "Article title" : kind === "milestone" ? (eventType ? lifeEvent(eventType).example : "What happened?") : "Album name"}
+      placeholder={kind === "article" ? "Article title" : kind === "milestone" ? "What happened?" : "Album name"}
       className="mb-3 w-full bg-transparent text-3xl font-bold text-slate-900 placeholder-slate-300 outline-none"
     />
   );
@@ -239,14 +280,22 @@ export function Composer(props: { defaultAuthorId?: string; editing?: Post; onDo
         <div className={`flex gap-4 ${fullScreen ? `mx-auto w-full ${kind === "album" ? "max-w-5xl" : "max-w-3xl"} ${kind === "album" ? "" : "h-full"}` : ""}`}>
           {!editing && !fullScreen && <Avatar profile={author} />}
           <div className={`relative min-w-0 flex-1 ${fullScreen && kind !== "album" ? "flex flex-col" : ""}`}>
-            {kind === "milestone" && (
+            {kind === "milestone" && !eventType ? (
               <div className="mb-5">
                 <p className="mb-2 text-sm font-medium text-slate-600">What kind of life event?</p>
-                <LifeEventTypePicker value={eventType} onChange={setEventType} />
+                <LifeEventBrowser onPick={chooseEvent} />
               </div>
+            ) : (
+              <>
+                {kind === "milestone" && (
+                  <div className="mb-5">
+                    <LifeEventForm template={lifeEvent(eventType)} values={eventValues} onValue={setEventValue} onChange={() => chooseEvent("")} />
+                  </div>
+                )}
+                {titleInput}
+                {editorEl}
+              </>
             )}
-            {titleInput}
-            {editorEl}
 
             {kind === "album" ? (
               <div className="mt-4">

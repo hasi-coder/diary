@@ -4,7 +4,8 @@ import { CircleNotchIcon, FlagBannerIcon, PencilSimpleIcon, PlusIcon, TrashIcon,
 import { api, errorMessage, type Profile, type Relation } from "../lib/api";
 import { useJournal, usePosts } from "../lib/journal";
 import { KINDS } from "../lib/format";
-import { lifeEvent, RELATION_KINDS, relationsOf } from "../lib/catalog";
+import { RELATION_GROUPS, RELATION_KINDS, relationLabel, relationsOf } from "../lib/catalog";
+import { categoryOf, lifeEvent } from "../lib/lifeEvents";
 import { MediaPreview } from "./Media";
 import { Avatar, Button, ErrorText, Field, inputClass, Modal } from "./ui";
 
@@ -86,7 +87,6 @@ export function PhotoDialog({ profile, slot, onClose }: { profile: Profile; slot
 
 // ---- Relationships ----
 
-const GROUPS = ["Family", "Relationship", "Friends & work", "Places & groups", "Other"] as const;
 
 /** Intro-card lines such as "Works at The Rusty Bean". */
 export function RelationIntro({ profile }: { profile: Profile }) {
@@ -129,7 +129,7 @@ export function RelationshipsSection({ profile }: { profile: Profile }) {
         </Button>
       </div>
       {views.length === 0 && <p className="text-sm text-slate-400">No relationships yet.</p>}
-      {GROUPS.map((group) => {
+      {RELATION_GROUPS.map((group) => {
         const rows = views.filter((v) => groupOf(v.relation.kind) === group);
         if (rows.length === 0) return null;
         return (
@@ -194,9 +194,8 @@ function RelationDialog({ profile, relation, onClose }: { profile: Profile; rela
 
   const other = profiles.get(toId);
   const info = RELATION_KINDS.find((k) => k.kind === kind);
-  const inverseInfo = RELATION_KINDS.find((k) => k.kind === info?.inverse);
-  const forward = kind === "custom" ? label || "…" : info?.label;
-  const backward = kind === "custom" ? inverseLabel || label || "…" : inverseInfo?.label;
+  const forward = kind === "custom" ? label || "…" : relationLabel(kind, other);
+  const backward = kind === "custom" ? inverseLabel || label || "…" : relationLabel(info?.inverse ?? kind, profile);
 
   const save = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -234,11 +233,11 @@ function RelationDialog({ profile, relation, onClose }: { profile: Profile; rela
         </Field>
         <Field label={`${other?.name ?? "They"} is ${profile.name}'s…`}>
           <select className={inputClass} value={kind} onChange={(e) => setKind(e.target.value)}>
-            {GROUPS.map((g) => (
+            {RELATION_GROUPS.map((g) => (
               <optgroup key={g} label={g}>
                 {RELATION_KINDS.filter((k) => k.group === g).map((k) => (
                   <option key={k.kind} value={k.kind}>
-                    {k.label}
+                    {relationLabel(k.kind, other)}
                   </option>
                 ))}
               </optgroup>
@@ -299,7 +298,9 @@ export function LifeEventsCard({ profile }: { profile: Profile }) {
               <span className="absolute -left-[13px] flex h-6 w-6 items-center justify-center rounded-full bg-white text-sm ring-2 ring-slate-100">{e.emoji}</span>
               <button onClick={() => navigate({ view: "post", id: p.id })} className="text-left">
                 <span className="block text-sm font-medium text-slate-800 hover:underline">{p.title}</span>
-                <span className="block text-xs text-slate-400">{new Date(p.occurredAt).getFullYear()}</span>
+                <span className="block text-xs text-slate-400">
+                  {new Date(p.occurredAt).getFullYear()} · {categoryOf(e.category).label}
+                </span>
               </button>
             </li>
           );

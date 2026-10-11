@@ -3,6 +3,8 @@ import { useState } from "react";
 import { api, errorMessage, type Item, type ItemStatus, type Profile, type ProfileInput, type ProfileKind } from "../lib/api";
 import { useJournal } from "../lib/journal";
 import { COLORS, KINDS, STATUS } from "../lib/format";
+import { GENDER_SUGGESTIONS, PRONOUNS, RELATIONSHIP_STATUSES, TERMS, termsForPronouns } from "../lib/catalog";
+import { XIcon } from "@phosphor-icons/react";
 import { Button, ErrorText, Field, inputClass, Modal } from "./ui";
 
 const NEW_KINDS: ProfileKind[] = ["person", "page", "shop", "place"];
@@ -31,6 +33,10 @@ export function ProfileForm(props: { profile?: Profile; initialKind?: ProfileKin
           location: "",
           color: DEFAULT_COLOR[props.initialKind ?? "person"],
           hasShop: false,
+          genders: [],
+          pronouns: "",
+          terms: "neutral",
+          relationshipStatus: "",
         },
   );
   const [busy, setBusy] = useState(false);
@@ -91,6 +97,8 @@ export function ProfileForm(props: { profile?: Profile; initialKind?: ProfileKin
             <input className={inputClass} value={form.category} onChange={(e) => set("category", e.target.value)} />
           </Field>
         )}
+
+        {(kind === "person" || kind === "me") && <IdentityFields form={form} set={set} />}
 
         <Field label="Tagline">
           <input className={inputClass} value={form.tagline} onChange={(e) => set("tagline", e.target.value)} placeholder="A one-line intro" />
@@ -220,5 +228,114 @@ export function ItemForm(props: { shopId: string; item?: Item; onClose: () => vo
         </div>
       </form>
     </Modal>
+  );
+}
+
+const MAX_GENDERS = 10;
+
+/** Gender (any number of free-form identities), pronouns, relationship words and status. */
+function IdentityFields({ form, set }: { form: ProfileInput; set: <K extends keyof ProfileInput>(key: K, value: ProfileInput[K]) => void }) {
+  const [draft, setDraft] = useState("");
+  const [termsTouched, setTermsTouched] = useState(form.terms !== "neutral" || !!form.pronouns);
+  const addGender = (g: string) => {
+    const value = g.trim();
+    if (!value || form.genders.length >= MAX_GENDERS || form.genders.some((x) => x.toLowerCase() === value.toLowerCase())) return;
+    set("genders", [...form.genders, value]);
+    setDraft("");
+  };
+  const setPronouns = (p: string) => {
+    set("pronouns", p);
+    if (!termsTouched) set("terms", termsForPronouns(p));
+  };
+  const quick = ["Woman", "Man", "Non-binary"].filter((g) => !form.genders.includes(g));
+
+  return (
+    <div className="space-y-4 rounded-xl border border-slate-200 p-4">
+      <Field label="Gender" hint={`Optional. Add up to ${MAX_GENDERS} — pick from the list or type your own.`}>
+        <div className="flex flex-wrap items-center gap-1.5">
+          {form.genders.map((g) => (
+            <span key={g} className="inline-flex items-center gap-1 rounded-full bg-brand-50 py-0.5 pl-2.5 pr-1 text-sm text-brand-700">
+              {g}
+              <button type="button" onClick={() => set("genders", form.genders.filter((x) => x !== g))} className="rounded-full p-0.5 hover:bg-brand-100" aria-label={`Remove ${g}`}>
+                <XIcon size={11} />
+              </button>
+            </span>
+          ))}
+          {quick.map((g) => (
+            <button key={g} type="button" onClick={() => addGender(g)} className="rounded-full border border-dashed border-slate-300 px-2.5 py-0.5 text-sm text-slate-500 hover:border-brand-400 hover:text-brand-700">
+              + {g}
+            </button>
+          ))}
+        </div>
+        {form.genders.length < MAX_GENDERS && (
+          <div className="mt-2 flex gap-2">
+            <input
+              className={inputClass}
+              list="gender-suggestions"
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  addGender(draft);
+                }
+              }}
+              placeholder="e.g. Genderqueer, Two-Spirit, Trans woman…"
+            />
+            <Button type="button" variant="outline" onClick={() => addGender(draft)} disabled={!draft.trim()}>
+              Add
+            </Button>
+            <datalist id="gender-suggestions">
+              {GENDER_SUGGESTIONS.map((g) => (
+                <option key={g} value={g} />
+              ))}
+            </datalist>
+          </div>
+        )}
+      </Field>
+
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Field label="Pronouns">
+          <input className={inputClass} list="pronoun-suggestions" value={form.pronouns} onChange={(e) => setPronouns(e.target.value)} placeholder="she/her, he/him, they/them…" />
+          <datalist id="pronoun-suggestions">
+            {PRONOUNS.map((p) => (
+              <option key={p} value={p} />
+            ))}
+          </datalist>
+        </Field>
+        <Field label="Relationship status">
+          <input
+            className={inputClass}
+            list="status-suggestions"
+            value={form.relationshipStatus}
+            onChange={(e) => set("relationshipStatus", e.target.value)}
+            placeholder="Single, Married, Polyamorous…"
+          />
+          <datalist id="status-suggestions">
+            {RELATIONSHIP_STATUSES.map((s) => (
+              <option key={s} value={s} />
+            ))}
+          </datalist>
+        </Field>
+      </div>
+
+      <Field label="Words for family and relationships" hint="Used in relationship labels on other profiles.">
+        <div className="grid grid-cols-3 gap-2">
+          {TERMS.map((t) => (
+            <button
+              key={t.value}
+              type="button"
+              onClick={() => (set("terms", t.value), setTermsTouched(true))}
+              className={`rounded-xl border px-3 py-2 text-left transition-colors ${
+                form.terms === t.value ? "border-brand-500 bg-brand-50" : "border-slate-200 hover:bg-slate-50"
+              }`}
+            >
+              <span className={`block text-sm font-medium ${form.terms === t.value ? "text-brand-700" : "text-slate-700"}`}>{t.label}</span>
+              <span className="block text-[11px] text-slate-400">{t.example}</span>
+            </button>
+          ))}
+        </div>
+      </Field>
+    </div>
   );
 }

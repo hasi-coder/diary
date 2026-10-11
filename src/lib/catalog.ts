@@ -1,5 +1,7 @@
-// Fixed vocabularies: feelings and activities, life-event types, relationship kinds.
+// Fixed vocabularies: feelings and activities, gender identity, relationship
+// kinds and statuses. Life events live in lifeEvents.ts.
 import type { Profile, Relation } from "./api";
+import relationsCatalog from "./relations.json";
 
 export const FEELINGS: { emoji: string; text: string }[] = [
   ["😊", "happy"], ["🥰", "loved"], ["🙏", "grateful"], ["🤩", "excited"], ["😌", "relaxed"], ["😎", "proud"],
@@ -21,60 +23,78 @@ export const ACTIVITIES: { emoji: string; verb: string; prompt: string }[] = [
   { emoji: "💭", verb: "thinking about", prompt: "What's on your mind?" },
 ];
 
-export const LIFE_EVENTS: { key: string; emoji: string; label: string; example: string }[] = [
-  { key: "work", emoji: "💼", label: "Work", example: "Started a new job at …" },
-  { key: "education", emoji: "🎓", label: "Education", example: "Graduated from …" },
-  { key: "home", emoji: "🏠", label: "Home", example: "Moved to …" },
-  { key: "relationship", emoji: "💞", label: "Relationship", example: "Got engaged to …" },
-  { key: "family", emoji: "👶", label: "Family", example: "Welcomed a new family member" },
-  { key: "travel", emoji: "✈️", label: "Travel", example: "First trip to …" },
-  { key: "health", emoji: "❤️‍🩹", label: "Health & wellness", example: "Ran my first 10K" },
-  { key: "achievement", emoji: "🏆", label: "Achievement", example: "Finished my first novel" },
-  { key: "remembrance", emoji: "🕊️", label: "Remembrance", example: "In loving memory of …" },
-  { key: "other", emoji: "⭐", label: "Other", example: "Something worth remembering" },
+export { lifeEvent } from "./lifeEvents";
+
+// ── Gender identity ──────────────────────────────────────────────────────────
+// Facebook's custom-gender list (2014+, ~58 options) plus a few common
+// additions. Profiles can hold up to 10 and type anything not listed.
+export const GENDER_SUGGESTIONS = [
+  "Woman", "Man", "Non-binary", "Agender", "Androgyne", "Androgynous", "Bigender", "Cis", "Cisgender",
+  "Cis female", "Cis male", "Cis man", "Cis woman", "Cisgender female", "Cisgender male", "Cisgender man",
+  "Cisgender woman", "Female to male", "FTM", "Gender fluid", "Genderfluid", "Gender nonconforming",
+  "Gender questioning", "Gender variant", "Genderqueer", "Intersex", "Male to female", "MTF", "Neither",
+  "Neutrois", "Non-binary", "Other", "Pangender", "Trans", "Trans*", "Trans female", "Trans* female",
+  "Trans male", "Trans* male", "Trans man", "Trans* man", "Trans person", "Trans* person", "Trans woman",
+  "Trans* woman", "Transfeminine", "Transgender", "Transgender female", "Transgender male",
+  "Transgender man", "Transgender person", "Transgender woman", "Transmasculine", "Transsexual",
+  "Transsexual female", "Transsexual male", "Transsexual man", "Transsexual person", "Transsexual woman",
+  "Two-Spirit", "Demigirl", "Demiboy", "Demigender", "Xenogender", "Hijra", "Fa'afafine", "Māhū",
+  "Muxe", "Kathoey", "Prefer not to say",
+].filter((g, i, all) => all.indexOf(g) === i);
+
+export const PRONOUNS = ["she/her", "he/him", "they/them", "she/they", "he/they", "xe/xem", "ze/hir", "any pronouns", "no pronouns"];
+
+/** Which words to use for this profile in relationship labels (Facebook asks the same). */
+export const TERMS: { value: Terms; label: string; example: string }[] = [
+  { value: "neutral", label: "Neutral", example: "sibling, parent, partner" },
+  { value: "feminine", label: "Feminine", example: "sister, mother, wife" },
+  { value: "masculine", label: "Masculine", example: "brother, father, husband" },
+];
+export type Terms = "neutral" | "feminine" | "masculine";
+
+/** A sensible default for the terms picker when pronouns are chosen. */
+export function termsForPronouns(pronouns: string): Terms {
+  const p = pronouns.trim().toLowerCase();
+  if (p.startsWith("she")) return "feminine";
+  if (p.startsWith("he/") || p === "he") return "masculine";
+  return "neutral";
+}
+
+/** Facebook's relationship statuses, plus modern ones. */
+export const RELATIONSHIP_STATUSES = [
+  "Single", "In a relationship", "Engaged", "Married", "In a civil union", "In a domestic partnership",
+  "In an open relationship", "It's complicated", "Separated", "Divorced", "Widowed",
+  "Dating", "Talking to someone", "Polyamorous", "In a queerplatonic relationship", "Nesting with partners",
+  "Long distance", "Asexual and happy", "Aromantic and happy", "Not looking", "Prefer not to say",
 ];
 
-export const lifeEvent = (key: string) => LIFE_EVENTS.find((e) => e.key === key) ?? LIFE_EVENTS[LIFE_EVENTS.length - 1];
+// ── Relationships ────────────────────────────────────────────────────────────
+// Shared with the Rust backend (validation and inverses): src/lib/relations.json.
+
+export type RelationGroup = "Family" | "Partners" | "Friends & community" | "Work" | "Pets" | "Places & groups" | "Other";
+export const RELATION_GROUPS: RelationGroup[] = ["Family", "Partners", "Friends & community", "Work", "Pets", "Places & groups", "Other"];
 
 interface RelationKind {
   kind: string;
-  /** How the related profile is described, e.g. "Sibling", "Workplace". */
-  label: string;
   inverse: string;
-  group: "Family" | "Relationship" | "Friends & work" | "Places & groups" | "Other";
-  /** Phrase for the intro card, from the declarer's side. */
+  group: RelationGroup;
+  /** [neutral, feminine, masculine]: how the related profile is described. */
+  label: [string, string, string];
+  /** Phrase for the intro card, from the declarer's side ("Married to"). */
   intro?: string;
 }
 
-export const RELATION_KINDS: RelationKind[] = [
-  { kind: "parent", label: "Parent", inverse: "child", group: "Family" },
-  { kind: "child", label: "Child", inverse: "parent", group: "Family" },
-  { kind: "sibling", label: "Sibling", inverse: "sibling", group: "Family" },
-  { kind: "grandparent", label: "Grandparent", inverse: "grandchild", group: "Family" },
-  { kind: "grandchild", label: "Grandchild", inverse: "grandparent", group: "Family" },
-  { kind: "relative", label: "Relative", inverse: "relative", group: "Family" },
-  { kind: "spouse", label: "Spouse", inverse: "spouse", group: "Relationship", intro: "Married to" },
-  { kind: "partner", label: "Partner", inverse: "partner", group: "Relationship", intro: "In a relationship with" },
-  { kind: "friend", label: "Friend", inverse: "friend", group: "Friends & work" },
-  { kind: "best_friend", label: "Best friend", inverse: "best_friend", group: "Friends & work" },
-  { kind: "colleague", label: "Colleague", inverse: "colleague", group: "Friends & work" },
-  { kind: "neighbour", label: "Neighbour", inverse: "neighbour", group: "Friends & work" },
-  { kind: "workplace", label: "Workplace", inverse: "employee", group: "Places & groups", intro: "Works at" },
-  { kind: "employee", label: "Employee", inverse: "workplace", group: "Places & groups" },
-  { kind: "school", label: "School", inverse: "student", group: "Places & groups", intro: "Studied at" },
-  { kind: "student", label: "Student", inverse: "school", group: "Places & groups" },
-  { kind: "club", label: "Group", inverse: "member", group: "Places & groups", intro: "Member of" },
-  { kind: "member", label: "Member", inverse: "club", group: "Places & groups" },
-  { kind: "home", label: "Home", inverse: "resident", group: "Places & groups", intro: "Lives in" },
-  { kind: "resident", label: "Resident", inverse: "home", group: "Places & groups" },
-  { kind: "hometown", label: "Hometown", inverse: "native", group: "Places & groups", intro: "From" },
-  { kind: "native", label: "From here", inverse: "hometown", group: "Places & groups" },
-  { kind: "favourite", label: "Favourite spot", inverse: "regular", group: "Places & groups", intro: "Regular at" },
-  { kind: "regular", label: "Regular", inverse: "favourite", group: "Places & groups" },
-  { kind: "custom", label: "Custom…", inverse: "custom", group: "Other" },
-];
+export const RELATION_KINDS = relationsCatalog.kinds as RelationKind[];
+const byKind = new Map(RELATION_KINDS.map((k) => [k.kind, k]));
+const kindInfo = (kind: string) => byKind.get(kind);
 
-const kindInfo = (kind: string) => RELATION_KINDS.find((k) => k.kind === kind);
+/** The label for `kind`, gendered by the profile it describes. */
+export function relationLabel(kind: string, describes?: Pick<Profile, "terms">): string {
+  const info = kindInfo(kind);
+  if (!info) return kind;
+  const i = describes?.terms === "feminine" ? 1 : describes?.terms === "masculine" ? 2 : 0;
+  return info.label[i];
+}
 
 export interface RelationView {
   relation: Relation;
@@ -97,12 +117,12 @@ export function relationsOf(profileId: string, profiles: Profile[]): RelationVie
       if (p.id === profileId) {
         const other = byId.get(r.toId);
         if (!other) continue;
-        const info = kindInfo(r.kind);
-        out.push({ relation: r, declarerId: p.id, other, label: r.kind === "custom" ? r.label : (info?.label ?? r.kind), intro: info?.intro });
+        const label = r.kind === "custom" ? r.label : relationLabel(r.kind, other);
+        out.push({ relation: r, declarerId: p.id, other, label, intro: kindInfo(r.kind)?.intro });
       } else if (r.toId === profileId) {
-        const info = kindInfo(kindInfo(r.kind)?.inverse ?? r.kind);
-        const label = r.kind === "custom" ? r.inverseLabel || r.label : (info?.label ?? r.kind);
-        out.push({ relation: r, declarerId: p.id, other: p, label, intro: info?.intro });
+        const inverse = kindInfo(r.kind)?.inverse ?? r.kind;
+        const label = r.kind === "custom" ? r.inverseLabel || r.label : relationLabel(inverse, p);
+        out.push({ relation: r, declarerId: p.id, other: p, label, intro: kindInfo(inverse)?.intro });
       }
     }
   }

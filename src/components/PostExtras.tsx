@@ -1,10 +1,9 @@
-// Facebook-style post extras: tag people, check in, feeling/activity, and the
-// life-event type picker, plus the "is feeling … with … at …" headline.
+// Facebook-style post extras: tag people, check in and feeling/activity, plus the "is feeling … with … at …" headline.
 import { Fragment, useMemo, useState, type ReactNode } from "react";
 import { CheckIcon, XIcon } from "@phosphor-icons/react";
 import type { Feeling, Post, Profile } from "../lib/api";
 import { useJournal } from "../lib/journal";
-import { ACTIVITIES, FEELINGS, LIFE_EVENTS } from "../lib/catalog";
+import { ACTIVITIES, FEELINGS } from "../lib/catalog";
 import { subtitle } from "../lib/format";
 import { Avatar } from "./ui";
 
@@ -165,27 +164,6 @@ export function FeelingPicker(props: { onPick: (f: Feeling) => void; onClose: ()
         </div>
       )}
     </Popover>
-  );
-}
-
-/** Grid of life-event types for the milestone composer. */
-export function LifeEventTypePicker({ value, onChange }: { value: string; onChange: (key: string) => void }) {
-  return (
-    <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
-      {LIFE_EVENTS.map((e) => (
-        <button
-          key={e.key}
-          type="button"
-          onClick={() => onChange(e.key)}
-          className={`flex flex-col items-center gap-1 rounded-xl border px-2 py-3 text-xs font-medium transition-colors ${
-            value === e.key ? "border-brand-500 bg-brand-50 text-brand-700" : "border-slate-200 text-slate-600 hover:bg-slate-50"
-          }`}
-        >
-          <span className="text-2xl">{e.emoji}</span>
-          {e.label}
-        </button>
-      ))}
-    </div>
   );
 }
 

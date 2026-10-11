@@ -4,7 +4,10 @@ import {
   ArrowsVerticalIcon,
   BriefcaseIcon,
   CameraIcon,
+  ChatTextIcon,
+  GenderIntersexIcon,
   HeartIcon,
+  HeartStraightIcon,
   MapPinIcon,
   NotebookIcon,
   PencilSimpleIcon,
@@ -136,7 +139,10 @@ export function ProfileView({ id, tab }: { id: string; tab?: Tab }) {
             </button>
           </div>
           <div className="min-w-0 flex-1 pb-1">
-            <h1 className="truncate text-3xl font-bold text-slate-900">{profile.name}</h1>
+            <h1 className="truncate text-3xl font-bold text-slate-900">
+              {profile.name}
+              {profile.pronouns && <span className="ml-2 text-base font-normal text-slate-400">({profile.pronouns})</span>}
+            </h1>
             <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-slate-500">
               <KindBadge profile={profile} />
               {profile.kind !== "me" && subtitle(profile) !== KINDS[profile.kind].label && <span>{subtitle(profile)}</span>}
@@ -280,6 +286,9 @@ function AboutCard({ profile }: { profile: Profile }) {
     { label: "Tagline", value: profile.tagline },
     { label: "Bio", value: profile.bio },
     { label: "Relationship", value: profile.relationship },
+    { label: "Gender", value: profile.genders.join(", ") },
+    { label: "Pronouns", value: profile.pronouns },
+    { label: "Relationship status", value: profile.relationshipStatus },
     { label: "Category", value: profile.category },
     { label: "Location", value: profile.location },
     { label: "Added", value: new Date(profile.createdAt).toLocaleDateString(undefined, { dateStyle: "long" }) },
@@ -330,6 +339,9 @@ function ShopTab({ profile }: { profile: Profile }) {
 function detailRows(p: Profile) {
   const rows: { label: string; value: string; icon: typeof MapPinIcon }[] = [];
   if (p.relationship) rows.push({ label: "relationship", value: p.relationship, icon: HeartIcon });
+  if (p.genders.length) rows.push({ label: "gender", value: p.genders.join(", "), icon: GenderIntersexIcon });
+  if (p.pronouns) rows.push({ label: "pronouns", value: p.pronouns, icon: ChatTextIcon });
+  if (p.relationshipStatus) rows.push({ label: "status", value: p.relationshipStatus, icon: HeartStraightIcon });
   if (p.category) rows.push({ label: "category", value: p.category, icon: BriefcaseIcon });
   if (p.location) rows.push({ label: "location", value: p.location, icon: MapPinIcon });
   return rows;

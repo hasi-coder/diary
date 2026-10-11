@@ -76,6 +76,18 @@ pub struct Profile {
     /// Whether the profile can list items for sale. Always true for shops.
     #[serde(default)]
     pub has_shop: bool,
+    /// Gender identities, free text (up to 10), as on Facebook. Empty = not shared.
+    #[serde(default)]
+    pub genders: Vec<String>,
+    /// e.g. "she/her", "they/them", "ze/zir".
+    #[serde(default)]
+    pub pronouns: String,
+    /// Which relationship words to use for this profile: neutral, feminine or masculine.
+    #[serde(default = "default_terms")]
+    pub terms: String,
+    /// e.g. "Married", "In an open relationship", "It's complicated".
+    #[serde(default)]
+    pub relationship_status: String,
     /// Profile picture. Its bytes live in `media/<id>.enc`.
     #[serde(default)]
     pub avatar: Option<MediaRef>,
@@ -94,6 +106,10 @@ pub struct Profile {
 
 fn default_cover_position() -> u8 {
     50
+}
+
+fn default_terms() -> String {
+    "neutral".into()
 }
 
 /// "`to_id` is this profile's `kind`", e.g. kind `sibling`, or `workplace` for a shop.
@@ -160,6 +176,14 @@ pub struct ProfileInput {
     pub color: String,
     #[serde(default)]
     pub has_shop: bool,
+    #[serde(default)]
+    pub genders: Vec<String>,
+    #[serde(default)]
+    pub pronouns: String,
+    #[serde(default = "default_terms")]
+    pub terms: String,
+    #[serde(default)]
+    pub relationship_status: String,
 }
 
 /// What kind of entry a post is. Older records without a kind are statuses.

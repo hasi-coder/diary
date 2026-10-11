@@ -83,15 +83,27 @@ Every profile has a Facebook-style page:
   journal** (copied, so deleting the post doesn't remove it); the cover can be **repositioned**
   or removed
 - an intro card
+- for people and you: **gender identity** (any number, up to 10, from Facebook's ~58 custom
+  options or typed freely: Non-binary, Two-Spirit, Genderqueer, Trans woman, …), **pronouns**,
+  **relationship status** (Facebook's list plus modern ones such as polyamorous or
+  queerplatonic), and the **words for family and relationships** (neutral, feminine or masculine).
 - tabs: **Posts** (written by or mentioning them), **About**, **Photos & videos** and, for
   sellers, **Shop**.
 
 **Relationships**, like Facebook's "Family and relationships": the **About** tab lists them and
 **Add** creates one.
 
-- Kinds: parent/child, sibling, grandparent, relative, spouse, partner, friend, best friend,
-  colleague, neighbour, workplace/employee, school/student, group/member, home/resident,
-  hometown, favourite spot/regular, or a **custom** pair of labels.
+- About 100 kinds, grouped as Family, Partners, Friends & community, Work, Pets, and Places &
+  groups. They include today's families and relationships, not only the traditional ones:
+  - Family: step, half, adoptive, birth, foster, guardian, donor, gestational carrier,
+    co-parent, chosen family, pibling/nibling.
+  - Partners: civil and domestic partner, open, poly, nesting partner, metamour, queerplatonic
+    partner, "it's complicated", separated, ex, late spouse.
+  - Plus mentor, caregiver, therapist, landlord and more, or a **custom** pair of labels.
+- Labels are gendered by the **described** profile's chosen words: with neutral words a
+  profile shows as *Sibling* or *Parent*, with feminine words as *Sister* or *Mother*. The kinds
+  live in one file, [src/lib/relations.json](src/lib/relations.json), which both the UI (labels)
+  and the Rust backend (validation, inverses) read, and a test checks every inverse pairs up.
 - Each relationship is stored once, on the profile that declared it, and shown on **both**
   profiles with the matching label. If Alex declares Sarah as his *sibling*, Alex appears on
   Sarah's page as her *sibling*. If he declares The Rusty Bean as his *workplace*, he appears on
@@ -114,7 +126,7 @@ The composer has three modes:
 | **Post** | Everyday entries: text plus up to 20 photos/videos. | Inline in the feed with a photo grid. |
 | **Article** | Long-form writing with a title. The first image is the cover. | A teaser card in the feed (cover, title, excerpt, reading time) that opens a reading view. |
 | **Album** | A titled collection of up to 500 photos and videos, each with its own caption. Drag to add; reorder; mark the cover. | A teaser with a grid in the feed, opening an album page with captioned tiles. |
-| **Life event** | A milestone with a type and title: 💼 work, 🎓 education, 🏠 home, 💞 relationship, 👶 family, ✈️ travel, ❤️‍🩹 health, 🏆 achievement, 🕊️ remembrance, ⭐ other. | A centred card with a big icon in the feed, plus a **Life events** timeline on the profile. |
+| **Life event** | One of **~3,100 templates** (see below), with a title that fills itself in. | A centred card with a big icon in the feed, plus a **Life events** timeline on the profile. |
 
 Every type can also carry Facebook-style extras, shown in the headline. For example: *"Alex
 Morgan is 😊 feeling happy with Sarah Jenkins and Dev Patel at The Rusty Bean."*
@@ -137,6 +149,27 @@ All three use the same **rich-text editor**:
 - ⌘/Ctrl+↵ to save, and a distraction-free focus mode
 
 Entries can be **back-dated** with "Happened on".
+
+### Life-event templates
+
+[src/lib/lifeEvents.ts](src/lib/lifeEvents.ts) holds about 3,100 life-event templates in 25
+categories, each split into sub-groups (for example, Women's & reproductive health › Fertility).
+
+| Area | Examples |
+| --- | --- |
+| Family, baby, childhood, teen | First smile, first steps, Kiri bath, Akuru kiyaweema, Grade 5 scholarship exam, first period, bar/bat/b-mitzvah, quinceañera, Seijin no Hi, turned 18 |
+| Education and career | O/L, A/L and ~60 other exams; degrees; fields of study; ~150 professions; career journeys for teachers, nurses, doctors, engineers, lawyers, pilots, trades and more |
+| Love, weddings and identity | Dating, love and intimacy, polyamory and queerplatonic partnerships, Poruwa ceremony, Nikah, Anand Karaj, coming out, transition, Pride |
+| Women's and reproductive health | Fertility and IVF, pregnancy week by week, birth types, NICU, loss, menopause |
+| Everything else | Every country (visited or moved to) with its flag; ~100 sports; ~100 languages; instruments, hobbies, pets, faith and culture (Vesak, Poson, dansala, Diwali, Eid, Hajj, Christmas and more), civic life, money, health and sobriety, every birthday from 1 to 110, anniversaries, later life, loss and remembrance |
+
+- Each template suits one or more **life stages**: baby, child, teen, young adult, adult,
+  midlife and later life. The picker filters by stage, by category, and by full-text search.
+- Placeholders in the title (`Married {person} at {place}`) become small form fields.
+  - **People and places** can be picked from profiles, which tags them on the post.
+  - The title fills itself in until you edit it.
+- The stored `eventType` is a stable id such as `relationship.got_engaged`. Old keys (`work`,
+  `home`, …) still resolve, to each category's "Other …" template.
 
 ### Photos and videos
 
@@ -248,7 +281,8 @@ my-diary/
 ├── src/                       React frontend
 │   ├── App.tsx                Unlock vs. workspace; routes; ⌘K
 │   ├── lib/                   api.ts (typed IPC), journal.tsx (state and routing),
-│   │                          mentions.ts, format.ts
+│   │                          mentions.ts, format.ts, catalog.ts (feelings, genders,
+│   │                          statuses), relations.json, lifeEvents.ts
 │   ├── components/            Composer, RichEditor, PostCard, Media (grid, Theater, gallery),
 │   │                          Attachments (uploads, album editor), Search, ChangePassword, ...
 │   └── views/                 Timeline, Profiles, Profile, Post (article/album pages),
@@ -308,7 +342,7 @@ Defined in `src-tauri/src/model.rs` and mirrored in `src/lib/api.ts`.
 
 | Record | Key fields |
 | --- | --- |
-| **Profile** | `kind` (me/person/page/shop/place), `name`, `tagline`, `bio`, `relationship`, `category`, `location`, `color`, `hasShop`, `avatar`/`cover` (MediaRef), `coverPosition`, `relations[]` |
+| **Profile** | `kind` (me/person/page/shop/place), `name`, `tagline`, `bio`, `relationship`, `category`, `location`, `color`, `hasShop`, `genders[]`, `pronouns`, `terms` (neutral/feminine/masculine), `relationshipStatus`, `avatar`/`cover` (MediaRef), `coverPosition`, `relations[]` |
 | **Relation** (inside a profile) | `toId`, `kind` ("`toId` is my `kind`"), `label`/`inverseLabel` (custom), `since` |
 | **Post** | `kind` (status/article/album/milestone), `title`, `authorId`, `content` (Markdown), `occurredAt`, `withIds[]`, `placeId`, `feeling` {emoji, text}, `eventType`, `media[]` |
 | **MediaRef** (inside a post or profile) | `id`, `kind` (image/video), `mime`, `name`, `size`, `caption`, `tags[]` ({profileId, x, y} in 0..1) |
@@ -488,7 +522,8 @@ Where the build deliberately differs from `system_architecture_proposal.md`:
 | `10e117f` | **Editor and search:** TipTap rich-text editor (Markdown storage), in-memory BM25 search, ⌘K palette |
 | `54c8325` | **Password change:** re-wrap or full key rotation with crash-safe staging |
 | `1ef207d` | **Articles and albums:** post kinds, per-photo captions, album editor, the photo viewer, article reader, album pages |
-| *latest* | **Facebook social features:** tag people, check-ins, feelings/activities, life events, photo tagging, relationships, profile pictures and cover photos |
+| `2d2a6c1` | **Facebook social features:** tag people, check-ins, feelings/activities, life events, photo tagging, relationships, profile pictures and cover photos |
+| *latest* | **Life for everyone:** ~3,100 life-event templates by category, sub-group and life stage; ~100 modern relationship kinds with gendered labels; non-binary gender identities, pronouns and relationship status |
 
 ---
 
@@ -496,7 +531,5 @@ Where the build deliberately differs from `system_architecture_proposal.md`:
 
 - **Map view:** pin places on a map.
 - **Comments and reactions** on posts (from supporting characters).
-- **Smarter relationship labels:** e.g. "Sister" rather than "Sibling", using an optional gender
-  on people.
 - **Export:** e.g. Markdown + media, decrypted to a folder you choose.
 - **Hiding activity:** batching commits or splitting files further, to hide activity patterns.
