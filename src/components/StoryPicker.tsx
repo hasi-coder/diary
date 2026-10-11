@@ -1,6 +1,6 @@
 // Add a clause to a post's story: a feeling, something being done, a life
 // event (grouped by category), or a role ("as a nurse" / "a nurse").
-import { useMemo, useState } from "react";
+import { Fragment, useMemo, useState } from "react";
 import { ArrowLeftIcon, MagnifyingGlassIcon } from "@phosphor-icons/react";
 import type { Activity } from "../lib/api";
 import { ACTIVITY_VERBS, FEELINGS, type ActivityVerb } from "../lib/catalog";
@@ -82,7 +82,7 @@ function Doing({ onAdd }: { onAdd: (c: Activity) => void }) {
     <ThingChooser
       title={`${verb.emoji} ${verb.label ?? `${verb.verb}…`}`}
       placeholder={verb.prompt}
-      things={(q) => searchThings(verb.kinds, q, 120)}
+      things={(q) => searchThings(verb.kinds, q, 300)}
       showKind={verb.kinds.length > 1}
       onBack={() => setVerb(null)}
       onThing={(t) => onAdd({ emoji: t.emoji, verb: verb.verb, object: t.phrase, thing: `${t.kind}:${t.id}` })}
@@ -194,14 +194,20 @@ function ThingChooser(props: {
             </button>
           </li>
         )}
-        {things.map((t) => (
-          <li key={`${t.kind}:${t.id}`}>
-            <button type="button" onClick={() => props.onThing(t)} className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-sm hover:bg-slate-50">
-              <span className="w-6 text-center">{t.emoji}</span>
-              <span className="min-w-0 flex-1 truncate">{t.label}</span>
-              {props.showKind && <span className="text-[10px] uppercase tracking-wide text-slate-400">{KINDS[t.kind].label}</span>}
-            </button>
-          </li>
+        {things.map((t, i) => (
+          <Fragment key={`${t.kind}:${t.id}`}>
+            {/* Sub-headings while browsing a grouped list ("Body & rest", "Getting ready"). */}
+            {!text && t.group && t.group !== things[i - 1]?.group && (
+              <li className="col-span-full px-2 pb-0.5 pt-2 text-[11px] font-semibold uppercase tracking-wider text-slate-400">{t.group}</li>
+            )}
+            <li>
+              <button type="button" onClick={() => props.onThing(t)} className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-sm hover:bg-slate-50">
+                <span className="w-6 text-center">{t.emoji}</span>
+                <span className="min-w-0 flex-1 truncate">{t.label}</span>
+                {props.showKind && <span className="text-[10px] uppercase tracking-wide text-slate-400">{KINDS[t.kind].label}</span>}
+              </button>
+            </li>
+          </Fragment>
         ))}
       </ul>
     </div>

@@ -11,6 +11,8 @@ export type VocabKind =
   | "moment"
   | "spicy"
   | "struggle"
+  | "daily"
+  | "pose"
   | "sport"
   | "race"
   | "hobby"
@@ -32,6 +34,8 @@ export interface Thing {
   phrase: string;
   /** Roles only: a student role (school life) rather than a job (work life). */
   student?: boolean;
+  /** Sub-heading within long lists ("Body & rest", "Selfies"). */
+  group?: string;
 }
 
 export const KINDS: Record<VocabKind, { label: string; plural: string; any: string }> = {
@@ -41,6 +45,8 @@ export const KINDS: Record<VocabKind, { label: string; plural: string; any: stri
   moment: { label: "Moment", plural: "moments", any: "a moment" },
   spicy: { label: "Spicy", plural: "spicy moments", any: "something spicy" },
   struggle: { label: "Hard time", plural: "hard times", any: "something hard" },
+  daily: { label: "Daily life", plural: "everyday things", any: "something" },
+  pose: { label: "Pose", plural: "poses", any: "a pose" },
   sport: { label: "Sport", plural: "sports", any: "a sport" },
   race: { label: "Race", plural: "races", any: "a race" },
   hobby: { label: "Hobby", plural: "hobbies", any: "a hobby" },
@@ -71,19 +77,24 @@ const aOrAn = (s: string) => (/^(?:[aeio]|u(?!ni|s[eu])|hour|honou?r)/i.test(s) 
 const withArticle = (s: string) => (/^[A-Z]/.test(s) || (/s$/.test(s) && !/ss$/.test(s)) ? s : `${aOrAn(s)} ${s}`);
 
 /**
- * Parses "emoji name|emoji name|…". A name may carry its own sentence form
- * after "=": "jeans=a pair of jeans". Names without an emoji use `fallback`.
+ * Parses "emoji name|emoji name|…" (entries may also be split across lines). A
+ * name may carry its own sentence form after "=": "jeans=a pair of jeans".
+ * Names without an emoji use `fallback`; "#Heading" starts a sub-group.
  */
 function list(kind: VocabKind, source: string, fallback: string, phrase: (name: string) => string = (n) => n, id = (name: string) => slugify(name)): Thing[] {
-  return source
-    .split("|")
-    .map((e) => e.trim())
-    .filter(Boolean)
-    .map((entry) => {
-      const icon = /^(\p{Extended_Pictographic}[\p{Extended_Pictographic}‍️\p{Emoji_Modifier}]*)\s+(.*)$/u.exec(entry);
-      const [name, own] = (icon ? icon[2] : entry).split("=");
-      return { kind, id: id(name), emoji: icon?.[1] ?? fallback, label: capitalize(name), phrase: own ?? phrase(name) };
-    });
+  let group: string | undefined;
+  const out: Thing[] = [];
+  for (const entry of source.split(/[|\n]/).map((e) => e.trim()).filter(Boolean)) {
+    // "#Body & rest" starts a sub-heading for the entries after it.
+    if (entry.startsWith("#")) {
+      group = entry.slice(1).trim();
+      continue;
+    }
+    const icon = /^(\p{Extended_Pictographic}[\p{Extended_Pictographic}‍️\p{Emoji_Modifier}]*)\s+(.*)$/u.exec(entry);
+    const [name, own] = (icon ? icon[2] : entry).split("=");
+    out.push({ kind, id: id(name), emoji: icon?.[1] ?? fallback, label: capitalize(name), phrase: own ?? phrase(name), ...(group && { group }) });
+  }
+  return out;
 }
 
 // ── Roles: every role with milestones in lifeEventRoles.ts, plus professions ──
@@ -144,14 +155,34 @@ const ROLE_LIST: Thing[] = [
 
 // ── Clothing, occasions and everyday moments ──
 
-const CLOTHING = `🥻 saree|🥻 osariya (Kandyan saree)=an osariya|🥻 half-saree|👗 lehenga|👗 salwar kameez|👗 kurta|👘 kimono|👗 hanbok|👗 cheongsam|👗 kebaya|🧕 hijab|🧕 abaya|🧥 sarong|👔 national dress=national dress|👕 T-shirt|👔 shirt|👚 blouse|👗 dress|👗 little black dress|👗 maxi dress|👗 sundress|👗 ball gown|👰 wedding dress|🤵 wedding suit|🤵 nilame outfit|👔 suit|👔 tie|🎀 bow tie|🧥 blazer|🧥 jacket|🧥 leather jacket|🧥 coat|🧣 scarf|👖 jeans=jeans|👖 trousers=trousers|🩳 shorts=shorts|👗 skirt|👗 mini skirt|🩱 swimsuit|👙 bikini|🩲 swimming trunks=swimming trunks|🩱 lingerie=lingerie|👘 robe|🩴 slippers=slippers|👟 sneakers=sneakers|👠 heels=heels|👢 boots=boots|🥿 flats=flats|🧢 cap|👒 hat|🕶️ sunglasses=sunglasses|💍 ring|📿 necklace|💎 earrings=earrings|⌚ watch|👜 handbag|🎒 backpack|🏫 school uniform|🩺 nurse's uniform|🥼 white coat|✈️ cabin-crew uniform|👮 police uniform|🪖 military uniform|⚖️ court gown|🎓 graduation gown|🧑‍🍳 chef's whites=chef's whites|🦺 work uniform|🏋️ gym clothes=gym clothes|🩳 pyjamas=pyjamas|🎭 costume|🏳️‍⚧️ gender-affirming outfit|👗 matching outfits=matching outfits|🧶 hand-knitted jumper|♻️ thrifted outfit|👗 designer outfit|🪖 turban|🕶️ my favourite outfit=my favourite outfit|👗 something new=something new|🩱 mother's saree=my mother's saree`;
+const CLOTHING = `🥻 saree|🥻 osariya (Kandyan saree)=an osariya|🥻 half-saree|👗 lehenga|👗 salwar kameez|👗 kurta|👘 kimono|👗 hanbok|👗 cheongsam|👗 kebaya|🧕 hijab|🧕 abaya|🧥 sarong|👔 national dress=national dress|👕 T-shirt|👔 shirt|👚 blouse|👗 dress|👗 little black dress|👗 maxi dress|👗 sundress|👗 ball gown|👰 wedding dress|🤵 wedding suit|🤵 nilame outfit|👔 suit|👔 tie|🎀 bow tie|🧥 blazer|🧥 jacket|🧥 leather jacket|🧥 coat|🧣 scarf|👖 jeans=jeans|👖 trousers=trousers|🩳 shorts=shorts|👗 skirt|👗 mini skirt|🩱 swimsuit|👙 bikini|🩲 swimming trunks=swimming trunks|🩱 lingerie=lingerie|👘 robe|🩴 slippers=slippers|👟 sneakers=sneakers|👠 heels=heels|👢 boots=boots|🥿 flats=flats|🧢 cap|👒 hat|🕶️ sunglasses=sunglasses|💍 ring|📿 necklace|💎 earrings=earrings|⌚ watch|👜 handbag|🎒 backpack|🏫 school uniform|🩺 nurse's uniform|🥼 white coat|✈️ cabin-crew uniform|👮 police uniform|🪖 military uniform|⚖️ court gown|🎓 graduation gown|🧑‍🍳 chef's whites=chef's whites|🦺 work uniform|🏋️ gym clothes=gym clothes|🩳 pyjamas=pyjamas|🎭 costume|🏳️‍⚧️ gender-affirming outfit|👗 matching outfits=matching outfits|🧶 hand-knitted jumper|♻️ thrifted outfit|👗 designer outfit|🪖 turban|🕶️ my favourite outfit=my favourite outfit|👗 something new=something new|🩱 mother's saree=my mother's saree|🩷 bra|🩴 panties=panties|🩰 thong|🩴 bra and panties set=lingerie set|🕯️ body harness|🔞 sex toys outfit|💄 stockings|🖤 garter belt|✨ body chain|🎀 ribbon|👠 heels and lingerie=heels and lingerie|🧴 massage oil outfit|💋 lip gloss set`;
+
 
 const OCCASIONS = `🎉 party|🏢 office party|🎄 office Christmas party|🎂 birthday party|👶 baby shower|👰 bridal shower|🍾 bachelor party|🍾 bachelorette party|💍 engagement party|💒 wedding|💒 wedding reception|🏠 homecoming|🏡 housewarming|🎓 graduation|🎓 convocation|🏫 school prize-giving|🏫 school concert|🏫 sports meet|🏫 parents' meeting|🏫 school reunion|🏫 past pupils' day|🏫 big match|💃 prom|💃 dance|🎤 concert|🎪 carnival|🎭 play|🎬 film premiere|🏟️ match|🏃 race|🏛️ conference|💼 job interview|💼 meeting|💼 workshop|💼 team outing|💼 business trip|🍽️ dinner party|🍽️ family dinner|🍽️ date|☕ coffee date|🍻 night out|🎤 karaoke night|🎮 game night|🎲 board-game night|🎬 movie night|🏖️ beach party|🔥 BBQ|🧺 picnic|🏕️ camping trip|🚗 road trip|✈️ holiday|🛍️ shopping trip|💆 spa day|🕯️ funeral|🕯️ memorial service|🍚 almsgiving|📿 pirith ceremony|🛕 temple festival|⛪ church service|🕌 Friday prayers=Friday prayers|☸️ Vesak|☸️ Poson|☀️ Avurudu|🪔 Diwali|🪔 Thai Pongal|🕌 Eid|🌙 Iftar|🎄 Christmas|🐣 Easter|🧧 Lunar New Year|🎆 New Year's Eve|❤️ Valentine's Day|👩 Mother's Day|👨 Father's Day|🧑‍🏫 Teachers' Day|🧒 Children's Day|🏳️‍🌈 Pride|🎃 Halloween|🦃 Thanksgiving|🗳️ election day|✊ protest|🤝 charity event|🏥 hospital visit|🩺 doctor's appointment|💇 salon appointment|📸 photoshoot|🎨 exhibition|📚 book launch|🧑‍🍳 cooking class|🧘 yoga retreat|🎉 reunion|🎉 surprise party|🎉 farewell party|🎉 welcome party|🎉 retirement party|🪔 dansala|🎨 Holi|🪔 Navaratri|🕉️ Shivaratri|🧵 Raksha Bandhan|🕌 Eid al-Adha|🕎 Hanukkah|✡️ Yom Kippur|🍷 Passover seder|🪯 Vaisakhi|🏮 Mid-Autumn Festival|🏮 Qingming|🎎 Obon|⛩️ Hatsumōde|🕯️ Day of the Dead|🌍 Kwanzaa|🌙 Nowruz|🌞 solstice celebration|👪 family reunion|📸 family photo shoot|🧘 meditation retreat|🤫 silent retreat|🎒 backpacking trip|🏝️ island holiday|🧳 solo trip|🐋 whale-watching trip|🐘 elephant sanctuary visit|🧹 community clean-up|🩺 annual check-up|💻 workation|🍰 workplace birthday surprise|💑 romantic getaway|👯 friends' trip|🛍️ shopping trip with Mum=a shopping trip with Mum|🗽 famous landmark|🎂 children's party`;
 
 const MOMENTS = `☕ perfect morning coffee|🌅 sunrise|🌇 beautiful sunset|🌧️ rainy day in|🌈 rainbow|📚 good book|🎬 movie night|🎶 song on repeat|😂 laugh attack|💌 lovely message|🎁 small surprise|😊 kind stranger|💐 bunch of flowers|🛁 long bath|😴 lie-in|🧘 quiet moment|🍀 lucky find|💇 good hair day|💪 productive day|🧹 big clean-up|🪴 new plant|🛋️ furniture rearrange|🧺 laundry day|🔧 DIY fix|🔌 power cut|🏠 lazy Sunday|👨‍👩‍👧 family dinner|📺 binge-watch|📞 long call with family|🧑‍🍳 cook-up for everyone|🍳 new recipe|🍰 baking session|🍜 new favourite place|🥘 taste of home|🍛 rice and curry|🍦 ice cream|🍕 pizza night|🍵 evening tea|🥂 celebratory drink|🚶 long walk|🚦 traffic jam|🛒 big grocery run|🛍️ shopping day|🎡 day out|🏖️ beach day|⛰️ weekend hike|💵 payday|📝 exam day|✅ to-do list ticked off|🎉 Friday feeling|🏁 big task finished|🌙 late night at work|🏡 work-from-home day|🥰 lovely day|🙏 grateful day|🌱 small win|💭 big realisation|🌙 date night|🛏️ lazy morning in bed|💋 stolen kiss|🍷 candlelit dinner|🫂 long cuddle|💃 girls' night|🍻 boys' night|🎮 game night|💆 spa day|🔥 BBQ|🧺 picnic|🏨 staycation|🧁 cheat day|🏋️ gym day|🛌 sick day|😞 bad day|😢 good cry|😤 argument|🤝 making up|😰 anxious day|😴 sleepless night|🔑 lost-keys morning|📱 broken phone|🚗 breakdown|💸 tight month|😔 lonely evening|🫠 overwhelming week|🍀 lucky day|☀️ perfect day|🎉 little celebration|📖 bedtime story|🎨 craft afternoon|🏕️ backyard camp-out|🔧 fix-it afternoon|👗 matching-outfits day|🧹 decluttering weekend|🎨 painting weekend`;
 
 /** Spicy and naughty: complete "-ing" clauses, so they read after is/was ("was making out with Dev"). */
-const SPICY = `😏 flirting|😏 flirting shamelessly|💋 kissing|🌧️ kissing in the rain|💋 kissing a stranger|💋 making out|🚗 making out in the car|🤝 holding hands|🫂 cuddling|💃 slow dancing|💃 dirty dancing|💌 passing love notes|💌 writing a love letter|😍 having a crush|☕ crushing on a colleague|😏 crushing on the boss|🏢 having a workplace romance|🤫 having an office affair|🌍 having a holiday romance|✈️ having a layover romance|🌙 having a night-shift romance|🤫 seeing someone in secret|🌙 sneaking out to see someone|😳 getting caught|📱 getting someone's number|💬 getting asked out|💬 asking someone out|☕ going on a first date|🙈 going on a blind date|📱 swiping on dating apps|📱 sexting|📸 sending a risky photo|🌊 skinny dipping|🍸 hooking up|🍸 hooking up at a party|🌙 having a one-night stand|🛏️ being friends with benefits|🤷 being in a situationship|📞 having a late-night booty call|🌅 doing the walk of shame|🏨 spending a weekend in a hotel room|🛏️ having a lazy morning in bed|🔥 having a spontaneous afternoon|😈 having the best night ever|🎁 planning a lingerie surprise|🎭 having a role-play night|🔥 trying something new in bed|🧸 trying a new toy|🗝️ exploring a kink|💞 having a threesome|✈️ joining the mile-high club|🚿 showering together|🛍️ visiting an adult store|📸 doing a boudoir shoot|📸 doing intimate poses|💑 getting intimate|😌 having quality time together|🔁 sleeping with an ex|📱 drunk-texting an ex|💐 getting flowers from a secret admirer|💃 feeling the chemistry with my dance partner`;
+const SPICY = `😏 flirting|😏 flirting shamelessly|💋 kissing|🌧️ kissing in the rain|💋 kissing a stranger|💋 making out|🚗 making out in the car|🤝 holding hands|🫂 cuddling|💃 slow dancing|💃 dirty dancing|💌 passing love notes|💌 writing a love letter|😍 having a crush|☕ crushing on a colleague|😏 crushing on the boss|🏢 having a workplace romance|🤫 having an office affair|🌍 having a holiday romance|✈️ having a layover romance|🌙 having a night-shift romance|🤫 seeing someone in secret|🌙 sneaking out to see someone|😳 getting caught|📱 getting someone's number|💬 getting asked out|💬 asking someone out|☕ going on a first date|🙈 going on a blind date|📱 swiping on dating apps|📱 sexting|📸 sending a risky photo|🌊 skinny dipping|🍸 hooking up|🍸 hooking up at a party|🌙 having a one-night stand|🛏️ being friends with benefits|🤷 being in a situationship|📞 having a late-night booty call|🌅 doing the walk of shame|🏨 spending a weekend in a hotel room|🛏️ having a lazy morning in bed|🔥 having a spontaneous afternoon|😈 having the best night ever|🎁 planning a lingerie surprise|🎭 having a role-play night|🔥 trying something new in bed|🧸 trying a new toy|🗝️ exploring a kink|💞 having a threesome|✈️ joining the mile-high club|🚿 showering together|🛍️ visiting an adult store|📸 doing a boudoir shoot|📸 doing intimate poses|💑 getting intimate|😌 having quality time together|💬 talking dirty|🤸 getting playful in bed|😏 seducing someone|🔥 teasing each other|💕 making love|🌙 having passionate moments|😈 exploring fantasies|🎪 getting creative together|💦 taking a bubble bath together|🕯️ having a romantic night in|👅 getting closer|🔞 exploring boundaries|💃 lap dance|🎥 making a private film|🧴 giving a massage|😘 kissing every inch|💥 having vaginal intercourse|👄 performing oral sex|🔄 engaging in anal sex|✋ mutual masturbation|🤲 manual stimulation|💧 squirting|🔁 sleeping with an ex|📱 drunk-texting an ex|💐 getting flowers from a secret admirer|💃 feeling the chemistry with my dance partner`;
+
+/**
+ * Everyday doings, as whole "-ing" clauses: "was sitting by the lake", "is
+ * getting ready". Add the where and with whom with the clause's own words and tags.
+ */
+const DAILY = `#Body & rest|🪑 sitting|🧍 standing|🛋️ lying on the sofa|🛏️ lying in bed|😴 sleeping|💤 napping|⏰ waking up|🥱 getting up early|🛌 sleeping in|🧘 stretching|🚶 walking|🏃 running|⏳ waiting|🪟 looking out of the window|💭 daydreaming|🌅 watching the sunset|🌌 stargazing|🏖️ sunbathing|🧺 lounging in the garden
+#Getting ready|🪥 brushing my teeth|🚿 showering|🛁 taking a bath|💇 doing my hair|💄 doing my makeup|🪒 shaving|👗 getting dressed|🥻 draping a saree|👔 ironing my clothes|💅 doing my nails|🪞 getting ready|✨ dressing up|🧴 doing my skincare
+#Home & chores|🧹 cleaning|🧹 sweeping|🧽 washing the dishes|🧺 doing the laundry|👕 folding clothes|🛏️ making the bed|🍳 cooking breakfast|🍲 cooking dinner|🥗 meal prepping|🛒 grocery shopping|🌱 watering the plants|🌿 gardening|🔧 fixing things|🪴 repotting plants|📦 packing|📦 unpacking|🛋️ rearranging the furniture|🐕 walking the dog|🐈 feeding the cat
+#Getting around|🚗 driving|🚌 riding the bus|🚆 on the train=riding the train|🛺 taking a tuk-tuk|🛵 riding a scooter|🚲 cycling to work|🚶 walking to work|🚦 stuck in traffic=sitting in traffic|✈️ flying|🛬 landing|🧳 packing for a trip|🏠 coming home|🚪 heading out
+#Work & study|💻 working|🏡 working from home|📞 on a call=taking a call|📧 answering emails|📊 in meetings=sitting in meetings|📚 studying|📝 doing homework|✍️ writing|📖 revising for exams|🧑‍🏫 teaching|🧑‍⚕️ on shift=working a shift|🌙 working late|☕ taking a break
+#Kids & family|🍼 feeding the baby|🤱 nursing the baby|👶 changing nappies|🛁 bathing the kids|📖 reading a bedtime story|😴 putting the kids to bed|🎒 doing the school run|🧸 playing with the kids|🧑‍🤝‍🧑 visiting family|👵 looking after my parents|📞 calling home
+#Self-care & faith|🧘 meditating|🙏 praying|🛕 visiting the temple|⛪ going to church|🕌 going to the mosque|💆 getting a massage|💇 getting a haircut|💅 getting my nails done|🏋️ working out|🧖 having a spa day|📓 journaling|🌱 taking it slow
+#Downtime|📱 scrolling my phone|📺 watching TV|🎬 watching a movie|🎮 gaming|🎧 listening to music|📖 reading|🧩 doing a puzzle|🎨 drawing|🎸 playing music|🎤 singing|💃 dancing|😂 laughing|🛋️ chilling|☕ having tea|🍰 having cake|🍦 having ice cream
+#Social|💬 chatting|☕ catching up with friends|🗣️ gossiping|🍻 going out|🍽️ eating out|🥡 ordering takeaway|🎉 partying|🏠 having people over|📞 video-calling|💌 texting|🫂 hugging|👋 saying goodbye|🤝 meeting someone new|👀 people-watching`;
+
+/** Photo poses: "was posing for a photo with Sarah", "is taking a mirror selfie". */
+const POSES = `#Photos|📸 posing for a photo|📸 posing for the camera|🤳 taking a selfie|🪞 taking a mirror selfie|👯 taking a group photo|📷 having my photo taken|🎞️ caught in a candid shot=being caught in a candid shot|📸 doing a photoshoot|👪 posing for a family photo|💑 posing as a couple
+#Poses|✌️ throwing a peace sign|😘 blowing a kiss|😜 pulling a funny face|😗 pouting|😁 smiling for the camera|💪 flexing|🦵 striking a pose|🤸 jumping for the photo|🪑 posing on a chair|🧱 leaning on a wall|🌊 posing by the sea|🌸 posing with flowers|💃 twirling my dress|🥻 showing off my saree|👗 showing off my outfit|🤗 hugging for the photo|🤝 holding hands for the photo|🫶 making a heart with my hands|🙈 hiding my face|🙏 posing with folded hands|🔥 posing seductively|😏 pouting seductively|💋 lip biting pose|👰 posing in lingerie|🛏️ posing in bed|🧴 posing playfully|😈 giving a sultry look|💃 posing suggestively|🍑 posing to show curves|🫀 posing with hands on hips|🔞 intimate photo pose|👅 posing provocatively|💦 wet look pose|🤸 playful bedroom pose|😘 teasing pose|🕯️ sensual pose|🛏️ missionary position|💑 spooning position|👯 cowgirl position|👯 reverse cowgirl position|🔄 doggy style position|🧗 standing position|🪑 seated position|📐 lotus position|⛓️ suspended position|👪 side-by-side position|🤸 acrobatic position|💪 face-sitting position|👅 oral position|🔁 scissoring position`;
+
 
 /** Hard times happening now (or then), as "-ing" clauses: "was crying in the supply room". */
 const STRUGGLES = `😢 crying|😢 crying at work|😓 having the toughest day at work|🌙 pulling an all-nighter|🏥 working a 36-hour shift|🔁 pulling a double shift|🤔 thinking about quitting|💸 running out of money|😤 dealing with a difficult boss|😤 dealing with a difficult customer|😤 dealing with an unruly passenger|⚖️ feeling the pressure to look perfect|😤 having a jealousy fight|😤 fighting with my partner|👊 fighting with my sibling|💔 going through a breakup|🕊️ grieving|🌱 healing|🏥 waiting for test results|🏥 sitting by a hospital bed|🔍 job hunting|📚 studying all night for exams|😰 panicking|😔 struggling to get out of bed|🫠 burning out|💊 recovering|🧳 missing home|🌧️ getting through a hard week`;
@@ -198,6 +229,8 @@ export const VOCAB: Record<VocabKind, Thing[]> = {
   moment: list("moment", MOMENTS, "✨", article),
   spicy: list("spicy", SPICY, "🌶️"),
   struggle: list("struggle", STRUGGLES, "💔"),
+  daily: list("daily", DAILY, "✨"),
+  pose: list("pose", POSES, "📸"),
   sport: list("sport", SPORTS, "🏅"),
   race: list("race", RACES, "🏃", (r) => (/^[a-z0-9]/.test(r) ? `${aOrAn(r)} ${r}` : `the ${r}`)),
   hobby: list("hobby", HOBBIES, "✨"),

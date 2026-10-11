@@ -139,7 +139,7 @@ Every type can also carry a story and Facebook-style extras, shown in the headli
   | Group | Example clause | Reads |
   | --- | --- | --- |
   | 😊 **Feeling** | feeling festive | *is / was* 🥳 feeling festive |
-  | 🎬 **Doing** (a verb, then a thing or your own words; plus 🌶️ **Spicy & naughty** and 💔 **Hard times** lists of whole clauses) | attending + an office party · making out · crying at work | *is / was* 🎄 attending an office party · *was* 💋 making out with Dev |
+  | 🎬 **Doing** (a verb, then a thing or your own words; plus lists of whole clauses: 🧍 **Daily life**, 📸 **Posing**, 🌶️ **Spicy & naughty**, 💔 **Hard times**) | attending + an office party · sitting · posing for a photo · making out · crying at work | *is / was* 🎄 attending an office party · *was* 🪑 sitting by the lake, 📸 posing for a photo with Sarah |
   | 🏁 **Life events** (~5,400, grouped by category) | got promoted, visited Japan | 📈 got promoted (a done thing: no *is/was*) |
   | 🧑‍⚕️ **As** (roles) | *as a nurse* joins the clause before it; *a nurse* stands alone | 🎄 attending the party **as a nurse** · *was* a nurse |
 
@@ -197,8 +197,15 @@ A post's story is a list of **clauses** (`activities[]`), up to 12, in the autho
 - about 185 roles (including adult work: content creator, exotic dancer, sex worker, cam model…),
   75 pieces of clothing, 130 occasions (festivals such as Vesak, Diwali, Eid and Christmas,
   parties, trips, dates) and 100 everyday moments
-- 58 spicy & naughty moments and 28 hard times, each a whole clause ("skinny dipping",
-  "having a one-night stand", "job hunting")
+- whole clauses that follow *is/was*:
+  - 130 everyday doings in 9 groups (body & rest, getting ready, home & chores, getting around,
+    work & study, kids & family, self-care & faith, downtime, social), for example "sitting",
+    "sleeping", "getting ready", "draping a saree", "doing the school run";
+  - 30 photo poses (posing for a photo, mirror selfie, peace sign, showing off my saree);
+  - 58 spicy & naughty moments and 28 hard times ("skinny dipping", "job hunting").
+
+  Add the where and with whom with each clause's own words and tags: "was 🪑 sitting **by the
+  lake**, 📸 posing for a photo **with Sarah** and 🥻 wearing a saree".
 - every country, about 100 sports, 28 races, 90 hobbies, 47 instruments and 108 languages
 - pets, exams (including O/L and A/L), degrees and subjects
 

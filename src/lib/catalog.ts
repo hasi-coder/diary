@@ -36,6 +36,8 @@ export const ACTIVITY_VERBS: ActivityVerb[] = [
   { emoji: "👗", verb: "wearing", kinds: ["clothing"], prompt: "What are you wearing?" },
   { emoji: "✨", verb: "having", kinds: ["moment"], prompt: "What kind of moment?" },
   { emoji: "🧭", verb: "on", kinds: ["occasion"], prompt: "On what? A road trip, a holiday, a date…" },
+  { emoji: "🧍", verb: "", label: "Daily life…", kinds: ["daily"], prompt: "Sitting, sleeping, getting ready, driving…" },
+  { emoji: "📸", verb: "", label: "Posing…", kinds: ["pose"], prompt: "Posing for a photo, a selfie, a peace sign…" },
   { emoji: "🌶️", verb: "", label: "Spicy & naughty…", kinds: ["spicy"], prompt: "Flirting, making out, a one-night stand…" },
   { emoji: "💔", verb: "", label: "Hard times…", kinds: ["struggle"], prompt: "Crying, job hunting, grieving…" },
   { emoji: "📚", verb: "studying", kinds: ["subject", "exam"], prompt: "What are you studying?" },

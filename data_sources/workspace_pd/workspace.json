@@ -1,0 +1,11 @@
+{
+  "formatVersion": 2,
+  "kdf": {
+    "algorithm": "argon2id",
+    "memoryKib": 65536,
+    "iterations": 3,
+    "parallelism": 1,
+    "salt": "zIvcJ9eDp9AKubj+FyfvRg=="
+  },
+  "wrappedKey": "TURKMfVRmBpcyVmATCHe0W3d2+XsIEuHV/fD/q3EVsr+/QYUlBVjLBglNxgP/OKolFtFdno8CiqciP0fAT3dgg=="
+}
