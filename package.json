@@ -1,0 +1,16 @@
+{
+  "name": "my-diary",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "echo \"Use npm run tauri:dev for desktop development\"",
+    "build": "echo \"Use npm run tauri:build to build desktop app\"",
+    "tauri:dev": "tauri dev",
+    "tauri:build": "tauri build"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.0.0"
+  }
+}
+
