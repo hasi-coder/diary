@@ -278,6 +278,7 @@ mod tests {
             content: String::new(),
             occurred_at: None,
             media_ids: vec![media.id.clone()],
+            ..Default::default()
         };
         ws.save_post(input).unwrap();
         *state.workspace.lock().unwrap() = Some(ws);

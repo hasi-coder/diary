@@ -5,17 +5,23 @@ import {
   ArticleIcon,
   AtIcon,
   CalendarBlankIcon,
+  FlagBannerIcon,
   ImageIcon,
+  MapPinIcon,
+  SmileyIcon,
+  UserPlusIcon,
   ImagesSquareIcon,
   NotePencilIcon,
   ShieldCheckIcon,
   XIcon,
   type Icon,
 } from "@phosphor-icons/react";
-import { api, errorMessage, type Post, type PostKind } from "../lib/api";
+import { api, errorMessage, type Feeling, type Post, type PostKind } from "../lib/api";
+import { lifeEvent } from "../lib/catalog";
 import { useJournal } from "../lib/journal";
 import { fromDatetimeLocal, KINDS, toDatetimeLocal } from "../lib/format";
 import { AlbumEditor, AttachmentStrip, useAttachments } from "./Attachments";
+import { CheckInPicker, ExtrasChips, FeelingPicker, LifeEventTypePicker, TagPeoplePicker } from "./PostExtras";
 import { RichEditor, type RichEditorHandle } from "./RichEditor";
 import { Avatar, Button, ErrorText } from "./ui";
 
@@ -25,6 +31,7 @@ export const POST_KINDS: { kind: PostKind; label: string; icon: Icon }[] = [
   { kind: "status", label: "Post", icon: NotePencilIcon },
   { kind: "article", label: "Article", icon: ArticleIcon },
   { kind: "album", label: "Album", icon: ImagesSquareIcon },
+  { kind: "milestone", label: "Life event", icon: FlagBannerIcon },
 ];
 
 export function Composer(props: { defaultAuthorId?: string; editing?: Post; onDone?: () => void }) {
@@ -43,6 +50,11 @@ export function Composer(props: { defaultAuthorId?: string; editing?: Post; onDo
   const fileInput = useRef<HTMLInputElement>(null);
   const attachments = useAttachments(editing?.media ?? []);
   const [dragging, setDragging] = useState(false);
+  const [withIds, setWithIds] = useState<string[]>(editing?.withIds ?? []);
+  const [placeId, setPlaceId] = useState<string | null>(editing?.placeId ?? null);
+  const [feeling, setFeeling] = useState<Feeling | null>(editing?.feeling ?? null);
+  const [eventType, setEventType] = useState(editing?.eventType ?? "");
+  const [picker, setPicker] = useState<"with" | "place" | "feeling" | null>(null);
 
   const fullScreen = expanded || kind !== "status";
 
@@ -72,7 +84,9 @@ export function Composer(props: { defaultAuthorId?: string; editing?: Post; onDo
       ? hasText || attachments.mediaIds.length > 0
       : kind === "article"
         ? title.trim() !== "" && hasText
-        : title.trim() !== "" && attachments.mediaIds.length > 0);
+        : kind === "milestone"
+          ? title.trim() !== "" && eventType !== ""
+          : title.trim() !== "" && attachments.mediaIds.length > 0);
 
   const submit = async () => {
     if (!canSubmit) return;
@@ -88,6 +102,10 @@ export function Composer(props: { defaultAuthorId?: string; editing?: Post; onDo
         occurredAt: when ? fromDatetimeLocal(when) : undefined,
         mediaIds: attachments.mediaIds,
         captions: attachments.captions,
+        withIds,
+        placeId,
+        feeling,
+        eventType,
       });
       attachments.committed();
       if (!editing) {
@@ -98,6 +116,10 @@ export function Composer(props: { defaultAuthorId?: string; editing?: Post; onDo
         setShowWhen(false);
         setExpanded(false);
         setKind("status");
+        setWithIds([]);
+        setPlaceId(null);
+        setFeeling(null);
+        setEventType("");
       }
       await refresh();
       onDone?.();
@@ -114,12 +136,18 @@ export function Composer(props: { defaultAuthorId?: string; editing?: Post; onDo
       ? "Tell the story… Type @ to mention someone."
       : kind === "album"
         ? "Say something about this album (optional)…"
+        : kind === "milestone"
+          ? "Tell the story behind it (optional)…"
         : author.kind === "me"
           ? "What happened today? Type @ to mention someone."
           : `Write something as ${author.name}…`;
-  const saveLabel = editing ? "Save changes" : kind === "article" ? "Publish article" : kind === "album" ? "Create album" : "Encrypt & Save";
+  const saveLabel = editing
+    ? "Save changes"
+    : { status: "Encrypt & Save", article: "Publish article", album: "Create album", milestone: "Add life event" }[kind];
   const hint =
-    kind === "article" && !title.trim()
+    kind === "milestone" && !eventType
+      ? "Choose the kind of life event"
+      : kind === "article" && !title.trim()
       ? "Add a title"
       : kind === "album" && !title.trim()
         ? "Name the album"
@@ -135,7 +163,10 @@ export function Composer(props: { defaultAuthorId?: string; editing?: Post; onDo
         <button
           key={k}
           type="button"
-          onClick={() => setKind(k)}
+          onClick={() => {
+            setKind(k);
+            if (k === "milestone") setShowWhen(true);
+          }}
           className={`flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold transition-colors ${
             kind === k ? "bg-brand-50 text-brand-700" : "text-slate-500 hover:bg-slate-100"
           }`}
@@ -166,7 +197,7 @@ export function Composer(props: { defaultAuthorId?: string; editing?: Post; onDo
       value={title}
       onChange={(e) => setTitle(e.target.value)}
       autoFocus={!editing}
-      placeholder={kind === "article" ? "Article title" : "Album name"}
+      placeholder={kind === "article" ? "Article title" : kind === "milestone" ? (eventType ? lifeEvent(eventType).example : "What happened?") : "Album name"}
       className="mb-3 w-full bg-transparent text-3xl font-bold text-slate-900 placeholder-slate-300 outline-none"
     />
   );
@@ -208,6 +239,12 @@ export function Composer(props: { defaultAuthorId?: string; editing?: Post; onDo
         <div className={`flex gap-4 ${fullScreen ? `mx-auto w-full ${kind === "album" ? "max-w-5xl" : "max-w-3xl"} ${kind === "album" ? "" : "h-full"}` : ""}`}>
           {!editing && !fullScreen && <Avatar profile={author} />}
           <div className={`relative min-w-0 flex-1 ${fullScreen && kind !== "album" ? "flex flex-col" : ""}`}>
+            {kind === "milestone" && (
+              <div className="mb-5">
+                <p className="mb-2 text-sm font-medium text-slate-600">What kind of life event?</p>
+                <LifeEventTypePicker value={eventType} onChange={setEventType} />
+              </div>
+            )}
             {titleInput}
             {editorEl}
 
@@ -229,6 +266,14 @@ export function Composer(props: { defaultAuthorId?: string; editing?: Post; onDo
                 <AttachmentStrip items={attachments.items} onRemove={attachments.remove} />
               </>
             )}
+            <ExtrasChips
+              withIds={withIds}
+              placeId={placeId}
+              feeling={feeling}
+              onRemoveWith={(id) => setWithIds((ids) => ids.filter((x) => x !== id))}
+              onRemovePlace={() => setPlaceId(null)}
+              onRemoveFeeling={() => setFeeling(null)}
+            />
 
             {showWhen && (
               <div className="mt-2 flex items-center gap-2 text-xs text-slate-500">
@@ -279,6 +324,24 @@ export function Composer(props: { defaultAuthorId?: string; editing?: Post; onDo
           <ToolButton title="Mention a profile" onClick={() => editor.current?.startMention()}>
             <AtIcon size={20} />
           </ToolButton>
+          <div className="relative">
+            <ToolButton title="Tag people" active={withIds.length > 0} onClick={() => setPicker(picker === "with" ? null : "with")}>
+              <UserPlusIcon size={20} />
+            </ToolButton>
+            {picker === "with" && <TagPeoplePicker selected={withIds} exclude={authorId} onChange={setWithIds} onClose={() => setPicker(null)} />}
+          </div>
+          <div className="relative">
+            <ToolButton title="Check in" active={!!placeId} onClick={() => setPicker(picker === "place" ? null : "place")}>
+              <MapPinIcon size={20} />
+            </ToolButton>
+            {picker === "place" && <CheckInPicker onPick={setPlaceId} onClose={() => setPicker(null)} />}
+          </div>
+          <div className="relative">
+            <ToolButton title="Feeling / activity" active={!!feeling} onClick={() => setPicker(picker === "feeling" ? null : "feeling")}>
+              <SmileyIcon size={20} />
+            </ToolButton>
+            {picker === "feeling" && <FeelingPicker onPick={setFeeling} onClose={() => setPicker(null)} />}
+          </div>
           <ToolButton title="Set the date" active={showWhen} onClick={() => setShowWhen((s) => !s)}>
             <CalendarBlankIcon size={20} />
           </ToolButton>

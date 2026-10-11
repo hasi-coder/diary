@@ -150,8 +150,70 @@ fn seed(ws: &mut Workspace) -> Result<(), Box<dyn std::error::Error>> {
         for (name, scene) in photos.iter().filter(|(a, _)| *a == ago).flat_map(|(_, p)| p) {
             media_ids.push(ws.stage_media(name, png(480, 320, |x, y| scene.pixel(x, y)))?.id);
         }
-        ws.save_post(PostInput { kind: Default::default(), title: String::new(), captions: Default::default(), id: None, author_id: author.id.clone(), content, occurred_at: Some(now - ago), media_ids })?;
+        // Facebook-style extras on a few posts: feeling, tagged people, check-in.
+        let feeling = |emoji: &str, text: &str| Some(Feeling { emoji: emoji.into(), text: text.into() });
+        let (feeling, with_ids, place_id) = match ago {
+            a if a == 2 * HOUR => (feeling("😊", "feeling happy"), vec![sarah.id.clone()], Some(bean.id.clone())),
+            a if a == 3 * DAY + 3 * HOUR => (feeling("😌", "feeling relaxed"), vec![], Some(lake.id.clone())),
+            a if a == 33 * DAY => (feeling("💪", "feeling motivated"), vec![dev.id.clone()], Some(lake.id.clone())),
+            a if a == 9 * DAY => (None, vec![sarah.id.clone()], Some(club.id.clone())),
+            _ => (None, vec![], None),
+        };
+        ws.save_post(PostInput {
+            author_id: author.id.clone(),
+            content,
+            occurred_at: Some(now - ago),
+            media_ids,
+            feeling,
+            with_ids,
+            place_id,
+            ..Default::default()
+        })?;
     }
+
+    // Life events.
+    for (event_type, title, ago, body) in [
+        ("home", "Moved to Minneapolis", 300 * DAY, "New city, new lakes."),
+        ("work", "Started a new role as Senior Engineer", 200 * DAY, ""),
+        ("achievement", "Paddled the whole north shore", 33 * DAY + HOUR, "About 14 km. Sore arms, very happy."),
+    ] {
+        ws.save_post(PostInput {
+            kind: PostKind::Milestone,
+            event_type: event_type.into(),
+            title: title.into(),
+            author_id: me_id.clone(),
+            content: body.into(),
+            occurred_at: Some(now - ago),
+            ..Default::default()
+        })?;
+    }
+
+    // Relationships, as Facebook's "Family and relationships".
+    let relate = |to: &Profile, kind: &str, since: &str| RelationInput {
+        id: None,
+        to_id: to.id.clone(),
+        kind: kind.into(),
+        label: String::new(),
+        inverse_label: String::new(),
+        since: since.into(),
+    };
+    ws.save_relation(&me_id, relate(&sarah, "sibling", ""))?;
+    ws.save_relation(&me_id, relate(&dev, "best_friend", "2015"))?;
+    ws.save_relation(&me_id, relate(&bean, "favourite", "2024"))?;
+    ws.save_relation(&me_id, relate(&lake, "favourite", ""))?;
+    ws.save_relation(&sarah.id, relate(&club, "club", "2023"))?;
+
+    // Profile pictures and covers.
+    let photo = |ws: &mut Workspace, scene: Scene| -> Result<String, Box<dyn std::error::Error>> {
+        Ok(ws.stage_media("photo.png", png(480, 320, |x, y| scene.pixel(x, y)))?.id)
+    };
+    for (profile, avatar, cover) in [(&me_id, Scene::Sunrise, Scene::Lake), (&bean.id, Scene::Coffee, Scene::Coffee), (&lake.id, Scene::Lake, Scene::Sunset)] {
+        let id = photo(ws, avatar)?;
+        ws.set_profile_photo(profile, PhotoSlot::Avatar, Some(id))?;
+        let id = photo(ws, cover)?;
+        ws.set_profile_photo(profile, PhotoSlot::Cover, Some(id))?;
+    }
+    ws.set_cover_position(&me_id, 40)?;
 
     // An album with captions, and an article with a cover image.
     let shots = [
@@ -168,7 +230,7 @@ fn seed(ws: &mut Workspace) -> Result<(), Box<dyn std::error::Error>> {
         captions.insert(id.clone(), caption.to_string());
         ids.push(id);
     }
-    ws.save_post(PostInput {
+    let album = ws.save_post(PostInput {
         id: None,
         kind: PostKind::Album,
         title: "Weekend at Lake Minnetonka".into(),
@@ -176,8 +238,14 @@ fn seed(ws: &mut Workspace) -> Result<(), Box<dyn std::error::Error>> {
         author_id: me_id.clone(),
         content: format!("Two days of paddling with {}. #nature", mention(&dev)),
         occurred_at: Some(now - 5 * DAY),
+        with_ids: vec![dev.id.clone()],
+        place_id: Some(lake.id.clone()),
         media_ids: ids,
-    })?;
+            ..Default::default()
+        })?;
+
+    let first = album.media[0].id.clone();
+    ws.set_photo_tags(&album.id, &first, vec![PhotoTag { profile_id: dev.id.clone(), x: 0.45, y: 0.55 }])?;
 
     let cover = ws.stage_media("cover.png", png(480, 320, |x, y| Scene::Sunset.pixel(x, y)))?.id;
     ws.save_post(PostInput {
@@ -202,7 +270,8 @@ fn seed(ws: &mut Workspace) -> Result<(), Box<dyn std::error::Error>> {
         .join("\n\n"),
         occurred_at: Some(now - 6 * HOUR),
         media_ids: vec![cover],
-    })?;
+            ..Default::default()
+        })?;
     Ok(())
 }
 

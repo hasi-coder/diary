@@ -9,6 +9,8 @@ import { excerpt } from "../lib/mentions";
 import { Composer } from "./Composer";
 import { MediaGrid, MediaPreview } from "./Media";
 import { PostContent } from "./PostContent";
+import { PostHeadline } from "./PostExtras";
+import { lifeEvent } from "../lib/catalog";
 import { Avatar, ConfirmDialog } from "./ui";
 
 export function PostCard({ post, onTag }: { post: Post; onTag?: (tag: string) => void }) {
@@ -18,24 +20,34 @@ export function PostCard({ post, onTag }: { post: Post; onTag?: (tag: string) =>
   const edited = post.updatedAt - post.createdAt > 60_000;
   const count = post.media.length;
   const action =
-    post.kind === "album" ? `added ${count} ${count === 1 ? "item" : "items"} to an album` : post.kind === "article" ? "wrote an article" : null;
+    post.kind === "album"
+      ? `added ${count} ${count === 1 ? "item" : "items"} to an album`
+      : post.kind === "article"
+        ? "wrote an article"
+        : post.kind === "milestone"
+          ? "added a life event"
+          : null;
 
   return (
     <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition-shadow hover:shadow-md">
       <div className="mb-3 flex items-start justify-between">
-        <button className="flex items-center gap-3 text-left" onClick={() => author && navigate({ view: "profile", id: author.id })}>
-          <Avatar profile={author} />
+        <div className="flex items-center gap-3 text-left">
+          <button onClick={() => author && navigate({ view: "profile", id: author.id })} aria-label={author?.name}>
+            <Avatar profile={author} />
+          </button>
           <div>
-            <div className="text-sm text-slate-500">
-              <span className="font-semibold text-slate-800 hover:underline">{author?.name ?? "Unknown"}</span>
-              {action ? ` ${action}` : author && author.kind !== "me" && <span className="ml-1.5 text-slate-400">· {subtitle(author)}</span>}
+            <div>
+              <PostHeadline post={post} action={action} />
+              {!action && !post.feeling && !post.withIds.length && !post.placeId && author && author.kind !== "me" && (
+                <span className="ml-1.5 text-sm text-slate-400">· {subtitle(author)}</span>
+              )}
             </div>
             <div className="text-xs text-slate-400">
               {formatPostDate(post.occurredAt)}
               {edited && " · edited"}
             </div>
           </div>
-        </button>
+        </div>
         <PostMenu post={post} onEdit={() => setEditing(true)} />
       </div>
 
@@ -45,6 +57,8 @@ export function PostCard({ post, onTag }: { post: Post; onTag?: (tag: string) =>
         <ArticleTeaser post={post} />
       ) : post.kind === "album" ? (
         <AlbumTeaser post={post} onTag={onTag} />
+      ) : post.kind === "milestone" ? (
+        <MilestoneCard post={post} onTag={onTag} />
       ) : (
         <>
           {post.content && <PostContent content={post.content} onTag={onTag} />}
@@ -54,6 +68,28 @@ export function PostCard({ post, onTag }: { post: Post; onTag?: (tag: string) =>
       {/* Articles and albums edit in the full-screen composer. */}
       {editing && post.kind !== "status" && <Composer editing={post} onDone={() => setEditing(false)} />}
     </article>
+  );
+}
+
+/** A life event: big icon, title and date, then the story and photos. */
+export function MilestoneCard({ post, onTag }: { post: Post; onTag?: (tag: string) => void }) {
+  const event = lifeEvent(post.eventType);
+  return (
+    <>
+      <div className="rounded-xl bg-gradient-to-b from-brand-50 to-white px-6 py-8 text-center">
+        <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-white text-3xl shadow-sm ring-1 ring-brand-100">{event.emoji}</div>
+        <h3 className="mt-3 text-xl font-bold text-slate-900">{post.title}</h3>
+        <p className="mt-1 text-sm text-slate-500">
+          {event.label} · {new Date(post.occurredAt).toLocaleDateString(undefined, { dateStyle: "long" })}
+        </p>
+      </div>
+      {post.content && (
+        <div className="mt-3">
+          <PostContent content={post.content} onTag={onTag} />
+        </div>
+      )}
+      <MediaGrid post={post} />
+    </>
   );
 }
 

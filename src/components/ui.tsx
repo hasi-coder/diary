@@ -1,7 +1,7 @@
 // Small shared building blocks: avatar, modal, confirm dialog, buttons, fields.
 import { useEffect, useState, type ReactNode } from "react";
 import { XIcon } from "@phosphor-icons/react";
-import type { Profile } from "../lib/api";
+import { mediaUrl, type Profile } from "../lib/api";
 import { colorOf, initials, KINDS } from "../lib/format";
 
 const AVATAR_SIZES = {
@@ -14,14 +14,33 @@ const AVATAR_SIZES = {
 export function Avatar({ profile, size = "md" }: { profile?: Profile; size?: keyof typeof AVATAR_SIZES }) {
   // People are round; pages, shops and places are rounded squares (like Facebook pages).
   const round = !profile || profile.kind === "me" || profile.kind === "person";
+  const shape = `${AVATAR_SIZES[size]} ${round ? "rounded-full" : "rounded-2xl"} shrink-0`;
+  if (profile?.avatar) {
+    return <img src={mediaUrl(profile.avatar.id)} alt="" draggable={false} className={`${shape} bg-slate-100 object-cover`} />;
+  }
   return (
-    <div
-      className={`${AVATAR_SIZES[size]} ${colorOf(profile).avatar} ${round ? "rounded-full" : "rounded-2xl"} flex shrink-0 items-center justify-center font-bold select-none`}
-      aria-hidden
-    >
+    <div className={`${shape} ${colorOf(profile).avatar} flex items-center justify-center font-bold select-none`} aria-hidden>
       {profile ? initials(profile.name) : "?"}
     </div>
   );
+}
+
+/** A profile's cover photo, or its colour gradient. */
+export function CoverImage({ profile, className = "" }: { profile: Profile; className?: string }) {
+  if (profile.cover) {
+    return (
+      <div className={`overflow-hidden bg-slate-200 ${className}`}>
+        <img
+          src={mediaUrl(profile.cover.id)}
+          alt=""
+          draggable={false}
+          className="h-full w-full object-cover"
+          style={{ objectPosition: `50% ${profile.coverPosition}%` }}
+        />
+      </div>
+    );
+  }
+  return <div className={`bg-gradient-to-r ${colorOf(profile).cover} ${className}`} />;
 }
 
 export function KindBadge({ profile }: { profile: Profile }) {

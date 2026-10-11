@@ -124,12 +124,57 @@ pub fn hashtags(content: &str) -> Vec<String> {
     out
 }
 
-/// Pre-built front matter stored (encrypted) alongside a post.
-fn post_meta(post: &Post) -> Value {
+/// Every profile a post refers to: text mentions, "with" tags, check-in and photo tags.
+pub fn involved(post: &Post) -> Vec<&str> {
     let mut ids: Vec<&str> = mentions(&post.content);
+    ids.extend(post.with_ids.iter().map(String::as_str));
+    ids.extend(post.place_id.as_deref());
+    ids.extend(post.media.iter().flat_map(|m| m.tags.iter().map(|t| t.profile_id.as_str())));
     ids.sort_unstable();
     ids.dedup();
-    json!({ "mentions": ids, "tags": hashtags(&post.content) })
+    ids
+}
+
+/// Pre-built front matter stored (encrypted) alongside a post.
+fn post_meta(post: &Post) -> Value {
+    json!({ "mentions": involved(post), "tags": hashtags(&post.content) })
+}
+
+/// Relationship kinds and their inverses: if B is A's `parent`, A is B's `child`.
+const RELATION_KINDS: &[(&str, &str)] = &[
+    ("parent", "child"),
+    ("child", "parent"),
+    ("sibling", "sibling"),
+    ("grandparent", "grandchild"),
+    ("grandchild", "grandparent"),
+    ("relative", "relative"),
+    ("spouse", "spouse"),
+    ("partner", "partner"),
+    ("friend", "friend"),
+    ("best_friend", "best_friend"),
+    ("colleague", "colleague"),
+    ("neighbour", "neighbour"),
+    ("workplace", "employee"),
+    ("employee", "workplace"),
+    ("school", "student"),
+    ("student", "school"),
+    ("club", "member"),
+    ("member", "club"),
+    ("home", "resident"),
+    ("resident", "home"),
+    ("hometown", "native"),
+    ("native", "hometown"),
+    ("favourite", "regular"),
+    ("regular", "favourite"),
+    ("custom", "custom"),
+];
+
+fn inverse_relation(kind: &str) -> Option<&'static str> {
+    RELATION_KINDS.iter().find(|(k, _)| *k == kind).map(|(_, inv)| *inv)
+}
+
+fn short(value: &str, max: usize) -> String {
+    value.trim().chars().take(max).collect()
 }
 
 fn kind_label(kind: MediaKind) -> &'static str {
@@ -340,6 +385,10 @@ pub fn create_workspace(
             location: String::new(),
             color: "teal".into(),
             has_shop: false,
+            avatar: None,
+            cover: None,
+            cover_position: 50,
+            relations: Vec::new(),
             created_at: now,
             updated_at: now,
         };
@@ -483,8 +532,38 @@ impl Workspace {
     // ---- Media ----
 
     fn reindex_media(&mut self) {
-        self.media.index =
-            self.posts.values().flat_map(|p| p.media.iter()).map(|m| (m.id.clone(), m.clone())).collect();
+        let post_media = self.posts.values().flat_map(|p| p.media.iter());
+        let profile_media = self.profiles.values().flat_map(|p| p.avatar.iter().chain(p.cover.iter()));
+        self.media.index = post_media.chain(profile_media).map(|m| (m.id.clone(), m.clone())).collect();
+    }
+
+    /// Decrypted bytes of a staged or saved attachment.
+    fn read_media_bytes(&mut self, id: &str) -> Result<Bytes> {
+        if let Some(s) = self.media.staged.get(id) {
+            return Ok(s.bytes.clone());
+        }
+        if let Some(bytes) = self.media.cache.get(id) {
+            return Ok(bytes);
+        }
+        if !self.media.index.contains_key(id) {
+            return Err(Error::NotFound(format!("media {id}")));
+        }
+        let bytes: Bytes = Arc::new(record::decode_blob(&self.key, id, &fs::read(self.record_path(Kind::Media, id))?)?);
+        self.media.cache.insert(id.to_string(), bytes.clone());
+        Ok(bytes)
+    }
+
+    /// Stages a copy of an existing photo (e.g. to use it as a profile picture),
+    /// so it stays independent of the post it came from.
+    pub fn stage_media_copy(&mut self, id: &str) -> Result<MediaRef> {
+        let source = match self.media.staged.get(id) {
+            Some(s) => s.media.clone(),
+            None => self.media.index.get(id).cloned().ok_or_else(|| Error::NotFound(format!("media {id}")))?,
+        };
+        let bytes = self.read_media_bytes(id)?;
+        let media = MediaRef { id: Uuid::new_v4().to_string(), caption: String::new(), tags: Vec::new(), ..source };
+        self.media.staged.insert(media.id.clone(), StagedMedia { media: media.clone(), bytes });
+        Ok(media)
     }
 
     /// Validates an upload and holds it in memory until a post references it.
@@ -505,6 +584,7 @@ impl Workspace {
             name,
             size: bytes.len() as u64,
             caption: String::new(),
+            tags: Vec::new(),
         };
         self.media.staged.insert(media.id.clone(), StagedMedia { media: media.clone(), bytes: Arc::new(bytes) });
         Ok(media)
@@ -757,19 +837,19 @@ impl Workspace {
     pub fn save_profile(&mut self, input: ProfileInput) -> Result<Profile> {
         let name = required(&input.name, "Name")?;
         let now = now_millis();
-        let (id, created_at) = match &input.id {
+        let (id, created_at, existing) = match &input.id {
             Some(id) => {
                 let existing = self.profiles.get(id).ok_or_else(|| Error::NotFound(format!("profile {id}")))?;
                 if (existing.kind == ProfileKind::Me) != (input.kind == ProfileKind::Me) {
                     return Err(Error::Invalid("The journal owner's profile type can't be changed.".into()));
                 }
-                (id.clone(), existing.created_at)
+                (id.clone(), existing.created_at, Some(existing.clone()))
             }
             None => {
                 if input.kind == ProfileKind::Me {
                     return Err(Error::Invalid("A workspace has exactly one journal owner.".into()));
                 }
-                (Uuid::new_v4().to_string(), now)
+                (Uuid::new_v4().to_string(), now, None)
             }
         };
 
@@ -788,6 +868,11 @@ impl Workspace {
                 ProfileKind::Page => input.has_shop,
                 _ => false,
             },
+            // Photos and relationships have their own commands; edits keep them.
+            avatar: existing.as_ref().and_then(|p| p.avatar.clone()),
+            cover: existing.as_ref().and_then(|p| p.cover.clone()),
+            cover_position: existing.as_ref().map_or(50, |p| p.cover_position),
+            relations: existing.map(|p| p.relations).unwrap_or_default(),
             created_at,
             updated_at: now,
         };
@@ -805,7 +890,7 @@ impl Workspace {
     /// Mentions of it in other posts are left as-is and render as a deleted profile.
     pub fn delete_profile(&mut self, id: &str) -> Result<()> {
         validate_record_id(id)?;
-        let profile = self.profiles.get(id).ok_or_else(|| Error::NotFound(format!("profile {id}")))?;
+        let profile = self.profiles.get(id).ok_or_else(|| Error::NotFound(format!("profile {id}")))?.clone();
         if profile.kind == ProfileKind::Me {
             return Err(Error::Invalid("The journal owner's profile can't be deleted.".into()));
         }
@@ -818,16 +903,140 @@ impl Workspace {
         for item_id in items {
             self.delete_item(&item_id)?;
         }
+        let photos: Vec<String> = [&profile.avatar, &profile.cover].into_iter().flatten().map(|m| m.id.clone()).collect();
         self.remove_record(Kind::Profile, id)?;
         self.profiles.remove(id);
+        self.reindex_media();
+        for media_id in photos {
+            self.remove_media_file(&media_id)?;
+        }
         self.index.remove(&DocKey::new(DocKind::Profile, id));
-        // Posts that mentioned it no longer contain its name.
-        let mentioning: Vec<String> =
-            self.posts.values().filter(|p| mentions(&p.content).contains(&id)).map(|p| p.id.clone()).collect();
-        for post_id in mentioning {
+
+        // Drop relationships other profiles declared with it.
+        let related: Vec<Profile> = self
+            .profiles
+            .values()
+            .filter(|p| p.relations.iter().any(|r| r.to_id == id))
+            .cloned()
+            .collect();
+        for mut p in related {
+            p.relations.retain(|r| r.to_id != id);
+            self.put_profile(p)?;
+        }
+        // Posts that referred to it no longer contain its name.
+        let referring: Vec<String> = self.posts.values().filter(|p| involved(p).contains(&id)).map(|p| p.id.clone()).collect();
+        for post_id in referring {
             self.index_post(&post_id);
         }
         Ok(())
+    }
+
+    fn put_profile(&mut self, mut profile: Profile) -> Result<Profile> {
+        profile.updated_at = now_millis();
+        self.write_record(Kind::Profile, &profile.id, &profile, json!({}))?;
+        self.profiles.insert(profile.id.clone(), profile.clone());
+        Ok(profile)
+    }
+
+    // ---- Profile photos ----
+
+    /// Sets or clears a profile's picture or cover. `media_id` must be a staged
+    /// upload (or the current photo). The replaced photo's file is deleted.
+    pub fn set_profile_photo(&mut self, profile_id: &str, slot: PhotoSlot, media_id: Option<String>) -> Result<Profile> {
+        let mut profile = self.profiles.get(profile_id).ok_or_else(|| Error::NotFound(format!("profile {profile_id}")))?.clone();
+        let current = match slot {
+            PhotoSlot::Avatar => profile.avatar.clone(),
+            PhotoSlot::Cover => profile.cover.clone(),
+        };
+        let next = match media_id {
+            None => None,
+            Some(id) if current.as_ref().is_some_and(|m| m.id == id) => current.clone(),
+            Some(id) => {
+                let staged = self.media.staged.get(&id).ok_or_else(|| Error::NotFound(format!("upload {id}")))?;
+                if staged.media.kind != MediaKind::Image {
+                    return Err(Error::Invalid("Choose a photo, not a video.".into()));
+                }
+                let sealed = record::encode_blob(&self.key, &id, &staged.bytes)?;
+                fs::create_dir_all(self.dir.join(Kind::Media.dir()))?;
+                atomic_write(&self.record_path(Kind::Media, &id), &sealed)?;
+                Some(MediaRef { caption: String::new(), tags: Vec::new(), ..staged.media.clone() })
+            }
+        };
+        match slot {
+            PhotoSlot::Avatar => profile.avatar = next.clone(),
+            PhotoSlot::Cover => profile.cover = next.clone(),
+        }
+        let profile = self.put_profile(profile)?;
+        if let Some(m) = &next {
+            if let Some(staged) = self.media.staged.remove(&m.id) {
+                self.media.cache.insert(m.id.clone(), staged.bytes);
+            }
+        }
+        self.reindex_media();
+        if let Some(old) = current.filter(|old| next.as_ref().map_or(true, |n| n.id != old.id)) {
+            self.remove_media_file(&old.id)?;
+        }
+        Ok(profile)
+    }
+
+    pub fn set_cover_position(&mut self, profile_id: &str, position: u8) -> Result<Profile> {
+        let mut profile = self.profiles.get(profile_id).ok_or_else(|| Error::NotFound(format!("profile {profile_id}")))?.clone();
+        profile.cover_position = position.min(100);
+        self.put_profile(profile)
+    }
+
+    // ---- Relationships ----
+
+    /// Adds or updates a relationship declared by `profile_id`: "`to_id` is my `kind`".
+    pub fn save_relation(&mut self, profile_id: &str, input: RelationInput) -> Result<Profile> {
+        let mut profile = self.profiles.get(profile_id).ok_or_else(|| Error::NotFound(format!("profile {profile_id}")))?.clone();
+        if !self.profiles.contains_key(&input.to_id) {
+            return Err(Error::NotFound(format!("profile {}", input.to_id)));
+        }
+        if input.to_id == profile_id {
+            return Err(Error::Invalid("A profile can't be related to itself.".into()));
+        }
+        let inverse = inverse_relation(&input.kind).ok_or_else(|| Error::Invalid(format!("Unknown relationship: {}", input.kind)))?;
+        let label = short(&input.label, 60);
+        if input.kind == "custom" && label.is_empty() {
+            return Err(Error::Invalid("Describe the relationship.".into()));
+        }
+        let id = input.id.clone().unwrap_or_else(|| Uuid::new_v4().to_string());
+        if input.id.is_some() && !profile.relations.iter().any(|r| r.id == id) {
+            return Err(Error::NotFound(format!("relationship {id}")));
+        }
+        let duplicate = profile.relations.iter().any(|r| r.id != id && r.to_id == input.to_id && r.kind == input.kind && r.label == label)
+            || self.profiles[&input.to_id]
+                .relations
+                .iter()
+                .any(|r| r.to_id == profile_id && r.kind == inverse && (inverse != "custom" || r.inverse_label == label));
+        if duplicate {
+            return Err(Error::Invalid("That relationship already exists.".into()));
+        }
+
+        let relation = Relation {
+            id: id.clone(),
+            to_id: input.to_id,
+            kind: input.kind,
+            label,
+            inverse_label: short(&input.inverse_label, 60),
+            since: short(&input.since, 40),
+        };
+        match profile.relations.iter_mut().find(|r| r.id == id) {
+            Some(existing) => *existing = relation,
+            None => profile.relations.push(relation),
+        }
+        self.put_profile(profile)
+    }
+
+    pub fn delete_relation(&mut self, profile_id: &str, relation_id: &str) -> Result<Profile> {
+        let mut profile = self.profiles.get(profile_id).ok_or_else(|| Error::NotFound(format!("profile {profile_id}")))?.clone();
+        let before = profile.relations.len();
+        profile.relations.retain(|r| r.id != relation_id);
+        if profile.relations.len() == before {
+            return Err(Error::NotFound(format!("relationship {relation_id}")));
+        }
+        self.put_profile(profile)
     }
 
     // ---- Posts ----
@@ -878,9 +1087,38 @@ impl Workspace {
             return Err(Error::Invalid(format!("At most {max} photos and videos per {}.", if max > 20 { "album" } else { "post" })));
         }
 
+        let mut with_ids: Vec<String> = Vec::new();
+        for id in &input.with_ids {
+            if !self.profiles.contains_key(id) {
+                return Err(Error::NotFound(format!("tagged profile {id}")));
+            }
+            if !with_ids.contains(id) && with_ids.len() < 50 {
+                with_ids.push(id.clone());
+            }
+        }
+        if let Some(place) = &input.place_id {
+            let kind = self.profiles.get(place).ok_or_else(|| Error::NotFound(format!("place {place}")))?.kind;
+            if !matches!(kind, ProfileKind::Place | ProfileKind::Shop | ProfileKind::Page) {
+                return Err(Error::Invalid("Check in at a place, shop or page.".into()));
+            }
+        }
+        let feeling = input
+            .feeling
+            .as_ref()
+            .map(|f| Feeling { emoji: short(&f.emoji, 16), text: short(&f.text, 80) })
+            .filter(|f| !f.text.is_empty());
+        let event_type = short(&input.event_type, 40);
+        if input.kind == PostKind::Milestone && (title.is_empty() || event_type.is_empty()) {
+            return Err(Error::Invalid("A life event needs a type and a title.".into()));
+        }
+
         let now = now_millis();
         let post = Post {
             id: existing.as_ref().map_or_else(|| Uuid::new_v4().to_string(), |p| p.id.clone()),
+            with_ids,
+            place_id: input.place_id.clone(),
+            feeling,
+            event_type: if input.kind == PostKind::Milestone { event_type } else { String::new() },
             kind: input.kind,
             title: if input.kind == PostKind::Status { String::new() } else { title },
             author_id: input.author_id,
@@ -929,6 +1167,31 @@ impl Workspace {
         Ok(())
     }
 
+    /// Replaces the people tagged on one photo of a post.
+    pub fn set_photo_tags(&mut self, post_id: &str, media_id: &str, tags: Vec<PhotoTag>) -> Result<Post> {
+        let mut post = self.posts.get(post_id).ok_or_else(|| Error::NotFound(format!("post {post_id}")))?.clone();
+        let mut clean: Vec<PhotoTag> = Vec::new();
+        for tag in tags {
+            if !self.profiles.contains_key(&tag.profile_id) {
+                return Err(Error::NotFound(format!("profile {}", tag.profile_id)));
+            }
+            if !(tag.x.is_finite() && tag.y.is_finite()) {
+                return Err(Error::Invalid("Invalid tag position.".into()));
+            }
+            clean.retain(|t| t.profile_id != tag.profile_id);
+            clean.push(PhotoTag { profile_id: tag.profile_id, x: tag.x.clamp(0.0, 1.0), y: tag.y.clamp(0.0, 1.0) });
+        }
+        clean.truncate(50);
+        let media = post.media.iter_mut().find(|m| m.id == media_id).ok_or_else(|| Error::NotFound(format!("photo {media_id}")))?;
+        media.tags = clean;
+        post.updated_at = now_millis();
+        self.write_post(&post)?;
+        self.posts.insert(post.id.clone(), post.clone());
+        self.reindex_media();
+        self.index_post(post_id);
+        Ok(post)
+    }
+
     pub fn query_posts(&self, filter: &PostFilter) -> Vec<Post> {
         let matches: Option<HashSet<String>> = filter
             .search
@@ -940,7 +1203,7 @@ impl Workspace {
             .posts
             .values()
             .filter(|p| match &filter.profile_id {
-                Some(pid) => p.author_id == *pid || mentions(&p.content).contains(&pid.as_str()),
+                Some(pid) => p.author_id == *pid || involved(p).contains(&pid.as_str()),
                 None => true,
             })
             .filter(|p| filter.kind.map_or(true, |k| p.kind == k))
@@ -1017,10 +1280,20 @@ impl Workspace {
         let author = self.profiles.get(&post.author_id).map_or("", |p| p.name.as_str());
         let files = post.media.iter().map(|m| m.name.as_str()).collect::<Vec<_>>().join(" ");
         let captions = post.media.iter().map(|m| m.caption.as_str()).collect::<Vec<_>>().join("\n");
+        let mentioned_in_text = mentions(&post.content);
+        let tagged = involved(post)
+            .into_iter()
+            .filter(|id| !mentioned_in_text.contains(id))
+            .filter_map(|id| self.profiles.get(id).map(|p| p.name.as_str()))
+            .collect::<Vec<_>>()
+            .join(" ");
+        let extra = format!("{} {}", post.feeling.as_ref().map_or("", |f| f.text.as_str()), post.event_type);
         let fields = [
             Field { text: &post.title, weight: 2.5 },
             Field { text: &text, weight: 1.0 },
             Field { text: &captions, weight: 0.8 },
+            Field { text: &tagged, weight: 0.8 },
+            Field { text: &extra, weight: 0.6 },
             Field { text: author, weight: 0.5 },
             Field { text: &files, weight: 0.5 },
         ];
@@ -1048,7 +1321,7 @@ impl Workspace {
         let posts: Vec<String> = self
             .posts
             .values()
-            .filter(|post| post.author_id == id || mentions(&post.content).contains(&id))
+            .filter(|post| post.author_id == id || involved(post).contains(&id))
             .map(|post| post.id.clone())
             .collect();
         for post_id in posts {
@@ -1136,7 +1409,7 @@ impl Workspace {
             self.profiles.keys().map(|id| (id.clone(), ProfileStats::default())).collect();
         for post in self.posts.values() {
             stats.entry(post.author_id.clone()).or_default().posts += 1;
-            let unique: HashSet<&str> = mentions(&post.content).into_iter().collect();
+            let unique: HashSet<&str> = involved(post).into_iter().collect();
             for id in unique {
                 if let Some(s) = stats.get_mut(id) {
                     s.mentions += 1;
@@ -1287,9 +1560,10 @@ mod tests {
             content: format!("Latte at @[profile:{}] with @[profile:{}] #coffee", shop.id, sarah.id),
             occurred_at: Some(1_000),
             media_ids: vec![],
+            ..Default::default()
         })
         .unwrap();
-        ws.save_post(PostInput { kind: Default::default(), title: String::new(), captions: Default::default(), id: None, author_id: sarah.id.clone(), content: "Hi from Sarah".into(), occurred_at: Some(2_000), media_ids: vec![] })
+        ws.save_post(PostInput { kind: Default::default(), title: String::new(), captions: Default::default(), id: None, author_id: sarah.id.clone(), content: "Hi from Sarah".into(), occurred_at: Some(2_000), media_ids: vec![], ..Default::default() })
             .unwrap();
         ws.save_item(ItemInput {
             id: None,
@@ -1365,7 +1639,7 @@ mod tests {
             "can't disable a shop that still lists items"
         );
 
-        ws.save_post(PostInput { kind: Default::default(), title: String::new(), captions: Default::default(), id: None, author_id: page.id.clone(), content: "Meeting Friday".into(), occurred_at: None, media_ids: vec![] }).unwrap();
+        ws.save_post(PostInput { kind: Default::default(), title: String::new(), captions: Default::default(), id: None, author_id: page.id.clone(), content: "Meeting Friday".into(), occurred_at: None, media_ids: vec![], ..Default::default() }).unwrap();
         ws.delete_profile(&page.id).unwrap();
         assert!(ws.posts.is_empty() && ws.items.is_empty());
 
@@ -1383,16 +1657,7 @@ mod tests {
     }
 
     fn post(author: &str, content: &str, media_ids: Vec<String>) -> PostInput {
-        PostInput {
-            id: None,
-            kind: PostKind::Status,
-            title: String::new(),
-            captions: HashMap::new(),
-            author_id: author.into(),
-            content: content.into(),
-            occurred_at: None,
-            media_ids,
-        }
+        PostInput { author_id: author.into(), content: content.into(), media_ids, ..Default::default() }
     }
 
     fn decrypt_saved(ws: &mut Workspace, id: &str) -> Vec<u8> {
@@ -1656,6 +1921,136 @@ mod tests {
         assert!(by_caption.posts[0].snippet.contains("Sunrise"), "{}", by_caption.posts[0].snippet);
     }
 
+    #[test]
+    fn tags_feelings_and_milestones() {
+        let root = tempfile::tempdir().unwrap();
+        let mut ws = create_workspace(root.path(), "", "Personal", "Alex", "correct horse", FAST).unwrap();
+        let owner = ws.owner_id().to_string();
+        let sarah = ws.save_profile(person("Sarah Jenkins", ProfileKind::Person)).unwrap();
+        let dev = ws.save_profile(person("Dev Patel", ProfileKind::Person)).unwrap();
+        let lake = ws.save_profile(person("Lake Minnetonka", ProfileKind::Place)).unwrap();
+
+        let base = || post(&owner, "Paddling", vec![]);
+        assert!(ws.save_post(PostInput { place_id: Some(sarah.id.clone()), ..base() }).is_err(), "check in at a person");
+        assert!(ws.save_post(PostInput { with_ids: vec!["missing".into()], ..base() }).is_err());
+        assert!(ws.save_post(PostInput { kind: PostKind::Milestone, title: "New job".into(), ..base() }).is_err(), "needs a type");
+
+        let p = ws
+            .save_post(PostInput {
+                with_ids: vec![sarah.id.clone(), sarah.id.clone()],
+                place_id: Some(lake.id.clone()),
+                feeling: Some(Feeling { emoji: "😊".into(), text: " feeling happy ".into() }),
+                ..base()
+            })
+            .unwrap();
+        assert_eq!(p.with_ids, vec![sarah.id.clone()], "deduplicated");
+        assert_eq!(p.feeling.as_ref().unwrap().text, "feeling happy");
+        assert_eq!(ws.snapshot().stats[&lake.id].mentions, 1, "check-ins count as mentions");
+        assert_eq!(ws.query_posts(&PostFilter { profile_id: Some(sarah.id.clone()), ..Default::default() }).len(), 1);
+        assert_eq!(ws.search("sarah", 10).totals.posts, 1, "tagged names are searchable");
+        assert_eq!(ws.search("happy", 10).totals.posts, 1, "feelings are searchable");
+
+        // Photo tags.
+        let img = ws.stage_media("p.png", [&b"\x89PNG\r\n\x1a\n"[..], &[1u8; 50]].concat()).unwrap();
+        let photo = ws.save_post(post(&owner, "", vec![img.id.clone()])).unwrap();
+        let tag = |id: &str, x: f32| PhotoTag { profile_id: id.into(), x, y: 0.5 };
+        let tagged = ws.set_photo_tags(&photo.id, &img.id, vec![tag(&dev.id, 0.2), tag(&dev.id, 1.7)]).unwrap();
+        assert_eq!(tagged.media[0].tags, vec![tag(&dev.id, 1.0)], "one tag per person, clamped");
+        assert!(ws.set_photo_tags(&photo.id, &img.id, vec![tag("nobody", 0.1)]).is_err());
+        assert_eq!(ws.query_posts(&PostFilter { profile_id: Some(dev.id.clone()), ..Default::default() }).len(), 1);
+        // Editing the post keeps its photo tags.
+        let edited = ws.save_post(PostInput { id: Some(photo.id.clone()), ..post(&owner, "Caption", vec![img.id.clone()]) }).unwrap();
+        assert_eq!(edited.media[0].tags.len(), 1);
+
+        let milestone = ws
+            .save_post(PostInput { kind: PostKind::Milestone, title: "Started at the Bean".into(), event_type: "work".into(), ..base() })
+            .unwrap();
+        assert_eq!(milestone.event_type, "work");
+        let status = ws.save_post(PostInput { event_type: "work".into(), ..base() }).unwrap();
+        assert_eq!(status.event_type, "", "only milestones keep a type");
+
+        let ws = open_workspace(root.path(), "workspace_personal", "correct horse").unwrap();
+        assert_eq!(ws.posts[&p.id].place_id.as_deref(), Some(lake.id.as_str()));
+        assert_eq!(ws.posts[&photo.id].media[0].tags.len(), 1);
+    }
+
+    #[test]
+    fn relationships() {
+        let root = tempfile::tempdir().unwrap();
+        let mut ws = create_workspace(root.path(), "", "Personal", "Alex", "correct horse", FAST).unwrap();
+        let owner = ws.owner_id().to_string();
+        let sarah = ws.save_profile(person("Sarah", ProfileKind::Person)).unwrap();
+        let shop = ws.save_profile(person("Bean", ProfileKind::Shop)).unwrap();
+        let rel = |to: &str, kind: &str| RelationInput {
+            id: None,
+            to_id: to.into(),
+            kind: kind.into(),
+            label: String::new(),
+            inverse_label: String::new(),
+            since: "2019".into(),
+        };
+
+        assert!(ws.save_relation(&owner, rel(&owner, "friend")).is_err(), "not with yourself");
+        assert!(ws.save_relation(&owner, rel(&sarah.id, "frenemy")).is_err(), "unknown kind");
+        assert!(ws.save_relation(&owner, rel(&sarah.id, "custom")).is_err(), "custom needs a label");
+        let me = ws.save_relation(&owner, rel(&sarah.id, "sibling")).unwrap();
+        assert_eq!(me.relations.len(), 1);
+        assert!(ws.save_relation(&owner, rel(&sarah.id, "sibling")).is_err(), "duplicate");
+        assert!(ws.save_relation(&sarah.id, rel(&owner, "sibling")).is_err(), "inverse duplicate");
+        ws.save_relation(&owner, rel(&shop.id, "workplace")).unwrap();
+
+        // Editing a profile keeps its relationships.
+        let me = ws.save_profile(ProfileInput { id: Some(owner.clone()), ..person("Alex M", ProfileKind::Me) }).unwrap();
+        assert_eq!(me.relations.len(), 2);
+
+        // Deleting a profile removes relationships pointing at it.
+        ws.delete_profile(&shop.id).unwrap();
+        assert_eq!(ws.profiles[&owner].relations.len(), 1);
+        let id = ws.profiles[&owner].relations[0].id.clone();
+        ws.delete_relation(&owner, &id).unwrap();
+        let ws = open_workspace(root.path(), "workspace_personal", "correct horse").unwrap();
+        assert!(ws.profiles[&owner].relations.is_empty());
+    }
+
+    #[test]
+    fn profile_and_cover_photos() {
+        let root = tempfile::tempdir().unwrap();
+        let mut ws = create_workspace(root.path(), "", "Personal", "Alex", "correct horse", FAST).unwrap();
+        let owner = ws.owner_id().to_string();
+        let media_dir = root.path().join("workspace_personal/media");
+        let png = |n: u8| [&b"\x89PNG\r\n\x1a\n"[..], &[n; 64]].concat();
+
+        let video = ws.stage_media("v.mp4", b"\0\0\0\x18ftypisom0000".to_vec()).unwrap();
+        assert!(ws.set_profile_photo(&owner, PhotoSlot::Avatar, Some(video.id)).is_err(), "photos only");
+
+        let a = ws.stage_media("me.png", png(1)).unwrap();
+        let me = ws.set_profile_photo(&owner, PhotoSlot::Avatar, Some(a.id.clone())).unwrap();
+        assert_eq!(me.avatar.as_ref().unwrap().id, a.id);
+        assert!(matches!(ws.media_lookup(&a.id).unwrap().1, MediaSource::Ready(_)), "served by the protocol");
+
+        // Pick a photo from a post as the cover: it becomes an independent copy.
+        let in_post = ws.stage_media("lake.png", png(2)).unwrap();
+        let p = ws.save_post(post(&owner, "", vec![in_post.id.clone()])).unwrap();
+        let copy = ws.stage_media_copy(&in_post.id).unwrap();
+        assert_ne!(copy.id, in_post.id);
+        ws.set_profile_photo(&owner, PhotoSlot::Cover, Some(copy.id.clone())).unwrap();
+        ws.set_cover_position(&owner, 250).unwrap();
+        ws.delete_post(&p.id).unwrap();
+        assert_eq!(decrypt_saved(&mut ws, &copy.id), png(2), "cover survives deleting the post");
+
+        // Replacing the avatar deletes the old file; edits keep photos.
+        let b = ws.stage_media("me2.png", png(3)).unwrap();
+        ws.set_profile_photo(&owner, PhotoSlot::Avatar, Some(b.id.clone())).unwrap();
+        assert!(!media_dir.join(format!("{}.enc", a.id)).exists());
+        let me = ws.save_profile(ProfileInput { id: Some(owner.clone()), ..person("Alex", ProfileKind::Me) }).unwrap();
+        assert_eq!((me.avatar.unwrap().id, me.cover.unwrap().id, me.cover_position), (b.id.clone(), copy.id.clone(), 100));
+
+        let ws2 = open_workspace(root.path(), "workspace_personal", "correct horse").unwrap();
+        assert_eq!(ws2.profiles[&owner].avatar.as_ref().unwrap().id, b.id);
+        ws.set_profile_photo(&owner, PhotoSlot::Avatar, None).unwrap();
+        assert!(!media_dir.join(format!("{}.enc", b.id)).exists(), "removing deletes the file");
+    }
+
     /// Writes a workspace exactly as Phase 1 (format 1) did.
     fn write_phase1_workspace(root: &Path) -> (String, String) {
         let dir = root.join("workspace_old");
@@ -1707,7 +2102,7 @@ mod tests {
 
         // Editing one record before migrating writes it in the new format.
         let p = ws.posts[&post_id].clone();
-        ws.save_post(PostInput { kind: Default::default(), title: String::new(), captions: Default::default(), id: Some(p.id.clone()), author_id: p.author_id, content: p.content, occurred_at: None, media_ids: vec![] }).unwrap();
+        ws.save_post(PostInput { kind: Default::default(), title: String::new(), captions: Default::default(), id: Some(p.id.clone()), author_id: p.author_id, content: p.content, occurred_at: None, media_ids: vec![], ..Default::default() }).unwrap();
         assert_eq!(ws.migration_status().stale_files, 4);
 
         assert_eq!(ws.run_migration().unwrap(), 4);

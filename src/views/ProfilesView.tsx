@@ -2,10 +2,10 @@ import { useState } from "react";
 import { PlusIcon, UsersThreeIcon } from "@phosphor-icons/react";
 import type { ProfileKind } from "../lib/api";
 import { useJournal } from "../lib/journal";
-import { colorOf, KINDS, subtitle } from "../lib/format";
+import { KINDS, subtitle } from "../lib/format";
 import { ProfileForm } from "../components/forms";
 import { Page } from "../components/Shell";
-import { Avatar, Button, EmptyState } from "../components/ui";
+import { Avatar, Button, CoverImage, EmptyState } from "../components/ui";
 
 const FILTERS: (ProfileKind | "all")[] = ["all", "person", "page", "shop", "place"];
 
@@ -63,7 +63,7 @@ export function ProfilesView() {
                 onClick={() => navigate({ view: "profile", id: p.id })}
                 className="overflow-hidden rounded-2xl border border-slate-200 bg-white text-left shadow-sm transition-shadow hover:shadow-md"
               >
-                <div className={`h-16 bg-gradient-to-r ${colorOf(p).cover}`} />
+                <CoverImage profile={p} className="h-16" />
                 <div className="px-4 pb-4">
                   <div className="-mt-7 mb-2 inline-block rounded-full bg-white p-0.5">
                     <Avatar profile={p} size="lg" />

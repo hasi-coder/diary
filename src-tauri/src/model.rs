@@ -76,8 +76,62 @@ pub struct Profile {
     /// Whether the profile can list items for sale. Always true for shops.
     #[serde(default)]
     pub has_shop: bool,
+    /// Profile picture. Its bytes live in `media/<id>.enc`.
+    #[serde(default)]
+    pub avatar: Option<MediaRef>,
+    #[serde(default)]
+    pub cover: Option<MediaRef>,
+    /// Vertical focus of the cover photo, 0 (top) to 100 (bottom).
+    #[serde(default = "default_cover_position")]
+    pub cover_position: u8,
+    /// Relationships this profile declared. Each is shown on both profiles,
+    /// with the inverse label on the other side.
+    #[serde(default)]
+    pub relations: Vec<Relation>,
     pub created_at: i64,
     pub updated_at: i64,
+}
+
+fn default_cover_position() -> u8 {
+    50
+}
+
+/// "`to_id` is this profile's `kind`", e.g. kind `sibling`, or `workplace` for a shop.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Relation {
+    pub id: String,
+    pub to_id: String,
+    pub kind: String,
+    /// For `custom`: how `to_id` relates to this profile, and the reverse.
+    #[serde(default)]
+    pub label: String,
+    #[serde(default)]
+    pub inverse_label: String,
+    /// Free text such as "2019" or "June 2021".
+    #[serde(default)]
+    pub since: String,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RelationInput {
+    pub id: Option<String>,
+    pub to_id: String,
+    pub kind: String,
+    #[serde(default)]
+    pub label: String,
+    #[serde(default)]
+    pub inverse_label: String,
+    #[serde(default)]
+    pub since: String,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum PhotoSlot {
+    Avatar,
+    Cover,
 }
 
 impl Profile {
@@ -119,6 +173,25 @@ pub enum PostKind {
     Article,
     /// A titled photo/video collection; `content` is its description and the first item its cover.
     Album,
+    /// A life event ("Started a new job"): `title` plus an `event_type` category.
+    Milestone,
+}
+
+/// "feeling happy", "eating breakfast" and the like.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Feeling {
+    pub emoji: String,
+    pub text: String,
+}
+
+/// A person (or page) tagged at a spot on a photo; `x`/`y` are 0..1 of the image size.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PhotoTag {
+    pub profile_id: String,
+    pub x: f32,
+    pub y: f32,
 }
 
 /// A journal entry. Mentions are embedded in the Markdown as `@[profile:<uuid>]`.
@@ -135,6 +208,17 @@ pub struct Post {
     pub content: String,
     /// When the event happened (unix millis); entries may be back-dated.
     pub occurred_at: i64,
+    /// Profiles tagged as being with the author ("— with Sarah and Dev").
+    #[serde(default)]
+    pub with_ids: Vec<String>,
+    /// Check-in: a place, shop or page ("— at Lake Minnetonka").
+    #[serde(default)]
+    pub place_id: Option<String>,
+    #[serde(default)]
+    pub feeling: Option<Feeling>,
+    /// Milestones only: the life-event category, e.g. `work`, `education`.
+    #[serde(default)]
+    pub event_type: String,
     /// Attached images and videos, in display order. Bytes live in `media/<id>.enc`.
     #[serde(default)]
     pub media: Vec<MediaRef>,
@@ -163,9 +247,11 @@ pub struct MediaRef {
     /// Per-photo caption (used mostly in albums).
     #[serde(default)]
     pub caption: String,
+    #[serde(default)]
+    pub tags: Vec<PhotoTag>,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PostInput {
     pub id: Option<String>,
@@ -176,6 +262,14 @@ pub struct PostInput {
     /// Caption per attachment id. Attachments missing here keep their caption.
     #[serde(default)]
     pub captions: HashMap<String, String>,
+    #[serde(default)]
+    pub with_ids: Vec<String>,
+    #[serde(default)]
+    pub place_id: Option<String>,
+    #[serde(default)]
+    pub feeling: Option<Feeling>,
+    #[serde(default)]
+    pub event_type: String,
     pub author_id: String,
     pub content: String,
     pub occurred_at: Option<i64>,

@@ -2,8 +2,8 @@
 import { useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useJournal } from "../lib/journal";
-import { colorOf, subtitle } from "../lib/format";
-import { Avatar, KindBadge } from "./ui";
+import { subtitle } from "../lib/format";
+import { Avatar, CoverImage, KindBadge } from "./ui";
 import type { Profile } from "../lib/api";
 
 const CARD_WIDTH = 272;
@@ -65,7 +65,7 @@ function ProfileHoverCard({ profile, anchor }: { profile: Profile; anchor: DOMRe
       className="fixed z-50 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl"
       style={{ ...style, width: CARD_WIDTH }}
     >
-      <div className={`h-16 bg-gradient-to-r ${colorOf(profile).cover}`} />
+      <CoverImage profile={profile} className="h-16" />
       <div className="relative px-4 pb-4">
         <div className="absolute -top-7 left-4 rounded-full bg-white p-0.5">
           <Avatar profile={profile} size="lg" />

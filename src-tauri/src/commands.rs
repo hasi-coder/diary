@@ -172,3 +172,34 @@ pub async fn change_password(app: AppHandle, current: String, new_password: Stri
     })
     .await
 }
+
+#[tauri::command]
+pub fn set_profile_photo(state: State<'_, AppState>, profile_id: String, slot: PhotoSlot, media_id: Option<String>) -> Result<Profile> {
+    state.with_workspace(|ws| ws.set_profile_photo(&profile_id, slot, media_id))
+}
+
+#[tauri::command]
+pub fn set_cover_position(state: State<'_, AppState>, profile_id: String, position: u8) -> Result<Profile> {
+    state.with_workspace(|ws| ws.set_cover_position(&profile_id, position))
+}
+
+/// Stages a copy of a photo already in the journal, e.g. to use as a profile picture.
+#[tauri::command]
+pub fn stage_media_copy(state: State<'_, AppState>, media_id: String) -> Result<MediaRef> {
+    state.with_workspace(|ws| ws.stage_media_copy(&media_id))
+}
+
+#[tauri::command]
+pub fn save_relation(state: State<'_, AppState>, profile_id: String, input: RelationInput) -> Result<Profile> {
+    state.with_workspace(|ws| ws.save_relation(&profile_id, input))
+}
+
+#[tauri::command]
+pub fn delete_relation(state: State<'_, AppState>, profile_id: String, relation_id: String) -> Result<Profile> {
+    state.with_workspace(|ws| ws.delete_relation(&profile_id, &relation_id))
+}
+
+#[tauri::command]
+pub fn set_photo_tags(state: State<'_, AppState>, post_id: String, media_id: String, tags: Vec<PhotoTag>) -> Result<Post> {
+    state.with_workspace(|ws| ws.set_photo_tags(&post_id, &media_id, tags))
+}

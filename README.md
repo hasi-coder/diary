@@ -79,10 +79,25 @@ dependencies](https://v2.tauri.app/start/prerequisites/) for your OS, and (recom
 
 Every profile has a Facebook-style page:
 
-- a cover and avatar
+- a **profile picture and cover photo**: upload one, or **choose from photos already in the
+  journal** (copied, so deleting the post doesn't remove it); the cover can be **repositioned**
+  or removed
 - an intro card
 - tabs: **Posts** (written by or mentioning them), **About**, **Photos & videos** and, for
   sellers, **Shop**.
+
+**Relationships**, like Facebook's "Family and relationships": the **About** tab lists them and
+**Add** creates one.
+
+- Kinds: parent/child, sibling, grandparent, relative, spouse, partner, friend, best friend,
+  colleague, neighbour, workplace/employee, school/student, group/member, home/resident,
+  hometown, favourite spot/regular, or a **custom** pair of labels.
+- Each relationship is stored once, on the profile that declared it, and shown on **both**
+  profiles with the matching label. If Alex declares Sarah as his *sibling*, Alex appears on
+  Sarah's page as her *sibling*. If he declares The Rusty Bean as his *workplace*, he appears on
+  the shop's page as an *employee*.
+- Some kinds also add a line to the intro card: "Married to …", "Works at …", "Lives in …",
+  "Regular at …".
 
 **Any profile can post.** Choose the author with the "as …" selector in the composer. On a
 profile's page, the composer posts as that profile by default.
@@ -99,6 +114,18 @@ The composer has three modes:
 | **Post** | Everyday entries: text plus up to 20 photos/videos. | Inline in the feed with a photo grid. |
 | **Article** | Long-form writing with a title. The first image is the cover. | A teaser card in the feed (cover, title, excerpt, reading time) that opens a reading view. |
 | **Album** | A titled collection of up to 500 photos and videos, each with its own caption. Drag to add; reorder; mark the cover. | A teaser with a grid in the feed, opening an album page with captioned tiles. |
+| **Life event** | A milestone with a type and title: 💼 work, 🎓 education, 🏠 home, 💞 relationship, 👶 family, ✈️ travel, ❤️‍🩹 health, 🏆 achievement, 🕊️ remembrance, ⭐ other. | A centred card with a big icon in the feed, plus a **Life events** timeline on the profile. |
+
+Every type can also carry Facebook-style extras, shown in the headline. For example: *"Alex
+Morgan is 😊 feeling happy with Sarah Jenkins and Dev Patel at The Rusty Bean."*
+
+- **Feeling / activity** (☺): feelings like *happy*, *grateful* or *nostalgic*, or activities
+  like *watching …*, *eating …* or *travelling to …*.
+- **Tag people** (👤+): people and pages you were with.
+- **Check in** (📍): a place, shop or page.
+
+Tagged people and check-ins count as mentions. The post appears on their profiles, and their
+names are searchable.
 
 All three use the same **rich-text editor**:
 
@@ -123,6 +150,9 @@ Entries can be **back-dated** with "Happened on".
     details
   - keys: ← → Home End, and Esc (unzoom, then close)
   - click the photo to zoom to full size
+  - **Tag people** on a photo: click a spot, then pick who's there. Names appear over the photo
+    on hover and are listed under "In this photo". A person's **Photos & videos** tab shows the
+    photos they're tagged in.
 - **Media Gallery:** every photo and video, filterable by Photos, Videos or **Albums**. Every
   profile has the same view under **Photos & videos**.
 
@@ -278,9 +308,10 @@ Defined in `src-tauri/src/model.rs` and mirrored in `src/lib/api.ts`.
 
 | Record | Key fields |
 | --- | --- |
-| **Profile** | `kind` (me/person/page/shop/place), `name`, `tagline`, `bio`, `relationship`, `category`, `location`, `color`, `hasShop` |
-| **Post** | `kind` (status/article/album), `title`, `authorId`, `content` (Markdown), `occurredAt`, `media[]` |
-| **MediaRef** (inside a post) | `id`, `kind` (image/video), `mime`, `name`, `size`, `caption` |
+| **Profile** | `kind` (me/person/page/shop/place), `name`, `tagline`, `bio`, `relationship`, `category`, `location`, `color`, `hasShop`, `avatar`/`cover` (MediaRef), `coverPosition`, `relations[]` |
+| **Relation** (inside a profile) | `toId`, `kind` ("`toId` is my `kind`"), `label`/`inverseLabel` (custom), `since` |
+| **Post** | `kind` (status/article/album/milestone), `title`, `authorId`, `content` (Markdown), `occurredAt`, `withIds[]`, `placeId`, `feeling` {emoji, text}, `eventType`, `media[]` |
+| **MediaRef** (inside a post or profile) | `id`, `kind` (image/video), `mime`, `name`, `size`, `caption`, `tags[]` ({profileId, x, y} in 0..1) |
 | **Item** | `shopId`, `name`, `description`, `priceCents`, `currency`, `status` (available/reserved/sold) |
 | **Manifest** | workspace `name`, `ownerProfileId`, `createdAt` |
 
@@ -420,6 +451,9 @@ cd src-tauri && cargo clippy --all-targets
   - the media lifecycle and the protocol handler (including Range requests)
   - search consistency across edits and renames
   - articles and albums
+  - tags, check-ins, feelings and life events
+  - relationships, in both directions, including cleanup when a profile is deleted
+  - profile and cover photos, including copies of journal photos
   - both password-change modes and both crash-recovery paths
 - **Debug builds:** Argon2 and AES are compiled with `opt-level = 3`, so unlocking isn't
   painfully slow.
@@ -453,7 +487,8 @@ Where the build deliberately differs from `system_architecture_proposal.md`:
 | `24dc214` | **Media:** encrypted photos/videos, `journal://` protocol with Range support, gallery, Git LFS rules |
 | `10e117f` | **Editor and search:** TipTap rich-text editor (Markdown storage), in-memory BM25 search, ⌘K palette |
 | `54c8325` | **Password change:** re-wrap or full key rotation with crash-safe staging |
-| *latest* | **Articles and albums:** post kinds, per-photo captions, album editor, the photo viewer, article reader, album pages |
+| `1ef207d` | **Articles and albums:** post kinds, per-photo captions, album editor, the photo viewer, article reader, album pages |
+| *latest* | **Facebook social features:** tag people, check-ins, feelings/activities, life events, photo tagging, relationships, profile pictures and cover photos |
 
 ---
 
@@ -461,5 +496,7 @@ Where the build deliberately differs from `system_architecture_proposal.md`:
 
 - **Map view:** pin places on a map.
 - **Comments and reactions** on posts (from supporting characters).
+- **Smarter relationship labels:** e.g. "Sister" rather than "Sibling", using an optional gender
+  on people.
 - **Export:** e.g. Markdown + media, decrypted to a folder you choose.
 - **Hiding activity:** batching commits or splitting files further, to hide activity patterns.

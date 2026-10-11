@@ -1,7 +1,9 @@
 // A Facebook-style profile page for any entity: cover, intro, posts, about, shop.
 import { useState } from "react";
 import {
+  ArrowsVerticalIcon,
   BriefcaseIcon,
+  CameraIcon,
   HeartIcon,
   MapPinIcon,
   NotebookIcon,
@@ -12,14 +14,15 @@ import {
 } from "@phosphor-icons/react";
 import { api, type Profile } from "../lib/api";
 import { useJournal, usePosts } from "../lib/journal";
-import { canSell, colorOf, KINDS, subtitle } from "../lib/format";
+import { canSell, KINDS, subtitle } from "../lib/format";
 import { Composer } from "../components/Composer";
 import { ItemCard } from "../components/ItemCard";
 import { MediaGallery } from "../components/Media";
 import { ItemForm, ProfileForm } from "../components/forms";
 import { PostCard } from "../components/PostCard";
+import { LifeEventsCard, PhotoDialog, RelationIntro, RelationshipsSection } from "../components/ProfileExtras";
 import { Page } from "../components/Shell";
-import { Avatar, Button, ConfirmDialog, EmptyState, KindBadge } from "../components/ui";
+import { Avatar, Button, ConfirmDialog, CoverImage, EmptyState, KindBadge } from "../components/ui";
 
 type Tab = "posts" | "about" | "media" | "shop";
 
@@ -28,6 +31,9 @@ export function ProfileView({ id, tab }: { id: string; tab?: Tab }) {
   const profile = profiles.get(id);
   const [editing, setEditing] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [photo, setPhoto] = useState<"avatar" | "cover" | null>(null);
+  const [coverMenu, setCoverMenu] = useState(false);
+  const [reposition, setReposition] = useState<number | null>(null);
 
   if (!profile) {
     return (
@@ -60,10 +66,74 @@ export function ProfileView({ id, tab }: { id: string; tab?: Tab }) {
       }
     >
       <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-        <div className={`h-48 bg-gradient-to-r ${colorOf(profile).cover}`} />
+        <div className="relative">
+          <CoverImage profile={reposition === null ? profile : { ...profile, coverPosition: reposition }} className="h-56" />
+          {reposition === null ? (
+            <div className="absolute bottom-3 right-3">
+              <button
+                onClick={() => setCoverMenu((o) => !o)}
+                className="flex items-center gap-2 rounded-lg bg-white/90 px-3 py-1.5 text-sm font-medium text-slate-700 shadow hover:bg-white"
+              >
+                <CameraIcon /> {profile.cover ? "Edit cover photo" : "Add cover photo"}
+              </button>
+              {coverMenu && (
+                <>
+                  <div className="fixed inset-0 z-10" onClick={() => setCoverMenu(false)} />
+                  <div className="absolute right-0 z-20 mt-1 w-48 overflow-hidden rounded-xl border border-slate-200 bg-white py-1 text-sm shadow-lg">
+                    <button className="block w-full px-3 py-2 text-left hover:bg-slate-50" onClick={() => (setPhoto("cover"), setCoverMenu(false))}>
+                      Choose or upload…
+                    </button>
+                    {profile.cover && (
+                      <button
+                        className="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-slate-50"
+                        onClick={() => (setReposition(profile.coverPosition), setCoverMenu(false))}
+                      >
+                        <ArrowsVerticalIcon /> Reposition
+                      </button>
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
+          ) : (
+            <div className="absolute inset-x-0 bottom-0 flex items-center gap-3 bg-black/50 px-4 py-2 text-sm text-white">
+              <ArrowsVerticalIcon />
+              <input
+                type="range"
+                min={0}
+                max={100}
+                value={reposition}
+                onChange={(e) => setReposition(Number(e.target.value))}
+                className="flex-1 accent-white"
+                aria-label="Cover position"
+              />
+              <button className="rounded-md px-3 py-1 hover:bg-white/10" onClick={() => setReposition(null)}>
+                Cancel
+              </button>
+              <button
+                className="rounded-md bg-white px-3 py-1 font-medium text-slate-800"
+                onClick={async () => {
+                  await api.setCoverPosition(profile.id, reposition);
+                  await refresh();
+                  setReposition(null);
+                }}
+              >
+                Save
+              </button>
+            </div>
+          )}
+        </div>
         <div className="flex flex-col gap-4 px-6 pb-4 sm:flex-row sm:items-end">
-          <div className="-mt-20">
+          <div className="relative -mt-20">
             <Avatar profile={profile} size="xl" />
+            <button
+              onClick={() => setPhoto("avatar")}
+              className="absolute bottom-2 right-2 rounded-full bg-slate-100 p-2 text-slate-700 shadow ring-2 ring-white hover:bg-slate-200"
+              aria-label="Update profile picture"
+              title="Update profile picture"
+            >
+              <CameraIcon size={18} />
+            </button>
           </div>
           <div className="min-w-0 flex-1 pb-1">
             <h1 className="truncate text-3xl font-bold text-slate-900">{profile.name}</h1>
@@ -107,6 +177,7 @@ export function ProfileView({ id, tab }: { id: string; tab?: Tab }) {
           <div className="grid gap-6 lg:grid-cols-[18rem_1fr]">
             <div className="space-y-6">
               <IntroCard profile={profile} />
+              <LifeEventsCard profile={profile} />
               {sells && items.length > 0 && (
                 <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
                   <div className="mb-2 flex items-center justify-between">
@@ -129,12 +200,18 @@ export function ProfileView({ id, tab }: { id: string; tab?: Tab }) {
             <ProfileFeed profile={profile} />
           </div>
         )}
-        {active === "about" && <AboutCard profile={profile} />}
+        {active === "about" && (
+          <div className="space-y-6">
+            <AboutCard profile={profile} />
+            <RelationshipsSection profile={profile} />
+          </div>
+        )}
         {active === "media" && <MediaGallery profileId={profile.id} />}
         {active === "shop" && <ShopTab profile={profile} />}
       </div>
 
       {editing && <ProfileForm profile={profile} onClose={() => setEditing(false)} />}
+      {photo && <PhotoDialog profile={profile} slot={photo} onClose={() => setPhoto(null)} />}
       {deleting && (
         <ConfirmDialog
           title={`Delete ${profile.name}?`}
@@ -189,6 +266,9 @@ function IntroCard({ profile }: { profile: Profile }) {
           </li>
         ))}
       </ul>
+      <div className={rows.length ? "mt-3" : ""}>
+        <RelationIntro profile={profile} />
+      </div>
       {!profile.bio && rows.length === 0 && <p className="text-sm text-slate-400">No details yet. Use “Edit profile” to add some.</p>}
     </section>
   );

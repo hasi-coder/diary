@@ -14,13 +14,35 @@ export interface Profile {
   location: string;
   color: string;
   hasShop: boolean;
+  avatar: MediaRef | null;
+  cover: MediaRef | null;
+  /** Vertical focus of the cover, 0 (top) to 100 (bottom). */
+  coverPosition: number;
+  relations: Relation[];
   createdAt: number;
   updatedAt: number;
 }
 
-export type ProfileInput = Omit<Profile, "id" | "createdAt" | "updatedAt"> & { id?: string };
+/** "`toId` is this profile's `kind`" (e.g. sibling, workplace). */
+export interface Relation {
+  id: string;
+  toId: string;
+  kind: string;
+  label: string;
+  inverseLabel: string;
+  since: string;
+}
 
-export type PostKind = "status" | "article" | "album";
+export type RelationInput = Omit<Relation, "id"> & { id?: string };
+
+export type ProfileInput = Omit<Profile, "id" | "createdAt" | "updatedAt" | "avatar" | "cover" | "coverPosition" | "relations"> & { id?: string };
+
+export type PostKind = "status" | "article" | "album" | "milestone";
+
+export interface Feeling {
+  emoji: string;
+  text: string;
+}
 
 export interface Post {
   id: string;
@@ -31,6 +53,13 @@ export interface Post {
   /** Markdown; mentions are stored as `@[profile:<uuid>]`. */
   content: string;
   occurredAt: number;
+  /** Tagged "with" profiles. */
+  withIds: string[];
+  /** Check-in place, shop or page. */
+  placeId: string | null;
+  feeling: Feeling | null;
+  /** Life-event category (milestones only). */
+  eventType: string;
   media: MediaRef[];
   createdAt: number;
   updatedAt: number;
@@ -42,6 +71,10 @@ export interface PostInput {
   title: string;
   /** Caption per attachment id. */
   captions: Record<string, string>;
+  withIds: string[];
+  placeId: string | null;
+  feeling: Feeling | null;
+  eventType: string;
   authorId: string;
   content: string;
   occurredAt?: number;
@@ -58,6 +91,14 @@ export interface MediaRef {
   name: string;
   size: number;
   caption: string;
+  tags: PhotoTag[];
+}
+
+/** A profile tagged on a photo; x/y are 0..1 of the image size. */
+export interface PhotoTag {
+  profileId: string;
+  x: number;
+  y: number;
 }
 
 // Mirrors src-tauri/src/media.rs.
@@ -175,6 +216,13 @@ export const api = {
   discardMedia: (ids: string[]) => invoke<void>("discard_media", { ids }),
   search: (query: string, limit = 20) => invoke<SearchResults>("search", { query, limit }),
   getPost: (id: string) => invoke<Post>("get_post", { id }),
+  setProfilePhoto: (profileId: string, slot: "avatar" | "cover", mediaId: string | null) =>
+    invoke<Profile>("set_profile_photo", { profileId, slot, mediaId }),
+  setCoverPosition: (profileId: string, position: number) => invoke<Profile>("set_cover_position", { profileId, position }),
+  stageMediaCopy: (mediaId: string) => invoke<MediaRef>("stage_media_copy", { mediaId }),
+  saveRelation: (profileId: string, input: RelationInput) => invoke<Profile>("save_relation", { profileId, input }),
+  deleteRelation: (profileId: string, relationId: string) => invoke<Profile>("delete_relation", { profileId, relationId }),
+  setPhotoTags: (postId: string, mediaId: string, tags: PhotoTag[]) => invoke<Post>("set_photo_tags", { postId, mediaId, tags }),
   changePassword: (current: string, newPassword: string, rotateKey: boolean) =>
     invoke<PasswordChange>("change_password", { current, newPassword, rotateKey }),
 };

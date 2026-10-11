@@ -9,9 +9,10 @@ import {
   MagnifyingGlassMinusIcon,
   MagnifyingGlassPlusIcon,
   PlayIcon,
+  TagIcon,
   XIcon,
 } from "@phosphor-icons/react";
-import { mediaUrl, type MediaRef, type Post } from "../lib/api";
+import { api, errorMessage, mediaUrl, type MediaRef, type PhotoTag, type Post } from "../lib/api";
 import { useJournal, usePosts } from "../lib/journal";
 import { formatBytes, formatPostDate } from "../lib/format";
 import { Avatar, EmptyState } from "./ui";
@@ -99,31 +100,67 @@ export function MediaGrid({ post, media = post.media }: { post: Post; media?: Me
 
 export interface TheaterItem {
   media: MediaRef;
-  /** The post the photo belongs to, for the side panel. */
+  /** The post the photo belongs to, for the side panel and tagging. */
   post?: Post;
 }
 
+const KIND_LABEL: Record<Post["kind"], string> = { status: "Post", article: "Article", album: "Album", milestone: "Life event" };
+
 /**
  * Full-screen photo/video viewer: the photo on the left with arrows and a
- * filmstrip; author, album and caption in a side panel. Keys: ← → Home End,
- * Esc (unzoom, then close). Click a photo to zoom to full size.
+ * filmstrip; author, album, caption and tagged people in a side panel.
+ * Keys: ← → Home End, Esc (cancel tag / unzoom / close). Click a photo to
+ * zoom, or in tag mode to tag someone at that spot.
  */
 export function Theater(props: { items: TheaterItem[]; index: number; onClose: () => void }) {
   const { items, onClose } = props;
-  const { profiles, navigate } = useJournal();
+  const { profiles, navigate, refresh } = useJournal();
   const [index, setIndex] = useState(Math.min(props.index, items.length - 1));
   const [zoom, setZoom] = useState(false);
+  const [tagging, setTagging] = useState(false);
+  const [pending, setPending] = useState<{ x: number; y: number } | null>(null);
+  const [tagOverrides, setTagOverrides] = useState<Record<string, PhotoTag[]>>({});
+  const [error, setError] = useState<string | null>(null);
+  const [box, setBox] = useState<{ left: number; top: number; width: number; height: number } | null>(null);
   const strip = useRef<HTMLDivElement>(null);
+  const stage = useRef<HTMLDivElement>(null);
+  const image = useRef<HTMLImageElement>(null);
   const count = items.length;
+
+  const current = items[index];
+  const media = current?.media;
+  const post = current?.post;
+  const tags = media ? (tagOverrides[media.id] ?? media.tags) : [];
+  const canTag = !!post && media?.kind === "image" && !zoom;
 
   const go = (to: number) => {
     setZoom(false);
+    setPending(null);
     setIndex(((to % count) + count) % count);
   };
 
+  // Track where the image is drawn so tags can be placed over it.
+  const measure = () => {
+    const img = image.current;
+    const host = stage.current;
+    if (!img || !host) return setBox(null);
+    const a = img.getBoundingClientRect();
+    const b = host.getBoundingClientRect();
+    setBox({ left: a.left - b.left, top: a.top - b.top, width: a.width, height: a.height });
+  };
+  useEffect(() => {
+    const host = stage.current;
+    if (!host) return;
+    const observer = new ResizeObserver(measure);
+    observer.observe(host);
+    return () => observer.disconnect();
+  }, []);
+  useEffect(measure, [index, zoom]);
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") zoom ? setZoom(false) : onClose();
+      if ((e.target as HTMLElement)?.tagName === "INPUT") return;
+      if (e.key === "Escape") pending ? setPending(null) : tagging ? setTagging(false) : zoom ? setZoom(false) : onClose();
       else if (e.key === "ArrowRight") go(index + 1);
       else if (e.key === "ArrowLeft") go(index - 1);
       else if (e.key === "Home") go(0);
@@ -139,15 +176,38 @@ export function Theater(props: { items: TheaterItem[]; index: number; onClose: (
     strip.current?.children[index]?.scrollIntoView({ block: "nearest", inline: "center" });
   }, [index]);
 
-  const current = items[index];
-  if (!current) return null;
-  const { media, post } = current;
+  if (!current || !media) return null;
   const author = post ? profiles.get(post.authorId) : undefined;
   const open = (route: Parameters<typeof navigate>[0]) => {
     onClose();
     navigate(route);
   };
-  const neighbours = [items[(index + 1) % count], items[(index - 1 + count) % count]].filter((x) => x && x.media.kind === "image");
+
+  const saveTags = async (next: PhotoTag[]) => {
+    if (!post) return;
+    setError(null);
+    try {
+      const saved = await api.setPhotoTags(post.id, media.id, next);
+      setTagOverrides((o) => ({ ...o, [media.id]: saved.media.find((m) => m.id === media.id)?.tags ?? next }));
+      void refresh();
+    } catch (e) {
+      setError(errorMessage(e));
+    }
+  };
+
+  const onImageClick = (e: React.MouseEvent<HTMLImageElement>) => {
+    if (!tagging) return setZoom((z) => !z);
+    const r = e.currentTarget.getBoundingClientRect();
+    setPending({ x: (e.clientX - r.left) / r.width, y: (e.clientY - r.top) / r.height });
+  };
+
+  const neighbours = [
+    ...new Map(
+      [items[(index + 1) % count], items[(index - 1 + count) % count]]
+        .filter((x) => x && x.media.kind === "image" && x.media.id !== media.id)
+        .map((x) => [x.media.id, x]),
+    ).values(),
+  ];
   const nav = "absolute top-1/2 z-10 -translate-y-1/2 rounded-full bg-white/10 p-3 text-white backdrop-blur hover:bg-white/25";
 
   return (
@@ -156,7 +216,15 @@ export function Theater(props: { items: TheaterItem[]; index: number; onClose: (
         <div className="flex items-center justify-between px-4 py-3 text-sm text-white/70">
           <span>{count > 1 ? `${index + 1} of ${count}` : ""}</span>
           <div className="flex items-center gap-1">
-            {media.kind === "image" && (
+            {canTag && (
+              <button
+                onClick={() => (setTagging((t) => !t), setPending(null))}
+                className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm ${tagging ? "bg-white text-slate-900" : "hover:bg-white/10"}`}
+              >
+                <TagIcon size={18} /> {tagging ? "Done tagging" : "Tag people"}
+              </button>
+            )}
+            {media.kind === "image" && !tagging && (
               <button onClick={() => setZoom((z) => !z)} className="rounded-full p-2 hover:bg-white/10" aria-label={zoom ? "Fit to screen" : "Actual size"}>
                 {zoom ? <MagnifyingGlassMinusIcon size={20} /> : <MagnifyingGlassPlusIcon size={20} />}
               </button>
@@ -167,23 +235,67 @@ export function Theater(props: { items: TheaterItem[]; index: number; onClose: (
           </div>
         </div>
 
-        <div className="relative min-h-0 flex-1">
+        <div ref={stage} className="group relative min-h-0 flex-1">
           <div
             className={`absolute inset-0 flex px-16 pb-2 ${zoom ? "thin-scroll overflow-auto" : "items-center justify-center"}`}
-            onClick={(e) => e.target === e.currentTarget && !zoom && onClose()}
+            onClick={(e) => e.target === e.currentTarget && !zoom && !tagging && onClose()}
           >
             {media.kind === "image" ? (
               <img
+                ref={image}
                 key={media.id}
                 src={mediaUrl(media.id)}
                 alt={media.caption || media.name}
-                onClick={() => setZoom((z) => !z)}
-                className={zoom ? "m-auto max-w-none cursor-zoom-out" : "max-h-full max-w-full cursor-zoom-in object-contain"}
+                onLoad={measure}
+                onClick={onImageClick}
+                className={
+                  zoom
+                    ? "m-auto max-w-none cursor-zoom-out"
+                    : `max-h-full max-w-full object-contain ${tagging ? "cursor-crosshair" : "cursor-zoom-in"}`
+                }
               />
             ) : (
               <video key={media.id} src={mediaUrl(media.id)} controls autoPlay playsInline className="max-h-full max-w-full" />
             )}
           </div>
+
+          {/* Tag labels over the photo: on hover, always while tagging. */}
+          {box && media.kind === "image" && !zoom && (
+            <div className="pointer-events-none absolute" style={box}>
+              {tags.map((t) => {
+                const p = profiles.get(t.profileId);
+                if (!p) return null;
+                return (
+                  <span
+                    key={t.profileId}
+                    className={`absolute -translate-x-1/2 -translate-y-1/2 whitespace-nowrap rounded-md bg-white/95 px-2 py-0.5 text-xs font-semibold text-slate-800 shadow transition-opacity ${
+                      tagging ? "opacity-100" : "opacity-0 group-hover:opacity-100"
+                    }`}
+                    style={{ left: `${t.x * 100}%`, top: `${t.y * 100}%` }}
+                  >
+                    {p.name}
+                  </span>
+                );
+              })}
+              {pending && (
+                <div className="pointer-events-auto absolute" style={{ left: `${pending.x * 100}%`, top: `${pending.y * 100}%` }}>
+                  <span className="absolute h-16 w-16 -translate-x-1/2 -translate-y-1/2 rounded-md border-2 border-white shadow-[0_0_0_9999px_rgba(0,0,0,0.25)]" />
+                  <TagChooser
+                    exclude={tags.map((t) => t.profileId)}
+                    onPick={(id) => {
+                      void saveTags([...tags, { profileId: id, x: pending.x, y: pending.y }]);
+                      setPending(null);
+                    }}
+                    onCancel={() => setPending(null)}
+                  />
+                </div>
+              )}
+            </div>
+          )}
+          {tagging && !pending && (
+            <div className="pointer-events-none absolute inset-x-0 top-2 text-center text-sm text-white/80">Click anywhere on the photo to tag someone</div>
+          )}
+
           {count > 1 && (
             <>
               <button className={`${nav} left-3`} onClick={() => go(index - 1)} aria-label="Previous">
@@ -232,17 +344,45 @@ export function Theater(props: { items: TheaterItem[]; index: number; onClose: (
             </button>
             {post.title && (
               <button onClick={() => open({ view: "post", id: post.id })} className="mt-3 block text-left text-sm text-slate-500 hover:text-slate-800">
-                {post.kind === "album" ? "Album" : "Article"}: <span className="font-semibold text-slate-800 hover:underline">{post.title}</span>
+                {KIND_LABEL[post.kind]}: <span className="font-semibold text-slate-800 hover:underline">{post.title}</span>
               </button>
             )}
           </div>
         )}
-        <div className="flex-1 p-4">
+        <div className="flex-1 space-y-4 p-4">
           {media.caption ? (
             <p className="whitespace-pre-wrap text-sm leading-relaxed text-slate-700">{media.caption}</p>
           ) : (
             <p className="text-sm text-slate-400">No caption.</p>
           )}
+          {(tags.length > 0 || tagging) && (
+            <div>
+              <h4 className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-400">In this photo</h4>
+              {tags.length === 0 && <p className="text-sm text-slate-400">Nobody tagged yet.</p>}
+              <ul className="space-y-1.5">
+                {tags.map((t) => {
+                  const p = profiles.get(t.profileId);
+                  if (!p) return null;
+                  return (
+                    <li key={t.profileId} className="flex items-center gap-2">
+                      <button onClick={() => open({ view: "profile", id: p.id })} className="flex min-w-0 flex-1 items-center gap-2 text-left">
+                        <Avatar profile={p} size="sm" />
+                        <span className="truncate text-sm font-medium text-slate-700 hover:underline">{p.name}</span>
+                      </button>
+                      <button
+                        onClick={() => void saveTags(tags.filter((x) => x.profileId !== t.profileId))}
+                        className="rounded-full p-1 text-slate-400 hover:bg-slate-100 hover:text-rose-600"
+                        aria-label={`Remove tag ${p.name}`}
+                      >
+                        <XIcon size={14} />
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          )}
+          {error && <p className="rounded-lg bg-rose-50 px-3 py-2 text-xs text-rose-700">{error}</p>}
         </div>
         <div className="space-y-1 border-t border-slate-100 p-4 text-xs text-slate-400">
           <div className="truncate" title={media.name}>
@@ -253,11 +393,47 @@ export function Theater(props: { items: TheaterItem[]; index: number; onClose: (
           </div>
           {post && (
             <button onClick={() => open({ view: "post", id: post.id })} className="mt-2 font-medium text-brand-600 hover:underline">
-              Open {post.kind === "album" ? "album" : post.kind === "article" ? "article" : "post"} →
+              Open {KIND_LABEL[post.kind].toLowerCase()} →
             </button>
           )}
         </div>
       </aside>
+    </div>
+  );
+}
+
+/** Search-and-pick list shown under a new tag on a photo. */
+function TagChooser(props: { exclude: string[]; onPick: (id: string) => void; onCancel: () => void }) {
+  const { snapshot } = useJournal();
+  const [query, setQuery] = useState("");
+  const q = query.trim().toLowerCase();
+  const shown = snapshot.profiles
+    .filter((p) => (p.kind === "me" || p.kind === "person" || p.kind === "page") && !props.exclude.includes(p.id))
+    .filter((p) => !q || p.name.toLowerCase().includes(q))
+    .slice(0, 8);
+  return (
+    <div className="absolute left-1/2 top-10 w-60 -translate-x-1/2 overflow-hidden rounded-xl bg-white shadow-2xl">
+      <input
+        autoFocus
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Escape") props.onCancel();
+          if (e.key === "Enter" && shown[0]) props.onPick(shown[0].id);
+        }}
+        placeholder="Who is this?"
+        className="w-full border-b border-slate-100 px-3 py-2 text-sm text-slate-800 outline-none"
+      />
+      <ul className="max-h-60 overflow-y-auto py-1">
+        {shown.map((p) => (
+          <li key={p.id}>
+            <button onClick={() => props.onPick(p.id)} className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm text-slate-700 hover:bg-slate-50">
+              <Avatar profile={p} size="sm" /> {p.name}
+            </button>
+          </li>
+        ))}
+        {shown.length === 0 && <li className="px-3 py-2 text-sm text-slate-400">No matches.</li>}
+      </ul>
     </div>
   );
 }
@@ -282,6 +458,17 @@ export function AlbumTile({ album }: { album: Post }) {
 
 type Filter = "all" | "image" | "video" | "albums";
 
+/**
+ * Whether a photo belongs on a profile's media tab: everything the profile
+ * posted, photos it's tagged in, and posts it's tagged with or checked in at.
+ */
+function belongsTo(post: Post, media: MediaRef, profileId: string): boolean {
+  if (post.authorId === profileId || post.withIds.includes(profileId) || post.placeId === profileId) return true;
+  if (media.tags.some((t) => t.profileId === profileId)) return true;
+  // Mentioned in the text only: show untagged photos, not ones clearly of other people.
+  return post.content.includes(`@[profile:${profileId}]`) && media.tags.length === 0;
+}
+
 /** Every attachment in the workspace (or for one profile), newest first, plus albums. */
 export function MediaGallery({ profileId }: { profileId?: string }) {
   const { posts } = usePosts(profileId ? { profileId } : {});
@@ -292,8 +479,13 @@ export function MediaGallery({ profileId }: { profileId?: string }) {
     () =>
       filter === "albums"
         ? []
-        : (posts ?? []).flatMap((post) => post.media.filter((m) => filter === "all" || m.kind === filter).map((media) => ({ media, post }))),
-    [posts, filter],
+        : (posts ?? []).flatMap((post) =>
+            post.media
+              .filter((m) => filter === "all" || m.kind === filter)
+              .filter((m) => !profileId || belongsTo(post, m, profileId))
+              .map((media) => ({ media, post })),
+          ),
+    [posts, filter, profileId],
   );
   const albums = useMemo(() => (posts ?? []).filter((p) => p.kind === "album"), [posts]);
 

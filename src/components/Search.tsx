@@ -112,7 +112,7 @@ export function useResultRows(results: SearchResults | null): { group: string; r
               </div>
               {post.title && (
                 <div className="truncate text-sm font-semibold text-slate-800">
-                  <span className="font-normal text-slate-400">{post.kind === "album" ? "Album" : "Article"}: </span>
+                  <span className="font-normal text-slate-400">{{ album: "Album", article: "Article", milestone: "Life event", status: "" }[post.kind]}: </span>
                   <Highlight text={post.title} terms={t} />
                 </div>
               )}
