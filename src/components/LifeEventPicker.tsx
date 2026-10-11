@@ -11,6 +11,7 @@ import {
   CATEGORY_COUNTS,
   categoryOf,
   fieldsOf,
+  groupsOf,
   LIFE_EVENTS,
   searchLifeEvents,
   STAGES,
@@ -25,12 +26,20 @@ export function LifeEventBrowser({ onPick }: { onPick: (id: string) => void }) {
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState<string | null>(null);
   const [stage, setStage] = useState<Stage | null>(null);
+  // Sub-group within the category; for "Roles & careers" this is the chosen role.
+  const [group, setGroup] = useState<string | null>(null);
+  const chooseCategory = (id: string | null) => (setCategory(id), setGroup(null));
 
   const results = useMemo(
-    () => (query.trim() || category || stage ? searchLifeEvents(query, { category: category ?? undefined, stage: stage ?? undefined }) : []),
-    [query, category, stage],
+    () =>
+      query.trim() || category || stage
+        ? searchLifeEvents(query, { category: category ?? undefined, group: group ?? undefined, stage: stage ?? undefined })
+        : [],
+    [query, category, group, stage],
   );
+  const groups = useMemo(() => (category ? groupsOf(category) : []), [category]);
   const browsing = !query.trim() && !category && !stage;
+  const choosingRole = category === "roles" && !group && !query.trim();
 
   return (
     <div className="overflow-hidden rounded-2xl border border-slate-200">
@@ -59,12 +68,12 @@ export function LifeEventBrowser({ onPick }: { onPick: (id: string) => void }) {
 
       <div className="flex h-[min(62vh,40rem)]">
         <nav className="thin-scroll w-60 shrink-0 overflow-y-auto border-r border-slate-100 py-1">
-          <CategoryButton active={!category} onClick={() => setCategory(null)} emoji="✨" label="All categories" count={LIFE_EVENTS.length} />
+          <CategoryButton active={!category} onClick={() => chooseCategory(null)} emoji="✨" label="All categories" count={LIFE_EVENTS.length} />
           {CATEGORIES.map((c) => (
             <CategoryButton
               key={c.id}
               active={category === c.id}
-              onClick={() => setCategory(c.id)}
+              onClick={() => chooseCategory(c.id)}
               emoji={c.emoji}
               label={c.label}
               count={CATEGORY_COUNTS.get(c.id) ?? 0}
@@ -78,7 +87,7 @@ export function LifeEventBrowser({ onPick }: { onPick: (id: string) => void }) {
                 <button
                   key={c.id}
                   type="button"
-                  onClick={() => setCategory(c.id)}
+                  onClick={() => chooseCategory(c.id)}
                   className="flex flex-col items-start gap-1 rounded-xl border border-slate-200 p-3 text-left transition-colors hover:border-brand-300 hover:bg-brand-50/40"
                 >
                   <span className="text-2xl">{c.emoji}</span>
@@ -87,6 +96,26 @@ export function LifeEventBrowser({ onPick }: { onPick: (id: string) => void }) {
                 </button>
               ))}
             </div>
+          ) : choosingRole ? (
+            <>
+              <p className="mb-2 px-1 text-sm text-slate-500">Choose a role to see its milestones:</p>
+              <div className="grid grid-cols-2 gap-2 lg:grid-cols-3">
+                {groups.map((g) => (
+                  <button
+                    key={g.name}
+                    type="button"
+                    onClick={() => setGroup(g.name)}
+                    className="flex items-center gap-2.5 rounded-xl border border-slate-200 p-2.5 text-left transition-colors hover:border-brand-300 hover:bg-brand-50/40"
+                  >
+                    <span className="text-2xl">{g.emoji}</span>
+                    <span className="min-w-0">
+                      <span className="block text-sm font-semibold leading-tight text-slate-800">{g.name}</span>
+                      <span className="text-xs text-slate-400">{g.count} milestones</span>
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </>
           ) : results.length === 0 ? (
             <div className="py-12 text-center text-sm text-slate-400">
               Nothing matches.{" "}
@@ -95,7 +124,30 @@ export function LifeEventBrowser({ onPick }: { onPick: (id: string) => void }) {
               </button>
             </div>
           ) : (
-            <ResultList results={results} grouped={!query.trim()} onPick={onPick} />
+            <>
+              {category === "roles" && group ? (
+                <div className="mb-3 flex items-center gap-2">
+                  <StageChip active={false} onClick={() => setGroup(null)}>
+                    ← All roles
+                  </StageChip>
+                  <span className="text-sm font-semibold text-slate-700">
+                    {groups.find((g) => g.name === group)?.emoji} {group}
+                  </span>
+                </div>
+              ) : category && groups.length > 1 && (
+                <div className="mb-3 flex flex-wrap gap-1">
+                  <StageChip active={!group} onClick={() => setGroup(null)}>
+                    {category === "roles" ? "All roles" : "All"}
+                  </StageChip>
+                  {groups.map((g) => (
+                    <StageChip key={g.name} active={group === g.name} onClick={() => setGroup(group === g.name ? null : g.name)}>
+                      {g.emoji} {g.name}
+                    </StageChip>
+                  ))}
+                </div>
+              )}
+              <ResultList results={results} grouped={!query.trim()} onPick={onPick} />
+            </>
           )}
         </div>
       </div>

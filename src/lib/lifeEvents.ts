@@ -11,6 +11,8 @@
 // The id (`category.slug`) is stored in posts, so never rename a label without
 // keeping its id: add the old id to ALIASES instead.
 
+import { LOVE_SPICY, ROLES, STYLE } from "./lifeEventRoles";
+
 export type Stage = "baby" | "child" | "teen" | "young" | "adult" | "midlife" | "elder";
 
 export const STAGES: { id: Stage; label: string; ages: string }[] = [
@@ -48,12 +50,14 @@ export const CATEGORIES: LifeEventCategory[] = [
   { id: "baby", emoji: "👶", label: "Baby & toddler" },
   { id: "childhood", emoji: "🧒", label: "Childhood" },
   { id: "teen", emoji: "🧑‍🎤", label: "Teen & coming of age" },
+  { id: "roles", emoji: "🧑‍💼", label: "Roles & careers" },
   { id: "education", emoji: "🎓", label: "Education" },
   { id: "career", emoji: "💼", label: "Work & career" },
   { id: "relationship", emoji: "💞", label: "Love & relationships" },
   { id: "wedding", emoji: "💍", label: "Weddings & ceremonies" },
   { id: "womens", emoji: "🌸", label: "Women's & reproductive health" },
   { id: "identity", emoji: "🏳️‍🌈", label: "Gender & identity" },
+  { id: "style", emoji: "👗", label: "Style & clothing" },
   { id: "home", emoji: "🏠", label: "Home & living" },
   { id: "travel", emoji: "✈️", label: "Travel & places" },
   { id: "health", emoji: "❤️‍🩹", label: "Health & wellness" },
@@ -1278,6 +1282,7 @@ const OTHER_BLOCKS = String.raw`
 // ── Assembly ─────────────────────────────────────────────────────────────────
 
 const TEMPLATES: LifeEventTemplate[] = [];
+const GROUP_EMOJI = new Map<string, string>();
 const byId = new Map<string, LifeEventTemplate>();
 
 const slugify = (s: string) =>
@@ -1309,11 +1314,20 @@ function parse(block: string, fallbackCategory?: string) {
       group = "General";
     } else if (line.startsWith("# ")) {
       group = line.slice(2).trim();
+      // "# 🧑‍🏫 Teacher": a group with its own icon (roles).
+      const icon = /^(\p{Extended_Pictographic}[\p{Extended_Pictographic}\u200d\ufe0f\p{Emoji_Modifier}]*)\s+(.*)$/u.exec(group);
+      if (icon) {
+        group = icon[2];
+        GROUP_EMOJI.set(`${category}/${group}`, icon[1]);
+      }
     } else {
       const [head, title = "", codes = ""] = line.split("|").map((s) => s.trim());
       const space = head.indexOf(" ");
       const stages = codes ? [...codes].map((c) => CODES[c]).filter(Boolean) : ALL_STAGES;
-      add(category, group, head.slice(0, space), head.slice(space + 1).trim(), title, stages);
+      const label = head.slice(space + 1).trim();
+      // Roles share event names ("First day in uniform"), so their ids include the role.
+      const slug = category === "roles" ? `${slugify(group)}_${slugify(label)}`.slice(0, 70) : undefined;
+      add(category, group, head.slice(0, space), label, title, stages, slug);
     }
   }
 }
@@ -1334,6 +1348,9 @@ const ADULT: Stage[] = ["young", "adult", "midlife", "elder"];
 parse(DATA);
 parse(FAITH, "faith");
 parse(OTHER_BLOCKS);
+parse(ROLES);
+parse(STYLE);
+parse(LOVE_SPICY);
 
 // Baby: monthly milestones and pregnancy weeks.
 for (let m = 1; m <= 24; m++) add("baby", "Monthly milestones", "🍼", `Baby turned ${m} month${m > 1 ? "s" : ""}`, `{person} is ${m} month${m > 1 ? "s" : ""} old`, ["baby", "young", "adult"], `month_${m}`);
@@ -1349,30 +1366,6 @@ each(EXAMS, (e, x) => {
 });
 
 // Career: professions.
-// Career journeys for the most common professions, each its own sub-group.
-const JOURNEYS: [string, string, string[]][] = [
-  ["🧑‍🏫", "Teaching", ["Started teacher training", "Qualified as a teacher", "First day teaching", "First class of my own", "First parents' evening", "Became a form tutor", "Became head of department", "Became a deputy head", "Became a headteacher", "Taught my {n}th class", "A student came back to say thanks", "Students graduated", "Retired from teaching"]],
-  ["🧑‍⚕️", "Nursing", ["Started nursing school", "First clinical placement", "Passed the NCLEX / nursing exam", "Registered as a nurse", "First shift as a nurse", "First night shift", "Joined the ICU", "Joined the emergency department", "Became a charge nurse", "Became a nurse practitioner", "Became a ward sister / nurse manager", "Became a midwife", "Delivered my first baby as a midwife", "Retired from nursing"]],
-  ["🩺", "Medicine", ["Started medical school", "White-coat ceremony", "First anatomy class", "Passed medical finals", "Graduated as a doctor", "Took the Hippocratic oath", "Started internship", "First on-call shift", "Started residency / house officer", "Chose a specialty", "Passed membership exams", "Became a registrar", "Became a consultant", "Became a GP / family doctor", "Opened my own practice", "First surgery as lead surgeon", "Retired from medicine"]],
-  ["🦷", "Dentistry", ["Started dental school", "First patient in dental school", "Qualified as a dentist", "Opened a dental practice"]],
-  ["💊", "Pharmacy", ["Started pharmacy school", "Registered as a pharmacist", "Opened a pharmacy"]],
-  ["🧑‍💻", "Software & tech", ["Wrote my first line of code", "Got my first tech job", "First pull request merged", "First production deploy", "First on-call rotation", "Became a senior engineer", "Became a staff engineer", "Became a principal engineer", "Became an engineering manager", "Became a CTO", "Shipped my first product", "Gave my first tech talk", "Joined a startup", "Joined a big tech company"]],
-  ["🧑‍⚖️", "Law", ["Started law school", "Passed the bar", "Called to the bar", "First case", "Won my first case", "Became an associate", "Made partner", "Became a judge", "Took silk / became senior counsel"]],
-  ["🏗️", "Engineering", ["Became a graduate engineer", "Became a chartered engineer", "Became a professional engineer (PE)", "First project completed", "Led a major build"]],
-  ["📊", "Accounting & finance", ["Started accountancy training", "Qualified as an accountant", "Became a chartered accountant", "First audit season", "Became a finance manager", "Became CFO"]],
-  ["👮", "Police & emergency services", ["Started police academy", "Sworn in as a police officer", "First patrol", "Became a detective", "Became a firefighter", "First callout", "Became a paramedic", "First emergency call as a paramedic"]],
-  ["🪖", "Military", ["Started officer training", "Passed out (graduation parade)", "Commissioned as an officer", "First posting", "Received a medal", "Honourably discharged"]],
-  ["🧑‍🍳", "Hospitality & food", ["First kitchen job", "Became a sous chef", "Became a head chef", "Earned a Michelin star", "Opened my own café", "First shift as a barista"]],
-  ["✈️", "Aviation", ["First flying lesson", "First solo flight", "Got a commercial pilot licence", "First flight as a first officer", "Became a captain", "Became a flight attendant", "First flight as cabin crew"]],
-  ["🔧", "Trades", ["Started a trade apprenticeship", "Became a qualified electrician", "Became a qualified plumber", "Became a qualified carpenter", "Became a master tradesperson", "Started my own trade business"]],
-  ["🧠", "Psychology & therapy", ["Started training as a therapist", "First client", "Became a licensed therapist", "Became a clinical psychologist", "Opened a private practice"]],
-  ["🙏", "Religious vocation", ["Entered the seminary", "Ordained as a priest", "Ordained as a monk (upasampada)", "Became a nun", "Became an imam", "Became a rabbi", "Became a pastor"]],
-  ["🧑‍🌾", "Farming", ["Took over the family farm", "First harvest", "Bought farmland", "Went organic"]],
-  ["🎭", "Arts & entertainment", ["First paid gig", "Signed with an agent", "First professional role", "Signed a record deal", "First tour", "First book deal", "First solo exhibition"]],
-  ["🧑‍💼", "Business & office", ["First office job", "First performance review", "Got an MBA", "Became a team lead", "Became a vice president", "Became a partner in the firm"]],
-  ["🧓", "Care work", ["Became a carer", "Became a nursery worker", "Became a social worker", "Became a support worker"]],
-];
-for (const [emoji, group, events] of JOURNEYS) for (const label of events) add("career", group, emoji, label.replace("{n}th", "100th"), "", GROWN);
 each(PROFESSIONS, (e, p) => add("career", "Became a…", e, `Became ${/^[aeiou]/i.test(p) ? "an" : "a"} ${p}`, `Started working as ${/^[aeiou]/i.test(p) ? "an" : "a"} ${p} at {company}`, GROWN, `became_${slugify(p)}`));
 
 for (const n of [1, 2, 3, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50]) add("career", "Work anniversaries", "🎉", `${n} year${n > 1 ? "s" : ""} at work`, `${n} year${n > 1 ? "s" : ""} at {company}`, ADULT, `work_anniversary_${n}`);
@@ -1477,6 +1470,18 @@ export function lifeEvent(id: string): LifeEventTemplate {
   return byId.get(ALIASES[id] ?? id) ?? byId.get("other")!;
 }
 
+/** A category's sub-groups (for roles: the roles), in catalog order. */
+export function groupsOf(category: string): { name: string; emoji: string; count: number }[] {
+  const out = new Map<string, { name: string; emoji: string; count: number }>();
+  for (const t of TEMPLATES) {
+    if (t.category !== category) continue;
+    const g = out.get(t.group) ?? { name: t.group, emoji: GROUP_EMOJI.get(`${category}/${t.group}`) ?? t.emoji, count: 0 };
+    g.count++;
+    out.set(t.group, g);
+  }
+  return [...out.values()];
+}
+
 /** Count of templates per category, for the picker's sidebar. */
 export const CATEGORY_COUNTS = new Map(CATEGORIES.map((c) => [c.id, TEMPLATES.filter((t) => t.category === c.id).length]));
 
@@ -1521,11 +1526,12 @@ const fold = (s: string) => s.normalize("NFKD").replace(/[̀-ͯ]/g, "").toLowerC
 const haystacks = new Map(TEMPLATES.map((t) => [t.id, fold(`${t.label} ${t.group} ${categoryOf(t.category).label} ${t.title.replace(/\{[^}]*\}/g, "")}`)]));
 
 /** Templates matching every word of `query`, best first: label starts, then word starts, then anywhere. */
-export function searchLifeEvents(query: string, opts: { category?: string; stage?: Stage } = {}): LifeEventTemplate[] {
+export function searchLifeEvents(query: string, opts: { category?: string; group?: string; stage?: Stage } = {}): LifeEventTemplate[] {
   const words = fold(query).split(/\s+/).filter(Boolean);
   const scored: [LifeEventTemplate, number][] = [];
   for (const t of TEMPLATES) {
     if (opts.category && t.category !== opts.category) continue;
+    if (opts.group && t.group !== opts.group) continue;
     if (opts.stage && !t.stages.includes(opts.stage)) continue;
     if (words.length === 0) {
       scored.push([t, 0]);
