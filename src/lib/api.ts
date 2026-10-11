@@ -64,8 +64,10 @@ export interface Post {
   /** Check-in place, shop or page. */
   placeId: string | null;
   feeling: Feeling | null;
-  /** Life-event category (milestones only). */
+  /** Life-event template id (milestones only). */
   eventType: string;
+  /** More life events combined into this milestone; absent when none. */
+  alsoEventTypes?: string[];
   media: MediaRef[];
   createdAt: number;
   updatedAt: number;
@@ -81,6 +83,7 @@ export interface PostInput {
   placeId: string | null;
   feeling: Feeling | null;
   eventType: string;
+  alsoEventTypes: string[];
   authorId: string;
   content: string;
   occurredAt?: number;

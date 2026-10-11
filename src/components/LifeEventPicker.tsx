@@ -3,7 +3,7 @@
 // template's title. People and places can be picked from profiles, which tags
 // them on the post.
 import { useMemo, useState } from "react";
-import { ArrowLeftIcon, MagnifyingGlassIcon, SparkleIcon } from "@phosphor-icons/react";
+import { ArrowLeftIcon, MagnifyingGlassIcon, XIcon } from "@phosphor-icons/react";
 import type { Profile } from "../lib/api";
 import { useJournal } from "../lib/journal";
 import {
@@ -15,8 +15,10 @@ import {
   LIFE_EVENTS,
   searchLifeEvents,
   STAGES,
+  TONES,
   type LifeEventTemplate,
   type Stage,
+  type Tone,
 } from "../lib/lifeEvents";
 import { inputClass } from "./ui";
 
@@ -28,17 +30,18 @@ export function LifeEventBrowser({ onPick }: { onPick: (id: string) => void }) {
   const [stage, setStage] = useState<Stage | null>(null);
   // Sub-group within the category; for "Roles & careers" this is the chosen role.
   const [group, setGroup] = useState<string | null>(null);
+  const [tone, setTone] = useState<Tone | null>(null);
   const chooseCategory = (id: string | null) => (setCategory(id), setGroup(null));
 
   const results = useMemo(
     () =>
-      query.trim() || category || stage
-        ? searchLifeEvents(query, { category: category ?? undefined, group: group ?? undefined, stage: stage ?? undefined })
+      query.trim() || category || stage || tone
+        ? searchLifeEvents(query, { category: category ?? undefined, group: group ?? undefined, stage: stage ?? undefined, tone: tone ?? undefined })
         : [],
-    [query, category, group, stage],
+    [query, category, group, stage, tone],
   );
   const groups = useMemo(() => (category ? groupsOf(category) : []), [category]);
-  const browsing = !query.trim() && !category && !stage;
+  const browsing = !query.trim() && !category && !stage && !tone;
   const choosingRole = category === "roles" && !group && !query.trim();
 
   return (
@@ -61,6 +64,12 @@ export function LifeEventBrowser({ onPick }: { onPick: (id: string) => void }) {
           {STAGES.map((s) => (
             <StageChip key={s.id} active={stage === s.id} onClick={() => setStage(stage === s.id ? null : s.id)}>
               {s.label} <span className="opacity-60">{s.ages}</span>
+            </StageChip>
+          ))}
+          <span className="mx-1 w-px self-stretch bg-slate-200" />
+          {TONES.map((t) => (
+            <StageChip key={t.id} active={tone === t.id} onClick={() => setTone(tone === t.id ? null : t.id)}>
+              {t.label}
             </StageChip>
           ))}
         </div>
@@ -161,7 +170,8 @@ function ResultList({ results, grouped, onPick }: { results: LifeEventTemplate[]
     if (!grouped) return [{ title: "", items: shown }];
     const map = new Map<string, LifeEventTemplate[]>();
     for (const t of shown) {
-      const key = `${categoryOf(t.category).label} › ${t.group}`;
+      const tone = TONES.find((x) => x.id === t.tone);
+      const key = `${categoryOf(t.category).label} › ${t.group}${tone ? ` · ${tone.label}` : ""}`;
       map.set(key, [...(map.get(key) ?? []), t]);
     }
     return [...map].map(([title, items]) => ({ title, items }));
@@ -239,6 +249,7 @@ export function LifeEventForm(props: {
   values: Record<string, string>;
   onValue: (key: string, value: string, profile: Profile | null) => void;
   onChange: () => void;
+  onRemove?: () => void;
 }) {
   const { snapshot } = useJournal();
   const { template } = props;
@@ -264,6 +275,16 @@ export function LifeEventForm(props: {
         >
           <ArrowLeftIcon /> Change
         </button>
+        {props.onRemove && (
+          <button
+            type="button"
+            onClick={props.onRemove}
+            className="rounded-full p-1.5 text-slate-400 hover:bg-white hover:text-rose-600"
+            aria-label="Remove this life event"
+          >
+            <XIcon />
+          </button>
+        )}
       </div>
 
       {fields.length > 0 && (
@@ -301,9 +322,6 @@ export function LifeEventForm(props: {
           })}
         </div>
       )}
-      <p className="mt-3 flex items-center gap-1 text-xs text-slate-400">
-        <SparkleIcon /> The title below fills itself in; edit it freely.
-      </p>
     </div>
   );
 }

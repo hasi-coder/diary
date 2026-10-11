@@ -180,6 +180,9 @@ fn clean_genders(genders: &[String]) -> Vec<String> {
     out
 }
 
+/// Extra life events one milestone can combine, besides its main one.
+const MAX_COMBINED_EVENTS: usize = 4;
+
 fn short(value: &str, max: usize) -> String {
     value.trim().chars().take(max).collect()
 }
@@ -1126,6 +1129,12 @@ impl Workspace {
         if input.kind == PostKind::Milestone && (title.is_empty() || event_type.is_empty()) {
             return Err(Error::Invalid("A life event needs a type and a title.".into()));
         }
+        let mut also_event_types: Vec<String> = Vec::new();
+        for t in input.also_event_types.iter().map(|t| short(t, 80)) {
+            if !t.is_empty() && t != event_type && !also_event_types.contains(&t) && also_event_types.len() < MAX_COMBINED_EVENTS {
+                also_event_types.push(t);
+            }
+        }
 
         let now = now_millis();
         let post = Post {
@@ -1133,6 +1142,7 @@ impl Workspace {
             with_ids,
             place_id: input.place_id.clone(),
             feeling,
+            also_event_types: if input.kind == PostKind::Milestone { also_event_types } else { Vec::new() },
             event_type: if input.kind == PostKind::Milestone { event_type } else { String::new() },
             kind: input.kind,
             title: if input.kind == PostKind::Status { String::new() } else { title },
@@ -1302,7 +1312,12 @@ impl Workspace {
             .filter_map(|id| self.profiles.get(id).map(|p| p.name.as_str()))
             .collect::<Vec<_>>()
             .join(" ");
-        let extra = format!("{} {}", post.feeling.as_ref().map_or("", |f| f.text.as_str()), post.event_type);
+        let extra = format!(
+            "{} {} {}",
+            post.feeling.as_ref().map_or("", |f| f.text.as_str()),
+            post.event_type,
+            post.also_event_types.join(" ")
+        );
         let fields = [
             Field { text: &post.title, weight: 2.5 },
             Field { text: &text, weight: 1.0 },
@@ -1987,6 +2002,19 @@ mod tests {
         assert_eq!(milestone.event_type, "work");
         let status = ws.save_post(PostInput { event_type: "work".into(), ..base() }).unwrap();
         assert_eq!(status.event_type, "", "only milestones keep a type");
+
+        // Combined life events: deduplicated, without the main one, at most four more.
+        let also = ["education.graduated", "work", "relationship.got_engaged", "relationship.got_engaged", "a", "b", "c"];
+        let combined = ws
+            .save_post(PostInput {
+                kind: PostKind::Milestone,
+                title: "Graduated and got engaged".into(),
+                event_type: "work".into(),
+                also_event_types: also.iter().map(|s| s.to_string()).collect(),
+                ..base()
+            })
+            .unwrap();
+        assert_eq!(combined.also_event_types, ["education.graduated", "relationship.got_engaged", "a", "b"]);
 
         let ws = open_workspace(root.path(), "workspace_personal", "correct horse").unwrap();
         assert_eq!(ws.posts[&p.id].place_id.as_deref(), Some(lake.id.as_str()));

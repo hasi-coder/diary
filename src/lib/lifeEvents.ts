@@ -11,7 +11,7 @@
 // The id (`category.slug`) is stored in posts, so never rename a label without
 // keeping its id: add the old id to ALIASES instead.
 
-import { LOVE_SPICY, ROLES, STYLE } from "./lifeEventRoles";
+import { EVERYDAY, LOVE_SPICY, MORE_ROLES, PARENT_CHILD, ROLES, STYLE, WORK_HARD, WORK_SPICY } from "./lifeEventRoles";
 
 export type Stage = "baby" | "child" | "teen" | "young" | "adult" | "midlife" | "elder";
 
@@ -43,7 +43,15 @@ export interface LifeEventTemplate {
   /** Title template with {placeholders}; equal to `label` when there are none. */
   title: string;
   stages: Stage[];
+  /** Spicy (naughty, romantic) or hard (painful) moments; filterable in the picker. */
+  tone?: Tone;
 }
+
+export type Tone = "spicy" | "hard";
+export const TONES: { id: Tone; label: string }[] = [
+  { id: "spicy", label: "🌶️ Spicy & naughty" },
+  { id: "hard", label: "💔 Hard times" },
+];
 
 export const CATEGORIES: LifeEventCategory[] = [
   { id: "family", emoji: "👪", label: "Family & parenting" },
@@ -68,6 +76,7 @@ export const CATEGORIES: LifeEventCategory[] = [
   { id: "civic", emoji: "🗳️", label: "Civic & community" },
   { id: "money", emoji: "💰", label: "Money & milestones" },
   { id: "pets", emoji: "🐾", label: "Pets & animals" },
+  { id: "everyday", emoji: "☕", label: "Everyday moments" },
   { id: "birthday", emoji: "🎂", label: "Birthdays & anniversaries" },
   { id: "aging", emoji: "🧓", label: "Later life" },
   { id: "achievement", emoji: "🏆", label: "Achievements" },
@@ -1295,10 +1304,10 @@ const slugify = (s: string) =>
     .replace(/^_+|_+$/g, "")
     .slice(0, 60);
 
-function add(category: string, group: string, emoji: string, label: string, title = "", stages: Stage[] = ALL_STAGES, slug = slugify(label)) {
+function add(category: string, group: string, emoji: string, label: string, title = "", stages: Stage[] = ALL_STAGES, slug = slugify(label), tone?: Tone) {
   let id = `${category}.${slug}`;
   for (let n = 2; byId.has(id); n++) id = `${category}.${slug}_${n}`;
-  const t: LifeEventTemplate = { id, category, group, emoji, label, title: title || label, stages };
+  const t: LifeEventTemplate = { id, category, group, emoji, label, title: title || label, stages, ...(tone && { tone }) };
   TEMPLATES.push(t);
   byId.set(id, t);
 }
@@ -1306,14 +1315,21 @@ function add(category: string, group: string, emoji: string, label: string, titl
 function parse(block: string, fallbackCategory?: string) {
   let category = fallbackCategory ?? "other";
   let group = "General";
+  let tone: Tone | undefined;
   for (const raw of block.split("\n")) {
     const line = raw.trim();
     if (!line) continue;
     if (line.startsWith("@")) {
       category = line.slice(1).trim();
       group = "General";
+      tone = undefined;
+    } else if (line.startsWith("## ")) {
+      // "## spicy" / "## hard" mark the lines that follow, within the group.
+      const t = line.slice(3).trim();
+      tone = t === "spicy" || t === "hard" ? t : undefined;
     } else if (line.startsWith("# ")) {
       group = line.slice(2).trim();
+      tone = group === "Spicy & naughty" ? "spicy" : group === "Heartache & mistakes" ? "hard" : undefined;
       // "# 🧑‍🏫 Teacher": a group with its own icon (roles).
       const icon = /^(\p{Extended_Pictographic}[\p{Extended_Pictographic}\u200d\ufe0f\p{Emoji_Modifier}]*)\s+(.*)$/u.exec(group);
       if (icon) {
@@ -1327,7 +1343,25 @@ function parse(block: string, fallbackCategory?: string) {
       const label = head.slice(space + 1).trim();
       // Roles share event names ("First day in uniform"), so their ids include the role.
       const slug = category === "roles" ? `${slugify(group)}_${slugify(label)}`.slice(0, 70) : undefined;
-      add(category, group, head.slice(0, space), label, title, stages, slug);
+      add(category, group, head.slice(0, space), label, title, stages, slug, tone);
+    }
+  }
+}
+
+/** Every job role also gets the common workplace crushes and hard days. */
+function addWorkplaceMoments() {
+  const roles = [...new Set(TEMPLATES.filter((t) => t.category === "roles").map((t) => t.group))];
+  for (const role of roles) {
+    if (/^(Student|University student)/.test(role)) continue;
+    for (const [lines, tone] of [[WORK_SPICY, "spicy"], [WORK_HARD, "hard"]] as const) {
+      for (const line of lines.trim().split("\n")) {
+        const [head, title = "", codes = ""] = line.split("|").map((s) => s.trim());
+        const space = head.indexOf(" ");
+        const label = head.slice(space + 1).trim();
+        const stages = codes ? [...codes].map((c) => CODES[c]).filter(Boolean) : ALL_STAGES;
+        const slug = `${slugify(role)}_${slugify(label)}`.slice(0, 70);
+        if (!byId.has(`roles.${slug}`)) add("roles", role, head.slice(0, space), label, title, stages, slug, tone);
+      }
     }
   }
 }
@@ -1349,6 +1383,10 @@ parse(DATA);
 parse(FAITH, "faith");
 parse(OTHER_BLOCKS);
 parse(ROLES);
+parse(MORE_ROLES);
+addWorkplaceMoments();
+parse(PARENT_CHILD);
+parse(EVERYDAY);
 parse(STYLE);
 parse(LOVE_SPICY);
 
@@ -1509,6 +1547,18 @@ export function fieldsOf(title: string): TemplateField[] {
   return out;
 }
 
+/** Every life event of a milestone post: the main one, then any combined ones. */
+export const eventsOf = (post: { eventType: string; alsoEventTypes?: string[] }) => [post.eventType, ...(post.alsoEventTypes ?? [])].filter(Boolean);
+
+/** "Graduated from X", "Got engaged to Y" → "Graduated from X and got engaged to Y". */
+export function combineTitles(titles: string[]): string {
+  const parts = titles
+    .filter(Boolean)
+    // Lower-case the start of later parts, but not names or acronyms ("Visited Japan", "IVF").
+    .map((t, i) => (i > 0 && /^[A-Z][a-z]/.test(t) ? t[0].toLowerCase() + t.slice(1) : t));
+  return parts.length <= 1 ? (parts[0] ?? "") : `${parts.slice(0, -1).join(", ")} and ${parts[parts.length - 1]}`;
+}
+
 /** The title with every placeholder filled in, or `null` when one is still empty. */
 export function fillTitle(template: LifeEventTemplate, values: Record<string, string>): string | null {
   let missing = false;
@@ -1526,12 +1576,13 @@ const fold = (s: string) => s.normalize("NFKD").replace(/[̀-ͯ]/g, "").toLowerC
 const haystacks = new Map(TEMPLATES.map((t) => [t.id, fold(`${t.label} ${t.group} ${categoryOf(t.category).label} ${t.title.replace(/\{[^}]*\}/g, "")}`)]));
 
 /** Templates matching every word of `query`, best first: label starts, then word starts, then anywhere. */
-export function searchLifeEvents(query: string, opts: { category?: string; group?: string; stage?: Stage } = {}): LifeEventTemplate[] {
+export function searchLifeEvents(query: string, opts: { category?: string; group?: string; stage?: Stage; tone?: Tone } = {}): LifeEventTemplate[] {
   const words = fold(query).split(/\s+/).filter(Boolean);
   const scored: [LifeEventTemplate, number][] = [];
   for (const t of TEMPLATES) {
     if (opts.category && t.category !== opts.category) continue;
     if (opts.group && t.group !== opts.group) continue;
+    if (opts.tone && t.tone !== opts.tone) continue;
     if (opts.stage && !t.stages.includes(opts.stage)) continue;
     if (words.length === 0) {
       scored.push([t, 0]);

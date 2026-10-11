@@ -211,6 +211,18 @@ fn seed(ws: &mut Workspace) -> Result<(), Box<dyn std::error::Error>> {
         })?;
     }
 
+    // Two life events in one post.
+    ws.save_post(PostInput {
+        kind: PostKind::Milestone,
+        event_type: "education.graduated_from_university".into(),
+        also_event_types: vec!["roles.intern_software_engineer_got_a_full_time_offer".into()],
+        title: "Graduated from the University of Minnesota and got a full-time offer".into(),
+        author_id: me_id.clone(),
+        content: "Same week. Still can't believe it.".into(),
+        occurred_at: Some(now - 400 * DAY),
+        ..Default::default()
+    })?;
+
     // Relationships, as Facebook's "Family and relationships".
     let relate = |to: &Profile, kind: &str, since: &str| RelationInput {
         id: None,

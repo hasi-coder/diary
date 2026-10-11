@@ -5,7 +5,7 @@ import { api, errorMessage, type Profile, type Relation } from "../lib/api";
 import { useJournal, usePosts } from "../lib/journal";
 import { KINDS } from "../lib/format";
 import { RELATION_GROUPS, RELATION_KINDS, relationLabel, relationsOf } from "../lib/catalog";
-import { categoryOf, lifeEvent } from "../lib/lifeEvents";
+import { categoryOf, eventsOf, lifeEvent } from "../lib/lifeEvents";
 import { MediaPreview } from "./Media";
 import { Avatar, Button, ErrorText, Field, inputClass, Modal } from "./ui";
 
@@ -300,6 +300,7 @@ export function LifeEventsCard({ profile }: { profile: Profile }) {
                 <span className="block text-sm font-medium text-slate-800 hover:underline">{p.title}</span>
                 <span className="block text-xs text-slate-400">
                   {new Date(p.occurredAt).getFullYear()} · {categoryOf(e.category).label}
+                  {eventsOf(p).length > 1 && ` · +${eventsOf(p).length - 1} more`}
                 </span>
               </button>
             </li>

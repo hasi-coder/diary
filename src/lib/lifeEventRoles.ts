@@ -486,3 +486,401 @@ export const LOVE_SPICY = String.raw`
 🌱 Started healing | | ctyame
 🫶 Forgave myself | | tyame
 `;
+
+// More roles (secretaries, older trades, part-time jobs), and role-specific
+// spicy and hard moments. A `# Role` heading may repeat: it adds to that role.
+export const MORE_ROLES = String.raw`
+@roles
+# 🗂️ Secretary & personal assistant
+📝 Did a secretarial course | | tyame
+⌨️ Passed shorthand and typing exams | | tyame
+🪪 First day as a secretary | Started at {company} | tyame
+👗 First day in office wear | | tyame
+📞 Ran the boss's diary | | yame
+✉️ Typed my first official letter | | tyame
+📈 Became executive secretary | | yame
+🧑‍💼 Became PA to the chairman | | ame
+🏅 Long-service award | | ame
+## spicy
+😏 Crush on the boss | | yame
+🌙 Late nights at the office | | yame
+🤫 Office affair | | yame
+🍸 Business-trip romance | | yame
+💐 Flowers from a secret admirer at work | | tyame
+## hard
+😤 A boss who made my life hard | | yame
+🛡️ Reported harassment by the boss | | yame
+# ⌨️ Typist & stenographer
+⌨️ Got my first typewriter | | tyame
+⌨️ Hit {n} words a minute | | tyame
+🪪 First typing job | | tyame
+🖥️ Switched from typewriter to computer | | yame
+# ☎️ Telephone operator
+🎧 First day at the switchboard | | tyame
+📞 Connected my first trunk call | | tyame
+🌙 First night shift on the exchange | | tyame
+# 🏛️ Government clerk & officer
+📝 Passed the government service exam | | tyame
+📜 Got my appointment letter | | tyame
+🪪 First day at the office | Started at {org} | tyame
+📈 Got a grade promotion | | yame
+🔁 Transferred to another station | Transferred to {place} | yame
+🧓 Started my government pension | | me
+# 📮 Post office worker
+📮 First day at the post office | | tyame
+🚲 First postal round | | tyame
+📈 Became postmaster | | ame
+# 🚌 Bus conductor & driver
+🎫 First day as a conductor | | tyame
+🚌 Got my heavy-vehicle licence | | yame
+🛣️ First long-distance route | | yame
+# 🍃 Tea plucker & estate worker
+🍃 First day plucking tea | | tyame
+⚖️ Plucked {n} kilos in a day | | tyame
+👩‍🌾 Became a kangani / supervisor | | yame
+# 🧹 Housemaid & domestic worker
+🏠 First housekeeping job | | tyame
+✈️ First domestic job abroad | Started work in {place} | yame
+💸 Saved enough for my family | | yame
+🛬 Came home for good | | ame
+# 🛍️ Shop assistant
+🪪 First day at the shop | Started at {company} | tyame
+🧾 First sale on my own | | tyame
+🎄 Survived my first festive rush | | tyame
+📈 Became supervisor | | yame
+# 💵 Cashier
+🧾 First shift on the till | | tyame
+✅ Till balanced perfectly | | tyame
+😬 Till came up short | | tyame
+# 🍽️ Waiter & waitress
+🍽️ First shift waiting tables | | tyame
+💰 Biggest tip ever | | tyame
+🍷 Dropped a whole tray | | tyame
+👔 Became head waiter | | yame
+# ☕ Barista
+☕ First latte art | | tyame
+⏰ First opening shift | | tyame
+👋 Regulars know my name | | tyame
+# 🎧 Call-centre agent
+🎧 First call on my own | | tyame
+😤 Survived an angry caller | | tyame
+🌙 First night shift on a foreign account | | tyame
+🏅 Top agent of the month | | tyame
+# 🧸 Babysitter
+🍼 First babysitting job | Babysat {person} | cty
+💵 First babysitting money | | cty
+⭐ Kids asked for me again | | cty
+# 📣 Sales promoter
+📣 First promotion event | | tyame
+🛍️ Sold out my stock | | tyame
+👗 First day in the promo uniform | | tyame
+# 🛵 Delivery rider
+🛵 First delivery | | tyame
+🌧️ Delivered through a storm | | tyame
+🎯 Hit {n} deliveries in a day | | tyame
+# 🎒 Part-time job (while studying)
+💼 Got my first part-time job | Started at {company} | tyame
+💵 First part-time pay | | tyame
+⚖️ Balancing work and studies | | tyame
+🧑‍🤝‍🧑 Made friends on the shift | | tyame
+👋 Quit my part-time job | | tyame
+## spicy
+😏 Flirted with a regular customer | | tyame
+📱 Got a customer's number | | tyame
+💋 Kissed a coworker after the shift | | tyame
+🌙 Shift romance | | tyame
+# 👦 Student — boys' school
+## spicy
+💌 Passed a love letter in class | | ct
+🏫 Crush on a girl from the sister school | | ct
+🏃 Bunked class for a date | | t
+🚌 School-bus romance | | ct
+🎪 Met a girl at the school carnival | | t
+# 👧 Student — girls' school
+## spicy
+💌 Got a love letter | | ct
+🏫 Crush on a boy from the brother school | | ct
+📞 Secret phone calls at night | | t
+🎪 Met a boy at the school carnival | | t
+🙈 Got caught with a love letter | | ct
+# 🧒 Student — mixed school
+## spicy
+💌 Passed notes in class | | ct
+💑 School sweetheart | With {person} | t
+🎒 Held hands behind the school building | | t
+# 🧑‍🎓 University student
+## spicy
+😍 Batch crush | | ty
+🏛️ Hostel romance | | ty
+🌙 Late-night canteen date | | ty
+💋 First kiss on campus | | ty
+😳 Got caught sneaking into the hostel | | ty
+## hard
+😓 Failed the year | | ty
+💸 Ran out of money | | ty
+😔 Homesick | | ty
+# 🧑‍💻 Intern software engineer
+## spicy
+😍 Intern crush | | ty
+🍕 Late-night hackathon flirting | | ty
+# 🧑‍⚕️ Nurse
+## spicy
+🌙 Night-shift romance | | yame
+🩺 Dated a doctor | | yame
+💌 A patient asked me out | | yame
+## hard
+😢 Cried in the supply room | | yame
+😤 Abused by a patient | | yame
+# 🩺 Doctor
+## spicy
+🌙 On-call room romance | | yame
+😍 Fell for a nurse | | yame
+💑 Married a fellow doctor | | yame
+## hard
+⚖️ Faced a complaint | | yame
+😴 Thirty-six hours without sleep | | yame
+# ✈️ Flight attendant / air hostess
+## spicy
+🌍 Layover romance | Romance in {place} | yame
+👨‍✈️ Dated a pilot | | yame
+📱 A passenger slipped me their number | | yame
+🏨 Crew-hotel party | | yame
+## hard
+😤 Dealt with an unruly passenger | | yame
+⚖️ Weight and grooming pressure | | yame
+# 🧑‍🏫 Teacher
+## spicy
+☕ Staff-room crush | | yame
+💑 Dated a fellow teacher | | yame
+# 🧑‍🏫 Primary teacher
+## spicy
+☕ Staff-room crush | | yame
+# 🧑‍⚖️ Lawyer
+## spicy
+⚖️ Fell for opposing counsel | | yame
+🌙 Late nights preparing a case together | | yame
+# 📸 Model
+## spicy
+📸 Sizzling photoshoot | | yame
+💋 Romance with a photographer | | yame
+# 💃 Dancer
+## spicy
+💃 Partner-dance chemistry | | tyame
+# 👮 Police officer
+## spicy
+🚓 Romance with my patrol partner | | yame
+# 🪖 Armed forces
+## spicy
+💌 Letters to a sweetheart back home | | tyame
+🎖️ Uniform at a wedding turned heads | | yame
+`;
+
+/** Added to every job role, as spicy moments. */
+export const WORK_SPICY = `
+😍 Crush on a colleague | | yame
+😏 Flirted at work | | yame
+💋 Kissed someone at a work party | | yame
+🤫 Secret workplace romance | | yame
+💑 Dated a coworker | Started dating {person} | yame
+🍸 Hooked up after a work night out | | yame
+😏 Crush on the boss | | yame
+📱 A customer or client asked me out | | yame
+`;
+
+/** Added to every job role, as hard times. */
+export const WORK_HARD = `
+😓 Toughest day at work | | yame
+😤 Bullied at work | | yame
+🛡️ Harassed at work | | yame
+🔥 Burned out | | yame
+🤔 Thought about quitting | | yame
+📉 Passed over for promotion | | yame
+💸 Pay cut or unpaid wages | | yame
+`;
+
+export const PARENT_CHILD = String.raw`
+@family
+# 👩‍👧 Mother & daughter
+👩‍👧 First mother–daughter day out | With {person} | yame
+💇 Braided her hair for school | | yame
+🍳 Taught her to cook | Taught {person} to cook {what:dish} | yame
+🥻 Draped her first saree | | yame
+🛍️ Shopping trip together | | 
+👗 Matching outfits | | 
+🌸 Talked her through her first period | | yame
+💄 Did her makeup for the first time | | yame
+👰 Helped her dress on her wedding day | | ame
+💌 She wrote me a letter | | 
+☕ Mother–daughter coffee date | | 
+🧳 Mother–daughter trip | Trip with {person} to {place} | 
+🤱 Became a grandmother through her | | me
+🫂 She became my best friend | | 
+💬 Our first real grown-up talk | | 
+💔 We had a big fight | | 
+🤝 We made up | | 
+# 👩‍👦 Mother & son
+👩‍👦 First mother–son day out | With {person} | yame
+⚽ Cheered at his first match | | yame
+👔 Tied his first tie | | yame
+🍳 Taught him to cook | Taught {person} to cook {what:dish} | yame
+🎓 Proud mum at his graduation | | ame
+💃 Mother–son dance at his wedding | | ame
+💐 He bought me flowers with his own money | | 
+🚗 He drove me for the first time | | ame
+🫂 He hugged me in front of his friends | | 
+☕ Mother–son coffee date | | 
+🧳 Mother–son trip | Trip with {person} to {place} | 
+💬 He came to me for advice | | 
+💔 We had a big fight | | 
+🤝 We made up | | 
+# 👨‍👧 Father & daughter
+👨‍👧 First father–daughter date | With {person} | yame
+🚲 Taught her to ride a bike | | yame
+🚗 Taught her to drive | | ame
+🎓 Proud dad at her graduation | | ame
+💃 Father–daughter dance | | ame
+👰 Walked her down the aisle | | ame
+🛠️ Taught her to fix things | | yame
+💌 She called me her hero | | 
+💔 We had a big fight | | 
+🤝 We made up | | 
+# 👨‍👦 Father & son
+👨‍👦 First father–son outing | With {person} | yame
+🎣 First fishing trip together | | 
+🏏 Taught him to play cricket | | yame
+🪒 Taught him to shave | | ame
+🚗 Taught him to drive | | ame
+🍺 First drink together | | ame
+🔧 Fixed the car together | | 
+🎓 Proud dad at his graduation | | ame
+🤝 He asked for my advice as a man | | ame
+💔 We had a big fight | | 
+🤝 We made up | | 
+# 👪 Parent & child
+👣 Their first day of school | | yame
+📖 Bedtime story tradition | | yame
+🎂 Baked their birthday cake | | yame
+🏕️ Camped in the backyard | | yame
+🎨 Made something together | | 
+🫂 They said "I love you" first | | 
+💬 They told me a secret | | 
+🙏 They thanked me | | 
+👵 They cared for me when I was ill | | me
+🏠 Visited them in their own home | | me
+# 👵 Grandparent & grandchild
+👵 First day with my grandchild | Met {person} | me
+📖 Told them stories from my childhood | | me
+🍲 Taught them the family recipe | | me
+🎣 Took them on an adventure | | me
+🧶 Made them something by hand | | me
+👧 My grandparent taught me something | {person} taught me to {what:skill} | ct
+# 👫 Siblings
+👫 Sibling day out | With {person} | 
+🤫 Kept a sibling's secret | | 
+👊 Sibling fight | | ct
+🤝 Defended my sibling | | 
+🎉 Sibling surprise | | 
+🧳 Sibling trip | Trip with {person} to {place} | 
+`;
+
+export const EVERYDAY = String.raw`
+@everyday
+# Small joys
+☕ Perfect morning coffee | | tyame
+🌅 Watched the sunrise | | 
+🌇 Beautiful sunset | | 
+🌧️ Rainy day in | | 
+🌈 Saw a rainbow | | 
+📚 Finished a good book | | 
+🎬 Movie night | Watched {what:movie} | 
+🎶 A song that made my day | | 
+😂 Laughed until I cried | | 
+💌 An unexpected message | From {person} | 
+🎁 A small surprise | | 
+😊 A stranger's kindness | | 
+💐 Bought myself flowers | | tyame
+🛁 Long bath | | 
+😴 Slept in | | 
+🧘 A quiet moment | | 
+🍀 Found money in an old pocket | | 
+👗 Good hair day | | ctyame
+💪 Productive day | | 
+# Home life
+🧹 Deep-cleaned the house | | tyame
+🪴 New plant | | 
+🛋️ Rearranged the furniture | | tyame
+🧺 Laundry mountain conquered | | tyame
+🔧 Fixed something myself | | 
+🔌 Power cut | | 
+🐜 Ant invasion | | 
+🏠 Lazy Sunday at home | | 
+👨‍👩‍👧 Family dinner | | 
+📺 Binge-watched a series | Binged {what:series} | 
+📞 Long call with family | With {person} | 
+🧑‍🍳 Cooked for everyone | | tyame
+# Food & drink
+🍳 Tried a new recipe | Made {what:dish} | 
+🍰 Baked something | | 
+🍜 Found a new favourite place | | 
+🥘 Mum's cooking | | 
+🍛 Rice and curry the way I like it | | 
+🍦 Ice cream treat | | 
+🍕 Pizza night | | 
+🍵 Evening tea | | 
+🥂 Celebrated with a drink | | yame
+# Out & about
+🚶 Long walk | | 
+🚌 Commute story | | tyame
+🚦 Stuck in traffic | | tyame
+🛒 Big grocery run | | tyame
+🛍️ Shopping day | | 
+🎡 Day out | Day out at {place} | 
+☕ Coffee with a friend | With {person} | tyame
+🏖️ Beach day | | 
+⛰️ Weekend hike | | 
+⛪ Visited a temple, church or mosque | | 
+🎟️ Went to an event | Went to {what:event} | 
+💈 Haircut day | | 
+# Work & study days
+💵 Payday | | tyame
+📝 Exam day | | ctyame
+✅ Ticked off a to-do list | | 
+🎉 Friday feeling | | tyame
+🏁 Finished a big task | | 
+😴 Worked late | | yame
+🏡 Worked from home | | yame
+# Feelings
+🥰 Felt loved | | 
+🙏 Felt grateful | | 
+😌 Felt at peace | | 
+💪 Felt proud of myself | | 
+🫶 Self-care day | | 
+🌱 Small step forward | | 
+💭 Big realisation | | 
+# Love life
+🌙 Date night | With {person} | tyame
+🛏️ Lazy morning in bed together | | yame
+💋 Stolen kiss | | tyame
+🍷 Candlelit dinner at home | | yame
+🫂 Long cuddle | | 
+💌 Left a love note | | tyame
+## spicy
+😈 Couldn't keep our hands off each other | | yame
+🚿 Shower together | | yame
+🔥 Spontaneous afternoon | | yame
+# Hard days
+## hard
+😞 Bad day | | 
+😢 Cried | | 
+😤 Argument | With {person} | 
+🤝 Made up | With {person} | 
+🤒 Sick day | | 
+😰 Anxious day | | 
+😴 Couldn't sleep | | 
+🔑 Lost my keys | | 
+📱 Broke my phone | | 
+🚗 Car broke down | | yame
+💸 Money worries | | tyame
+😔 Felt lonely | | 
+🫠 Overwhelmed | | 
+`;

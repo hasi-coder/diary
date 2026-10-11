@@ -240,9 +240,12 @@ pub struct Post {
     pub place_id: Option<String>,
     #[serde(default)]
     pub feeling: Option<Feeling>,
-    /// Milestones only: the life-event category, e.g. `work`, `education`.
+    /// Milestones only: the life-event template id, e.g. `career.started_a_new_job`.
     #[serde(default)]
     pub event_type: String,
+    /// Milestones only: more life events combined into this one ("graduated and got engaged").
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub also_event_types: Vec<String>,
     /// Attached images and videos, in display order. Bytes live in `media/<id>.enc`.
     #[serde(default)]
     pub media: Vec<MediaRef>,
@@ -294,6 +297,8 @@ pub struct PostInput {
     pub feeling: Option<Feeling>,
     #[serde(default)]
     pub event_type: String,
+    #[serde(default)]
+    pub also_event_types: Vec<String>,
     pub author_id: String,
     pub content: String,
     pub occurred_at: Option<i64>,

@@ -126,7 +126,7 @@ The composer has three modes:
 | **Post** | Everyday entries: text plus up to 20 photos/videos. | Inline in the feed with a photo grid. |
 | **Article** | Long-form writing with a title. The first image is the cover. | A teaser card in the feed (cover, title, excerpt, reading time) that opens a reading view. |
 | **Album** | A titled collection of up to 500 photos and videos, each with its own caption. Drag to add; reorder; mark the cover. | A teaser with a grid in the feed, opening an album page with captioned tiles. |
-| **Life event** | One of **~3,400 templates** (see below), with a title that fills itself in. | A centred card with a big icon in the feed, plus a **Life events** timeline on the profile. |
+| **Life event** | One or more of **~4,400 templates** (see below), with a title that fills itself in. | A centred card with a big icon in the feed, plus a **Life events** timeline on the profile. |
 
 Every type can also carry Facebook-style extras, shown in the headline. For example: *"Alex
 Morgan is 😊 feeling happy with Sarah Jenkins and Dev Patel at The Rusty Bean."*
@@ -153,14 +153,16 @@ Entries can be **back-dated** with "Happened on".
 ### Life-event templates
 
 [src/lib/lifeEvents.ts](src/lib/lifeEvents.ts) and
-[src/lib/lifeEventRoles.ts](src/lib/lifeEventRoles.ts) hold about 3,400 life-event templates in 27
+[src/lib/lifeEventRoles.ts](src/lib/lifeEventRoles.ts) hold about 4,400 life-event templates in 28
 categories, each split into sub-groups (for example, Women's & reproductive health › Fertility).
 
 | Area | Examples |
 | --- | --- |
 | Family, baby, childhood, teen | First smile, first steps, Kiri bath, Akuru kiyaweema, Grade 5 scholarship exam, first period, bar/bat/b-mitzvah, quinceañera, Seijin no Hi, turned 18 |
-| Roles & careers | **Pick a role, then see its milestones**, from getting in and the first uniform to leaving. There are about 30 roles: boys', girls' and mixed school student; university student; intern and software engineer; part-time, primary, preschool and secondary teacher; nurse; midwife; flight attendant; doctor; lawyer; beautician; hairdresser; fashion designer; model; dancer; receptionist; bank officer; garment worker; working abroad; homemaker; nanny; police; armed forces; pilot; chef; engineer; accountant. Uniform milestones include the white school uniform, the nurse's cap, getting your wings, the white coat and the court gown |
+| Roles & careers | **Pick a role, then see its milestones**, from getting in and the first uniform to leaving. There are 50 roles: boys', girls' and mixed school student; university student; intern and software engineer; part-time, primary, preschool and secondary teacher; nurse; midwife; flight attendant; doctor; lawyer; secretary; typist; telephone operator; government clerk; postal worker; bus conductor; tea plucker; housemaid; beautician; hairdresser; fashion designer; model; dancer; receptionist; bank officer; garment worker; working abroad; homemaker; nanny; police; armed forces; pilot; chef; engineer; accountant; and part-time jobs (shop assistant, cashier, waiter or waitress, barista, call centre, babysitter, promoter, delivery rider). Each job role has its own spicy moments (crushes, office romances) and hard times (bullying, burnout). Uniform milestones include the white school uniform, the nurse's cap, getting your wings, the white coat and the court gown |
 | Education and career | O/L, A/L and ~60 other exams; degrees; fields of study; ~150 professions |
+| Family moments | Mother & daughter, mother & son, father & daughter, father & son, parent & child, grandparent & grandchild, siblings |
+| Everyday moments | Small joys, home life, food, out and about, work days, feelings, love life, hard days |
 | Style & clothing | First saree, osariya, half-saree ceremony, hijab, first suit or heels, festival outfits, wedding outfits, style changes |
 | Love, weddings and identity | Dating, love and intimacy, **spicy & naughty**, **heartache & mistakes** (cheating, ghosting, scares, leaving a toxic relationship, healing), polyamory and queerplatonic partnerships, Poruwa ceremony, Nikah, Anand Karaj, coming out, transition, Pride |
 | Women's and reproductive health | Fertility and IVF, pregnancy week by week, birth types, NICU, loss, menopause |
@@ -168,6 +170,10 @@ categories, each split into sub-groups (for example, Women's & reproductive heal
 
 - Inside a category, chips narrow it to one sub-group; for Roles & careers, you choose a role
   first.
+- Templates can carry a **tone**: 🌶️ spicy & naughty, or 💔 hard times. A filter shows only those.
+- **Combine** up to five life events in one post ("graduated and got a full-time offer"). The
+  title joins their filled-in titles, and the post stores `eventType` (main) plus
+  `alsoEventTypes`.
 - Each template suits one or more **life stages**: baby, child, teen, young adult, adult,
   midlife and later life. The picker filters by stage, by category, and by full-text search.
 - Placeholders in the title (`Married {person} at {place}`) become small form fields.
@@ -528,7 +534,7 @@ Where the build deliberately differs from `system_architecture_proposal.md`:
 | `54c8325` | **Password change:** re-wrap or full key rotation with crash-safe staging |
 | `1ef207d` | **Articles and albums:** post kinds, per-photo captions, album editor, the photo viewer, article reader, album pages |
 | `2d2a6c1` | **Facebook social features:** tag people, check-ins, feelings/activities, life events, photo tagging, relationships, profile pictures and cover photos |
-| *latest* | **Life for everyone:** ~3,400 life-event templates by category, sub-group (roles with their own milestones) and life stage; ~100 modern relationship kinds with gendered labels; non-binary gender identities, pronouns and relationship status |
+| *latest* | **Life for everyone:** ~4,400 life-event templates by category, sub-group (roles with their own milestones), life stage and tone (spicy, hard), combinable in one post; ~100 modern relationship kinds with gendered labels; non-binary gender identities, pronouns and relationship status |
 
 ---
 

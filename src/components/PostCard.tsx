@@ -10,7 +10,7 @@ import { Composer } from "./Composer";
 import { MediaGrid, MediaPreview } from "./Media";
 import { PostContent } from "./PostContent";
 import { PostHeadline } from "./PostExtras";
-import { categoryOf, lifeEvent } from "../lib/lifeEvents";
+import { categoryOf, eventsOf, lifeEvent } from "../lib/lifeEvents";
 import { Avatar, ConfirmDialog } from "./ui";
 
 export function PostCard({ post, onTag }: { post: Post; onTag?: (tag: string) => void }) {
@@ -73,15 +73,35 @@ export function PostCard({ post, onTag }: { post: Post; onTag?: (tag: string) =>
 
 /** A life event: big icon, title and date, then the story and photos. */
 export function MilestoneCard({ post, onTag }: { post: Post; onTag?: (tag: string) => void }) {
-  const event = lifeEvent(post.eventType);
+  const events = eventsOf(post).map(lifeEvent);
+  const date = new Date(post.occurredAt).toLocaleDateString(undefined, { dateStyle: "long" });
   return (
     <>
       <div className="rounded-xl bg-gradient-to-b from-brand-50 to-white px-6 py-8 text-center">
-        <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-white text-3xl shadow-sm ring-1 ring-brand-100">{event.emoji}</div>
+        <div className="flex justify-center -space-x-3">
+          {events.map((e) => (
+            <div key={e.id} title={e.label} className="flex h-16 w-16 items-center justify-center rounded-full bg-white text-3xl shadow-sm ring-1 ring-brand-100">
+              {e.emoji}
+            </div>
+          ))}
+        </div>
         <h3 className="mt-3 text-xl font-bold text-slate-900">{post.title}</h3>
-        <p className="mt-1 text-sm text-slate-500">
-          <span className="font-medium text-brand-700">{categoryOf(event.category).label}</span> › {event.label} · {new Date(post.occurredAt).toLocaleDateString(undefined, { dateStyle: "long" })}
-        </p>
+        {events.length === 1 ? (
+          <p className="mt-1 text-sm text-slate-500">
+            <span className="font-medium text-brand-700">{categoryOf(events[0].category).label}</span> › {events[0].label} · {date}
+          </p>
+        ) : (
+          <>
+            <p className="mt-2 flex flex-wrap justify-center gap-1.5">
+              {events.map((e) => (
+                <span key={e.id} className="rounded-full bg-white px-2.5 py-0.5 text-xs text-slate-600 ring-1 ring-brand-100">
+                  {e.emoji} {e.label}
+                </span>
+              ))}
+            </p>
+            <p className="mt-1.5 text-sm text-slate-500">{date}</p>
+          </>
+        )}
       </div>
       {post.content && (
         <div className="mt-3">

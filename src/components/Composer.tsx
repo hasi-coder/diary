@@ -17,7 +17,7 @@ import {
   type Icon,
 } from "@phosphor-icons/react";
 import { api, errorMessage, type Feeling, type Post, type PostKind, type Profile } from "../lib/api";
-import { fillTitle, lifeEvent } from "../lib/lifeEvents";
+import { combineTitles, eventsOf, fillTitle, lifeEvent } from "../lib/lifeEvents";
 import { useJournal } from "../lib/journal";
 import { fromDatetimeLocal, KINDS, toDatetimeLocal } from "../lib/format";
 import { AlbumEditor, AttachmentStrip, useAttachments } from "./Attachments";
@@ -54,10 +54,13 @@ export function Composer(props: { defaultAuthorId?: string; editing?: Post; onDo
   const [withIds, setWithIds] = useState<string[]>(editing?.withIds ?? []);
   const [placeId, setPlaceId] = useState<string | null>(editing?.placeId ?? null);
   const [feeling, setFeeling] = useState<Feeling | null>(editing?.feeling ?? null);
-  const [eventType, setEventType] = useState(editing?.eventType ?? "");
-  // Life-event template inputs, the profiles picked for them, and whether the
-  // title was typed by hand (then it stops following the template).
-  const [eventValues, setEventValues] = useState<Record<string, string>>({});
+  // Life events: the main one first, then any combined with it.
+  const [events, setEvents] = useState<string[]>(() => (editing ? eventsOf(editing) : []));
+  // Which slot the browser fills: an index to replace, events.length to add one, null when closed.
+  const [picking, setPicking] = useState<number | null>(null);
+  // Template inputs per event, the profiles picked for them ("<event>|<key>"),
+  // and whether the title was typed by hand (then it stops following the templates).
+  const [eventValues, setEventValues] = useState<Record<string, Record<string, string>>>({});
   const [eventLinks, setEventLinks] = useState<Record<string, Profile>>({});
   const [titleEdited, setTitleEdited] = useState(!!editing);
   const [picker, setPicker] = useState<"with" | "place" | "feeling" | null>(null);
@@ -92,23 +95,47 @@ export function Composer(props: { defaultAuthorId?: string; editing?: Post; onDo
     else setPlaceId(p.id);
   };
 
-  const chooseEvent = (id: string) => {
-    Object.values(eventLinks).forEach(unlink);
-    setEventLinks({});
-    setEventValues({});
-    setEventType(id);
-    if (id && !titleEdited) setTitle(fillTitle(lifeEvent(id), {}) ?? lifeEvent(id).label);
+  const autoTitle = (ids: string[], values: Record<string, Record<string, string>>) => {
+    if (!titleEdited) setTitle(combineTitles(ids.map((id) => fillTitle(lifeEvent(id), values[id] ?? {}) ?? lifeEvent(id).label)));
   };
 
-  const setEventValue = (key: string, value: string, profile: Profile | null) => {
-    const values = { ...eventValues, [key]: value };
+  /** Drop an event's inputs, untagging the profiles picked for it. */
+  const forget = (id: string) => {
+    const links = Object.entries(eventLinks).filter(([k]) => k.startsWith(`${id}|`));
+    links.forEach(([, p]) => unlink(p));
+    setEventLinks((all) => Object.fromEntries(Object.entries(all).filter(([k]) => !k.startsWith(`${id}|`))));
+    const { [id]: _, ...values } = eventValues;
     setEventValues(values);
-    if (eventLinks[key]?.id !== profile?.id) {
-      unlink(eventLinks[key]);
+    return values;
+  };
+
+  const pickEvent = (id: string) => {
+    const slot = picking ?? 0;
+    setPicking(null);
+    if (events.includes(id)) return;
+    const values = slot < events.length ? forget(events[slot]) : eventValues;
+    const next = slot < events.length ? events.map((e, i) => (i === slot ? id : e)) : [...events, id];
+    setEvents(next);
+    autoTitle(next, values);
+  };
+
+  const removeEvent = (index: number) => {
+    const values = forget(events[index]);
+    const next = events.filter((_, i) => i !== index);
+    setEvents(next);
+    autoTitle(next, values);
+  };
+
+  const setEventValue = (id: string, key: string, value: string, profile: Profile | null) => {
+    const values = { ...eventValues, [id]: { ...eventValues[id], [key]: value } };
+    setEventValues(values);
+    const linkKey = `${id}|${key}`;
+    if (eventLinks[linkKey]?.id !== profile?.id) {
+      unlink(eventLinks[linkKey]);
       if (profile) link(profile);
-      setEventLinks(({ [key]: _, ...rest }) => (profile ? { ...rest, [key]: profile } : rest));
+      setEventLinks(({ [linkKey]: _, ...rest }) => (profile ? { ...rest, [linkKey]: profile } : rest));
     }
-    if (!titleEdited) setTitle(fillTitle(lifeEvent(eventType), values) ?? lifeEvent(eventType).label);
+    autoTitle(events, values);
   };
 
   const hasText = content.trim() !== "";
@@ -120,7 +147,7 @@ export function Composer(props: { defaultAuthorId?: string; editing?: Post; onDo
       : kind === "article"
         ? title.trim() !== "" && hasText
         : kind === "milestone"
-          ? title.trim() !== "" && eventType !== ""
+          ? title.trim() !== "" && events.length > 0
           : title.trim() !== "" && attachments.mediaIds.length > 0);
 
   const submit = async () => {
@@ -140,7 +167,8 @@ export function Composer(props: { defaultAuthorId?: string; editing?: Post; onDo
         withIds,
         placeId,
         feeling,
-        eventType,
+        eventType: events[0] ?? "",
+        alsoEventTypes: events.slice(1),
       });
       attachments.committed();
       if (!editing) {
@@ -154,7 +182,8 @@ export function Composer(props: { defaultAuthorId?: string; editing?: Post; onDo
         setWithIds([]);
         setPlaceId(null);
         setFeeling(null);
-        setEventType("");
+        setEvents([]);
+        setPicking(null);
         setEventValues({});
         setEventLinks({});
         setTitleEdited(false);
@@ -183,7 +212,7 @@ export function Composer(props: { defaultAuthorId?: string; editing?: Post; onDo
     ? "Save changes"
     : { status: "Encrypt & Save", article: "Publish article", album: "Create album", milestone: "Add life event" }[kind];
   const hint =
-    kind === "milestone" && !eventType
+    kind === "milestone" && events.length === 0
       ? "Choose the kind of life event"
       : kind === "article" && !title.trim()
       ? "Add a title"
@@ -231,17 +260,26 @@ export function Composer(props: { defaultAuthorId?: string; editing?: Post; onDo
   );
 
   const titleInput = kind !== "status" && (
-    <input
+    // A textarea so long (e.g. combined life-event) titles wrap; Enter never adds a newline.
+    <textarea
+      ref={(el) => {
+        if (el) el.style.height = `${el.scrollHeight}px`;
+      }}
+      rows={1}
       value={title}
       onChange={(e) => {
-        setTitle(e.target.value);
+        setTitle(e.target.value.replace(/\n/g, " "));
         if (kind === "milestone") setTitleEdited(e.target.value !== "");
+        e.target.style.height = "auto";
+        e.target.style.height = `${e.target.scrollHeight}px`;
       }}
+      onKeyDown={(e) => e.key === "Enter" && e.preventDefault()}
       autoFocus={!editing}
       placeholder={kind === "article" ? "Article title" : kind === "milestone" ? "What happened?" : "Album name"}
-      className="mb-3 w-full bg-transparent text-3xl font-bold text-slate-900 placeholder-slate-300 outline-none"
+      className="mb-3 w-full resize-none overflow-hidden bg-transparent text-3xl font-bold leading-tight text-slate-900 placeholder-slate-300 outline-none"
     />
   );
+
 
   return (
     <div
@@ -280,16 +318,44 @@ export function Composer(props: { defaultAuthorId?: string; editing?: Post; onDo
         <div className={`flex gap-4 ${fullScreen ? `mx-auto w-full ${kind === "album" ? "max-w-5xl" : "max-w-3xl"} ${kind === "album" ? "" : "h-full"}` : ""}`}>
           {!editing && !fullScreen && <Avatar profile={author} />}
           <div className={`relative min-w-0 flex-1 ${fullScreen && kind !== "album" ? "flex flex-col" : ""}`}>
-            {kind === "milestone" && !eventType ? (
+            {kind === "milestone" && (events.length === 0 || picking !== null) ? (
               <div className="mb-5">
-                <p className="mb-2 text-sm font-medium text-slate-600">What kind of life event?</p>
-                <LifeEventBrowser onPick={chooseEvent} />
+                <div className="mb-2 flex items-center justify-between">
+                  <p className="text-sm font-medium text-slate-600">
+                    {events.length === 0 ? "What kind of life event?" : picking === events.length ? "Combine with another life event" : "Choose a different life event"}
+                  </p>
+                  {events.length > 0 && (
+                    <button type="button" onClick={() => setPicking(null)} className="text-sm font-medium text-slate-500 hover:text-slate-800">
+                      Cancel
+                    </button>
+                  )}
+                </div>
+                <LifeEventBrowser onPick={pickEvent} />
               </div>
             ) : (
               <>
                 {kind === "milestone" && (
-                  <div className="mb-5">
-                    <LifeEventForm template={lifeEvent(eventType)} values={eventValues} onValue={setEventValue} onChange={() => chooseEvent("")} />
+                  <div className="mb-5 space-y-2">
+                    {events.map((id, i) => (
+                      <LifeEventForm
+                        key={id}
+                        template={lifeEvent(id)}
+                        values={eventValues[id] ?? {}}
+                        onValue={(key, value, profile) => setEventValue(id, key, value, profile)}
+                        onChange={() => setPicking(i)}
+                        onRemove={events.length > 1 ? () => removeEvent(i) : undefined}
+                      />
+                    ))}
+                    {events.length < 5 && (
+                      <button
+                        type="button"
+                        onClick={() => setPicking(events.length)}
+                        className="w-full rounded-xl border border-dashed border-slate-300 py-2 text-sm font-medium text-slate-500 hover:border-brand-400 hover:text-brand-700"
+                      >
+                        + Combine with another life event
+                      </button>
+                    )}
+                    <p className="text-xs text-slate-400">The title below fills itself in; edit it freely.</p>
                   </div>
                 )}
                 {titleInput}
