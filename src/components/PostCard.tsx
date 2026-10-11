@@ -2,7 +2,7 @@
 // that opens their own page (PostView).
 import { useState } from "react";
 import { ArrowRightIcon, DotsThreeIcon, PencilSimpleIcon, TrashIcon } from "@phosphor-icons/react";
-import { api, type Post } from "../lib/api";
+import { api, type Activity, type Post } from "../lib/api";
 import { useJournal } from "../lib/journal";
 import { formatPostDate, readingMinutes, subtitle } from "../lib/format";
 import { excerpt } from "../lib/mentions";
@@ -10,7 +10,8 @@ import { Composer } from "./Composer";
 import { MediaGrid, MediaPreview } from "./Media";
 import { PostContent } from "./PostContent";
 import { PostHeadline } from "./PostExtras";
-import { categoryOf, eventsOf, lifeEvent } from "../lib/lifeEvents";
+import { categoryOf } from "../lib/lifeEvents";
+import { lifeEventsIn, storyOf } from "../lib/story";
 import { Avatar, ConfirmDialog } from "./ui";
 
 export function PostCard({ post, onTag }: { post: Post; onTag?: (tag: string) => void }) {
@@ -24,9 +25,8 @@ export function PostCard({ post, onTag }: { post: Post; onTag?: (tag: string) =>
       ? `added ${count} ${count === 1 ? "item" : "items"} to an album`
       : post.kind === "article"
         ? "wrote an article"
-        : post.kind === "milestone"
-          ? "added a life event"
-          : null;
+        : null;
+  const story = storyOf(post);
 
   return (
     <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition-shadow hover:shadow-md">
@@ -38,7 +38,7 @@ export function PostCard({ post, onTag }: { post: Post; onTag?: (tag: string) =>
           <div>
             <div>
               <PostHeadline post={post} action={action} />
-              {!action && !post.feeling && !post.activities?.length && !post.withIds.length && !post.placeId && author && author.kind !== "me" && (
+              {!action && story.length === 0 && !post.withIds.length && !post.placeId && author && author.kind !== "me" && (
                 <span className="ml-1.5 text-sm text-slate-400">· {subtitle(author)}</span>
               )}
             </div>
@@ -51,65 +51,46 @@ export function PostCard({ post, onTag }: { post: Post; onTag?: (tag: string) =>
         <PostMenu post={post} onEdit={() => setEditing(true)} />
       </div>
 
-      {editing && post.kind === "status" ? (
+      {editing && (post.kind === "status" || post.kind === "milestone") ? (
         <Composer editing={post} onDone={() => setEditing(false)} />
       ) : post.kind === "article" ? (
         <ArticleTeaser post={post} />
       ) : post.kind === "album" ? (
         <AlbumTeaser post={post} onTag={onTag} />
-      ) : post.kind === "milestone" ? (
-        <MilestoneCard post={post} onTag={onTag} />
       ) : (
         <>
+          <LifeEventBanner clauses={story} />
           {post.content && <PostContent content={post.content} onTag={onTag} />}
           <MediaGrid post={post} />
         </>
       )}
       {/* Articles and albums edit in the full-screen composer. */}
-      {editing && post.kind !== "status" && <Composer editing={post} onDone={() => setEditing(false)} />}
+      {editing && (post.kind === "article" || post.kind === "album") && <Composer editing={post} onDone={() => setEditing(false)} />}
     </article>
   );
 }
 
-/** A life event: big icon, title and date, then the story and photos. */
-export function MilestoneCard({ post, onTag }: { post: Post; onTag?: (tag: string) => void }) {
-  const events = eventsOf(post).map(lifeEvent);
-  const date = new Date(post.occurredAt).toLocaleDateString(undefined, { dateStyle: "long" });
+/** The life events in a story, shown big: "📈 Got promoted · Work & career". */
+export function LifeEventBanner({ clauses }: { clauses: Activity[] }) {
+  const events = lifeEventsIn(clauses);
+  if (events.length === 0) return null;
+  const capital = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+  const categories = [...new Set(events.flatMap((e) => (e.template ? [categoryOf(e.template.category).label] : [])))];
   return (
-    <>
-      <div className="rounded-xl bg-gradient-to-b from-brand-50 to-white px-6 py-8 text-center">
-        <div className="flex justify-center -space-x-3">
-          {events.map((e) => (
-            <div key={e.id} title={e.label} className="flex h-16 w-16 items-center justify-center rounded-full bg-white text-3xl shadow-sm ring-1 ring-brand-100">
-              {e.emoji}
-            </div>
-          ))}
-        </div>
-        <h3 className="mt-3 text-xl font-bold text-slate-900">{post.title}</h3>
-        {events.length === 1 ? (
-          <p className="mt-1 text-sm text-slate-500">
-            <span className="font-medium text-brand-700">{categoryOf(events[0].category).label}</span> › {events[0].label} · {date}
-          </p>
-        ) : (
-          <>
-            <p className="mt-2 flex flex-wrap justify-center gap-1.5">
-              {events.map((e) => (
-                <span key={e.id} className="rounded-full bg-white px-2.5 py-0.5 text-xs text-slate-600 ring-1 ring-brand-100">
-                  {e.emoji} {e.label}
-                </span>
-              ))}
-            </p>
-            <p className="mt-1.5 text-sm text-slate-500">{date}</p>
-          </>
-        )}
+    <div className="mb-3 rounded-xl bg-gradient-to-b from-brand-50 to-white px-6 py-6 text-center">
+      <div className="flex justify-center -space-x-3">
+        {events.map(({ clause }, i) => (
+          <div key={i} className="flex h-14 w-14 items-center justify-center rounded-full bg-white text-3xl shadow-sm ring-1 ring-brand-100">
+            {clause.emoji}
+          </div>
+        ))}
       </div>
-      {post.content && (
-        <div className="mt-3">
-          <PostContent content={post.content} onTag={onTag} />
-        </div>
-      )}
-      <MediaGrid post={post} />
-    </>
+      <h3 className="mt-3 text-lg font-bold text-slate-900">{events.map(({ clause }) => capital(clause.object)).join(" · ")}</h3>
+      <p className="mt-1 text-xs font-medium uppercase tracking-wider text-brand-700">
+        Life event{events.length > 1 ? "s" : ""}
+        {categories.length > 0 && ` · ${categories.join(" · ")}`}
+      </p>
+    </div>
   );
 }
 
@@ -164,7 +145,7 @@ export function PostMenu({ post, onEdit, onDeleted }: { post: Post; onEdit: () =
   const { refresh } = useJournal();
   const [menuOpen, setMenuOpen] = useState(false);
   const [confirming, setConfirming] = useState(false);
-  const noun = post.kind === "status" ? "post" : post.kind;
+  const noun = post.kind === "status" || post.kind === "milestone" ? "post" : post.kind;
   const files = post.media.length;
 
   return (

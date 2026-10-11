@@ -192,26 +192,7 @@ fn seed(ws: &mut Workspace) -> Result<(), Box<dyn std::error::Error>> {
         })?;
     }
 
-    // Life events.
-    for (event_type, title, ago, body) in [
-        ("home.moved_to_a_new_city", "Moved to Minneapolis", 300 * DAY, "New city, new lakes."),
-        ("career.started_a_new_job", "Started a new job as Senior Engineer at Northwind", 200 * DAY, ""),
-        ("relationship.queerplatonic_partnership", "Became queerplatonic partners with Robin Okafor", 120 * DAY, "No rings, just a shared sourdough starter."),
-        ("travel.visited@jp", "Visited Japan", 60 * DAY, "Two weeks, four cities, too many konbini snacks."),
-        ("fitness.took_up@kayaking", "Took up kayaking", 33 * DAY + HOUR, "Paddled the whole north shore. About 14 km. Sore arms, very happy."),
-    ] {
-        ws.save_post(PostInput {
-            kind: PostKind::Milestone,
-            event_type: event_type.into(),
-            title: title.into(),
-            author_id: me_id.clone(),
-            content: body.into(),
-            occurred_at: Some(now - ago),
-            ..Default::default()
-        })?;
-    }
-
-    // Several activities at once: a role, an occasion and an outfit.
+    // Stories: ordered clauses. Life events are clauses too ("did"), as are roles.
     let act = |emoji: &str, verb: &str, object: &str, thing: &str| Activity {
         emoji: emoji.into(),
         verb: verb.into(),
@@ -219,34 +200,52 @@ fn seed(ws: &mut Workspace) -> Result<(), Box<dyn std::error::Error>> {
         thing: thing.into(),
         ..Default::default()
     };
-    ws.save_post(PostInput {
-        author_id: sarah.id.clone(),
-        content: "Night shift swapped for the ward Christmas party. First time in a saree at work!".into(),
-        // In the author's order; the party clause tags Dev and adds its own words.
-        activities: vec![
-            act("🥳", "feeling", "festive", "feeling:festive"),
-            act("💼", "working as", "a nurse", "role:nurse"),
-            Activity {
-                with_ids: vec![dev.id.clone()],
-                ..act("🎄", "attending", "the ward Christmas party", "occasion:office_christmas_party")
-            },
-            Activity { detail: "for the first time at work".into(), ..act("🥻", "wearing", "a saree", "clothing:saree") },
-        ],
-        occurred_at: Some(now - 20 * DAY),
-        ..Default::default()
-    })?;
+    let event = |emoji: &str, object: &str, id: &str| act(emoji, "", object, &format!("event:{id}"));
+    let was = |a: Activity| Activity { tense: "was".into(), ..a };
+    let me = ws.profiles[&me_id].clone();
+    let mut story = |author: &Profile, ago: i64, content: &str, activities: Vec<Activity>| {
+        ws.save_post(PostInput {
+            author_id: author.id.clone(),
+            content: content.into(),
+            activities,
+            occurred_at: Some(now - ago),
+            ..Default::default()
+        })
+    };
 
-    // Two life events in one post.
-    ws.save_post(PostInput {
-        kind: PostKind::Milestone,
-        event_type: "education.graduated_from_university".into(),
-        also_event_types: vec!["roles.intern_software_engineer_got_a_full_time_offer".into()],
-        title: "Graduated from the University of Minnesota and got a full-time offer".into(),
-        author_id: me_id.clone(),
-        content: "Same week. Still can't believe it.".into(),
-        occurred_at: Some(now - 400 * DAY),
-        ..Default::default()
-    })?;
+    story(&me, 400 * DAY, "Same week. Still can't believe it.", vec![
+        event("🎓", "graduated from the University of Minnesota", "education.graduated_from_university"),
+        event("🎉", "got a full-time offer", "roles.intern_software_engineer_got_a_full_time_offer"),
+        act("🧑‍💻", "as", "an intern software engineer", "role:intern_software_engineer"),
+    ])?;
+    story(&me, 300 * DAY, "New city, new lakes.", vec![event("🏠", "moved to Minneapolis", "home.moved_to_a_new_city")])?;
+    story(&me, 200 * DAY, "", vec![
+        event("💼", "started a new job at Northwind", "career.started_a_new_job"),
+        act("🧑‍💻", "as", "a senior engineer", "role:software_engineer"),
+    ])?;
+    story(&me, 120 * DAY, "No rings, just a shared sourdough starter.", vec![Activity {
+        with_ids: vec![robin.id.clone()],
+        ..event("🤍", "became queerplatonic partners", "relationship.queerplatonic_partnership")
+    }])?;
+    story(&me, 60 * DAY, "Two weeks, four cities, too many konbini snacks.", vec![
+        event("🇯🇵", "visited Japan", "travel.visited@jp"),
+        was(act("🍜", "eating", "everything in sight", "")),
+    ])?;
+    story(&me, 33 * DAY + HOUR, "About 14 km. Sore arms, very happy.", vec![
+        event("🛶", "took up kayaking", "fitness.took_up@kayaking"),
+        Activity { detail: "on the north shore".into(), ..was(act("🏞️", "paddling", "the whole lake", "")) },
+    ])?;
+
+    // Sarah's evening, told in the past: a feeling, a role, an occasion with Dev, an outfit.
+    story(&sarah, 20 * DAY, "Night shift swapped for the ward Christmas party. First time in a saree at work!", vec![
+        was(act("🥳", "feeling", "festive", "feeling:festive")),
+        was(Activity {
+            with_ids: vec![dev.id.clone()],
+            ..act("🎄", "attending", "the ward Christmas party", "occasion:office_christmas_party")
+        }),
+        act("🧑‍⚕️", "as", "a nurse", "role:nurse"),
+        Activity { detail: "for the first time at work".into(), ..was(act("🥻", "wearing", "a saree", "clothing:saree")) },
+    ])?;
 
     // Relationships, as Facebook's "Family and relationships".
     let relate = |to: &Profile, kind: &str, since: &str| RelationInput {

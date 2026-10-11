@@ -52,8 +52,8 @@ export interface Feeling {
 
 /**
  * One clause of a post's story, in the author's order: a feeling ("feeling" +
- * "festive"), an activity ("working as" + "a nurse") or a life event (no verb:
- * "earned a BSc"). `thing` is what it names (`role:nurse`, `event:education.earned@bsc`).
+ * "festive"), an activity ("working as" + "a nurse"), a life event (no verb:
+ * "earned a BSc") or a role ("as" + "a nurse", or no verb: "a nurse"). `thing` is what it names (`role:nurse`, `event:education.earned@bsc`).
  */
 export interface Activity {
   emoji: string;
@@ -64,6 +64,8 @@ export interface Activity {
   withIds?: string[];
   /** Free text after it: "for the first time". */
   detail?: string;
+  /** "was" when it was going on rather than is; absent for "is". */
+  tense?: "was";
 }
 
 export interface Post {

@@ -5,7 +5,8 @@ import { api, errorMessage, type Profile, type Relation } from "../lib/api";
 import { useJournal, usePosts } from "../lib/journal";
 import { KINDS } from "../lib/format";
 import { RELATION_GROUPS, RELATION_KINDS, relationLabel, relationsOf } from "../lib/catalog";
-import { categoryOf, eventsOf, lifeEvent } from "../lib/lifeEvents";
+import { categoryOf } from "../lib/lifeEvents";
+import { lifeEventsIn, storyOf } from "../lib/story";
 import { MediaPreview } from "./Media";
 import { Avatar, Button, ErrorText, Field, inputClass, Modal } from "./ui";
 
@@ -280,32 +281,30 @@ function RelationDialog({ profile, relation, onClose }: { profile: Profile; rela
 
 // ---- Life events ----
 
-/** "Life events" card for a profile's Posts tab: milestones it posted or is tagged in. */
+/** "Life events" card for a profile's Posts tab: life events in posts it wrote or is tagged in. */
 export function LifeEventsCard({ profile }: { profile: Profile }) {
   const { navigate } = useJournal();
-  const { posts } = usePosts({ profileId: profile.id, kind: "milestone" });
-  if (!posts || posts.length === 0) return null;
+  const { posts } = usePosts({ profileId: profile.id });
+  const rows = (posts ?? []).flatMap((p) => lifeEventsIn(storyOf(p)).map((e, i) => ({ post: p, ...e, key: `${p.id}-${i}` })));
+  if (rows.length === 0) return null;
   return (
     <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
       <h2 className="mb-3 flex items-center gap-2 font-bold text-slate-800">
         <FlagBannerIcon className="text-brand-500" /> Life events
       </h2>
       <ol className="relative space-y-3 border-l-2 border-slate-100 pl-4">
-        {posts.map((p) => {
-          const e = lifeEvent(p.eventType);
-          return (
-            <li key={p.id}>
-              <span className="absolute -left-[13px] flex h-6 w-6 items-center justify-center rounded-full bg-white text-sm ring-2 ring-slate-100">{e.emoji}</span>
-              <button onClick={() => navigate({ view: "post", id: p.id })} className="text-left">
-                <span className="block text-sm font-medium text-slate-800 hover:underline">{p.title}</span>
-                <span className="block text-xs text-slate-400">
-                  {new Date(p.occurredAt).getFullYear()} · {categoryOf(e.category).label}
-                  {eventsOf(p).length > 1 && ` · +${eventsOf(p).length - 1} more`}
-                </span>
-              </button>
-            </li>
-          );
-        })}
+        {rows.map(({ post, clause, template, key }) => (
+          <li key={key}>
+            <span className="absolute -left-[13px] flex h-6 w-6 items-center justify-center rounded-full bg-white text-sm ring-2 ring-slate-100">{clause.emoji}</span>
+            <button onClick={() => navigate({ view: "post", id: post.id })} className="text-left">
+              <span className="block text-sm font-medium text-slate-800 first-letter:uppercase hover:underline">{clause.object}</span>
+              <span className="block text-xs text-slate-400">
+                {new Date(post.occurredAt).getFullYear()}
+                {template && ` · ${categoryOf(template.category).label}`}
+              </span>
+            </button>
+          </li>
+        ))}
       </ol>
     </section>
   );

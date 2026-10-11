@@ -52,7 +52,7 @@ export function KindBadge({ profile }: { profile: Profile }) {
   );
 }
 
-export function Modal(props: { title: string; onClose: () => void; children: ReactNode; wide?: boolean }) {
+export function Modal(props: { title: string; onClose: () => void; children: ReactNode; wide?: boolean; huge?: boolean }) {
   const { onClose } = props;
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
@@ -66,7 +66,7 @@ export function Modal(props: { title: string; onClose: () => void; children: Rea
         role="dialog"
         aria-modal
         aria-label={props.title}
-        className={`max-h-full w-full ${props.wide ? "max-w-xl" : "max-w-md"} flex flex-col overflow-hidden rounded-2xl bg-white shadow-2xl`}
+        className={`max-h-full w-full ${props.huge ? "max-w-5xl" : props.wide ? "max-w-xl" : "max-w-md"} flex flex-col overflow-hidden rounded-2xl bg-white shadow-2xl`}
         onMouseDown={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">

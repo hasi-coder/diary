@@ -1,20 +1,14 @@
-// Life-event templates in the composer: a searchable browser of ~3,000
-// templates (by category and life stage), then a small form that fills in the
-// template's title. People and places can be picked from profiles, which tags
-// them on the post.
+// The life-event catalog as a searchable browser, by category, sub-group, life
+// stage and tone. Picking one adds it to a post's story (StoryPicker).
 import { useMemo, useState } from "react";
-import { ArrowLeftIcon, MagnifyingGlassIcon, XIcon } from "@phosphor-icons/react";
-import type { Profile } from "../lib/api";
-import { useJournal } from "../lib/journal";
+import { MagnifyingGlassIcon } from "@phosphor-icons/react";
 import { KINDS, VOCAB } from "../lib/vocab";
 import {
   CATEGORIES,
   CATEGORY_COUNTS,
   categoryOf,
   displayLabel,
-  fieldsOf,
   groupsOf,
-  lifeEvent,
   LIFE_EVENT_COUNT,
   searchLifeEvents,
   STAGES,
@@ -23,7 +17,6 @@ import {
   type Stage,
   type Tone,
 } from "../lib/lifeEvents";
-import { inputClass } from "./ui";
 
 const RESULT_LIMIT = 200;
 
@@ -46,7 +39,6 @@ export function LifeEventBrowser({ onPick }: { onPick: (id: string) => void }) {
   // Shared work/school moments show inside each role, not as a role of their own.
   const groups = useMemo(() => (category ? groupsOf(category).filter((g) => !g.shared) : []), [category]);
   const browsing = !query.trim() && !category && !stage && !tone;
-  const choosingRole = category === "roles" && !group && !query.trim();
 
   return (
     <div className="overflow-hidden rounded-2xl border border-slate-200">
@@ -109,26 +101,6 @@ export function LifeEventBrowser({ onPick }: { onPick: (id: string) => void }) {
                 </button>
               ))}
             </div>
-          ) : choosingRole ? (
-            <>
-              <p className="mb-2 px-1 text-sm text-slate-500">Choose a role to see its milestones:</p>
-              <div className="grid grid-cols-2 gap-2 lg:grid-cols-3">
-                {groups.map((g) => (
-                  <button
-                    key={g.name}
-                    type="button"
-                    onClick={() => setGroup(g.name)}
-                    className="flex items-center gap-2.5 rounded-xl border border-slate-200 p-2.5 text-left transition-colors hover:border-brand-300 hover:bg-brand-50/40"
-                  >
-                    <span className="text-2xl">{g.emoji}</span>
-                    <span className="min-w-0">
-                      <span className="block text-sm font-semibold leading-tight text-slate-800">{g.name}</span>
-                      <span className="text-xs text-slate-400">{g.count} milestones</span>
-                    </span>
-                  </button>
-                ))}
-              </div>
-            </>
           ) : results.length === 0 ? (
             <div className="py-12 text-center text-sm text-slate-400">
               Nothing matches.{" "}
@@ -138,19 +110,10 @@ export function LifeEventBrowser({ onPick }: { onPick: (id: string) => void }) {
             </div>
           ) : (
             <>
-              {category === "roles" && group ? (
-                <div className="mb-3 flex items-center gap-2">
-                  <StageChip active={false} onClick={() => setGroup(null)}>
-                    ← All roles
-                  </StageChip>
-                  <span className="text-sm font-semibold text-slate-700">
-                    {groups.find((g) => g.name === group)?.emoji} {group}
-                  </span>
-                </div>
-              ) : category && groups.length > 1 && (
+              {category && groups.length > 1 && (
                 <div className="mb-3 flex flex-wrap gap-1">
                   <StageChip active={!group} onClick={() => setGroup(null)}>
-                    {category === "roles" ? "All roles" : "All"}
+                    All
                   </StageChip>
                   {groups.map((g) => (
                     <StageChip key={g.name} active={group === g.name} onClick={() => setGroup(group === g.name ? null : g.name)}>
@@ -249,97 +212,5 @@ function CategoryButton(props: { active: boolean; onClick: () => void; emoji: st
       <span className="min-w-0 flex-1 truncate">{props.label}</span>
       <span className="text-[11px] text-slate-400">{props.count}</span>
     </button>
-  );
-}
-
-/** The chosen template, with "Change", and inputs for its placeholders. */
-export function LifeEventForm(props: {
-  template: LifeEventTemplate;
-  values: Record<string, string>;
-  onValue: (key: string, value: string, profile: Profile | null) => void;
-  onChange: () => void;
-  onRemove?: () => void;
-}) {
-  const { snapshot } = useJournal();
-  const { template } = props;
-  // A bound typed template ("Visited Japan") still offers its country field, to change it.
-  const fields = fieldsOf((template.vocab && template.bound ? lifeEvent(template.id.split("@")[0]) : template).title);
-  const people = useMemo(() => snapshot.profiles.filter((p) => p.kind === "person" || p.kind === "me"), [snapshot.profiles]);
-  const places = useMemo(() => snapshot.profiles.filter((p) => p.kind === "place" || p.kind === "shop" || p.kind === "page"), [snapshot.profiles]);
-  const category = categoryOf(template.category);
-
-  return (
-    <div className="rounded-2xl border border-brand-100 bg-gradient-to-b from-brand-50/60 to-white p-4">
-      <div className="flex items-center gap-3">
-        <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-white text-2xl shadow-sm ring-1 ring-brand-100">{template.emoji}</span>
-        <div className="min-w-0 flex-1">
-          <div className="text-[11px] font-semibold uppercase tracking-wider text-brand-600">
-            {category.label} › {template.group}
-          </div>
-          <div className="truncate font-semibold text-slate-800">{displayLabel(template)}</div>
-        </div>
-        <button
-          type="button"
-          onClick={props.onChange}
-          className="flex items-center gap-1 rounded-full px-3 py-1 text-xs font-medium text-slate-500 hover:bg-white hover:text-slate-800"
-        >
-          <ArrowLeftIcon /> Change
-        </button>
-        {props.onRemove && (
-          <button
-            type="button"
-            onClick={props.onRemove}
-            className="rounded-full p-1.5 text-slate-400 hover:bg-white hover:text-rose-600"
-            aria-label="Remove this life event"
-          >
-            <XIcon />
-          </button>
-        )}
-      </div>
-
-      {fields.length > 0 && (
-        <div className="mt-4 grid gap-3 sm:grid-cols-2">
-          {fields.map((f) => {
-            const options = f.kind === "person" ? people : f.kind === "place" ? places : null;
-            const things = f.kind === "vocab" && f.vocab ? VOCAB[f.vocab] : null;
-            const listId = options || things ? `le-${template.id}-${f.key}`.replace(/[^\w-]/g, "_") : undefined;
-            return (
-              <label key={f.key} className="block">
-                <span className="mb-1 flex items-center gap-1 text-xs font-medium text-slate-600">
-                  {f.label}
-                  {options && <span className="font-normal text-slate-400">— pick a profile to tag it</span>}
-                </span>
-                <input
-                  className={inputClass}
-                  type={f.kind === "number" ? "number" : "text"}
-                  list={listId}
-                  value={props.values[f.key] ?? ""}
-                  onChange={(e) => {
-                    const v = e.target.value;
-                    const match = options?.find((p) => p.name.toLowerCase() === v.trim().toLowerCase()) ?? null;
-                    props.onValue(f.key, v, match);
-                  }}
-                  placeholder={f.kind === "person" ? "Name" : f.kind === "place" ? "Name of the place" : f.vocab ? `Choose ${KINDS[f.vocab].any}…` : ""}
-                />
-                {things && (
-                  <datalist id={listId}>
-                    {things.map((t) => (
-                      <option key={t.id} value={t.label} />
-                    ))}
-                  </datalist>
-                )}
-                {options && (
-                  <datalist id={listId}>
-                    {options.map((p) => (
-                      <option key={p.id} value={p.name} />
-                    ))}
-                  </datalist>
-                )}
-              </label>
-            );
-          })}
-        </div>
-      )}
-    </div>
   );
 }

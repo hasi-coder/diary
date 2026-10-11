@@ -70,7 +70,7 @@ export const CATEGORIES: LifeEventCategory[] = [
   { id: "baby", emoji: "👶", label: "Baby & toddler" },
   { id: "childhood", emoji: "🧒", label: "Childhood" },
   { id: "teen", emoji: "🧑‍🎤", label: "Teen & coming of age" },
-  { id: "roles", emoji: "🧑‍💼", label: "Roles & careers" },
+  { id: "roles", emoji: "🧑‍💼", label: "Work & school life" },
   { id: "education", emoji: "🎓", label: "Education" },
   { id: "career", emoji: "💼", label: "Work & career" },
   { id: "relationship", emoji: "💞", label: "Love & relationships" },

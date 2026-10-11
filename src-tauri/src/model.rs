@@ -228,6 +228,9 @@ pub struct Activity {
     /// Free text after the clause: "for the first time", "after a 12-hour shift".
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub detail: String,
+    /// "was" for something that was going on ("was feeling festive"); empty for "is".
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub tense: String,
 }
 
 /// A person (or page) tagged at a spot on a photo; `x`/`y` are 0..1 of the image size.

@@ -1,10 +1,12 @@
-// The story of a post, clause by clause: a feeling, activities and life events
-// in the order the author wants. Each clause can be reworded, tag its own people
-// and carry extra words; a preview shows the sentence as the feed will.
+// The story of a post, clause by clause: feelings, activities, life events and
+// roles in the order the author wants. Each clause can be reworded, told as
+// "is" or "was", tag its own people and carry extra words; a preview shows the
+// sentence as the feed will.
 import { useState } from "react";
-import { ArrowDownIcon, ArrowUpIcon, DotsSixVerticalIcon, UserPlusIcon, XIcon } from "@phosphor-icons/react";
+import { ArrowDownIcon, ArrowUpIcon, DotsSixVerticalIcon, PlusIcon, UserPlusIcon, XIcon } from "@phosphor-icons/react";
 import type { Activity } from "../lib/api";
 import { useJournal } from "../lib/journal";
+import { kindOf } from "../lib/story";
 import { PostHeadline, TagPeoplePicker } from "./PostExtras";
 
 export function StoryEditor(props: {
@@ -13,6 +15,10 @@ export function StoryEditor(props: {
   authorId: string;
   withIds: string[];
   placeId: string | null;
+  /** How the story is told: "is" (now) or "was" (then); sets every state clause. */
+  tense: "is" | "was";
+  onTense: (tense: "is" | "was") => void;
+  onAdd: () => void;
 }) {
   const { profiles } = useJournal();
   const { clauses, onChange } = props;
@@ -43,8 +49,20 @@ export function StoryEditor(props: {
             className={`group flex items-center gap-1.5 rounded-lg bg-white px-1.5 py-1 text-sm shadow-sm ring-1 ring-slate-200 ${dragging === i ? "opacity-50" : ""}`}
           >
             <DotsSixVerticalIcon className="shrink-0 cursor-grab text-slate-300" aria-hidden />
+            {kindOf(c) === "state" ? (
+              <button
+                type="button"
+                title="Is it happening, or was it?"
+                onClick={() => update(i, { tense: c.tense === "was" ? undefined : "was" })}
+                className="w-9 shrink-0 rounded-full bg-slate-100 py-0.5 text-[11px] font-semibold text-slate-500 hover:bg-brand-50 hover:text-brand-700"
+              >
+                {c.tense === "was" ? "was" : "is"}
+              </button>
+            ) : (
+              <span className="w-9 shrink-0 text-center text-[10px] font-semibold uppercase tracking-wide text-slate-300">{kindOf(c) === "as" ? "as" : "did"}</span>
+            )}
             <span className="w-6 shrink-0 text-center">{c.emoji}</span>
-            {c.verb && <span className="shrink-0 font-medium text-slate-700">{c.verb}</span>}
+            {c.verb && c.verb !== "as" && <span className="shrink-0 font-medium text-slate-700">{c.verb}</span>}
             <input
               value={c.object}
               onChange={(e) => update(i, { object: e.target.value })}
@@ -87,9 +105,28 @@ export function StoryEditor(props: {
           </li>
         ))}
       </ol>
+      <div className="mt-2 flex flex-wrap items-center gap-2 px-1">
+        <button type="button" onClick={props.onAdd} className="flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium text-brand-700 hover:bg-brand-50">
+          <PlusIcon /> Add to the story
+        </button>
+        <span className="ml-auto text-[11px] text-slate-400">Tell it as</span>
+        {(["is", "was"] as const).map((t) => (
+          <button
+            key={t}
+            type="button"
+            onClick={() => props.onTense(t)}
+            className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${props.tense === t ? "bg-brand-600 text-white" : "bg-slate-100 text-slate-500 hover:bg-slate-200"}`}
+          >
+            {t === "is" ? "is · now" : "was · then"}
+          </button>
+        ))}
+      </div>
       <p className="mt-2 px-1 leading-relaxed">
         <span className="mr-1 text-[11px] font-semibold uppercase tracking-wider text-slate-400">Reads as</span>
-        <PostHeadline preview post={{ authorId: props.authorId, feeling: null, activities: clauses, withIds: props.withIds, placeId: props.placeId }} />
+        <PostHeadline
+          preview
+          post={{ authorId: props.authorId, kind: "status", title: "", feeling: null, activities: clauses, eventType: "", withIds: props.withIds, placeId: props.placeId }}
+        />
       </p>
     </div>
   );

@@ -1067,8 +1067,9 @@ impl Workspace {
         let content = input.content.trim().to_string();
         let title: String = input.title.trim().chars().take(300).collect();
         match input.kind {
-            PostKind::Status if content.is_empty() && input.media_ids.is_empty() => {
-                return Err(Error::Invalid("Write something or attach a photo or video.".into()))
+            // A story on its own ("📈 got promoted") is a post too.
+            PostKind::Status if content.is_empty() && input.media_ids.is_empty() && !input.activities.iter().any(|a| !a.object.trim().is_empty()) => {
+                return Err(Error::Invalid("Write something, tell the story or attach a photo or video.".into()))
             }
             PostKind::Article if title.is_empty() => return Err(Error::Invalid("An article needs a title.".into())),
             PostKind::Article if content.is_empty() => return Err(Error::Invalid("An article needs some text.".into())),
@@ -1147,6 +1148,7 @@ impl Workspace {
                 thing: short(&a.thing, 120),
                 with_ids: clause_with,
                 detail: short(&a.detail, 120),
+                tense: if a.tense == "was" { "was".into() } else { String::new() },
             });
         }
         let event_type = short(&input.event_type, 120);
@@ -2032,6 +2034,8 @@ mod tests {
         assert_eq!(story.activities[0].with_ids, vec![sarah.id.clone()]);
         assert_eq!(story.activities[0].detail, "for the first time");
         assert_eq!(story.activities[1].verb, "");
+        let was = ws.save_post(PostInput { activities: vec![Activity { tense: "was".into(), ..act("feeling", "festive") }, Activity { tense: "will be".into(), ..act("feeling", "tired") }], ..base() }).unwrap();
+        assert_eq!((was.activities[0].tense.as_str(), was.activities[1].tense.as_str()), ("was", ""), "only is/was");
         assert!(involved(&story).contains(&sarah.id.as_str()), "clause tags count as involvement");
         let ghost = Activity { with_ids: vec!["missing".into()], ..party };
         assert!(ws.save_post(PostInput { activities: vec![ghost], ..base() }).is_err());

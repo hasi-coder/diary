@@ -1,11 +1,11 @@
 // Write or edit a post, article or album, as any profile, with a rich-text
-// editor, mentions and attachments. Articles and albums open full-screen.
+// editor, mentions, attachments and a story (feelings, activities, life events
+// and roles, in order). Articles and albums open full-screen.
 import { useEffect, useRef, useState } from "react";
 import {
   ArticleIcon,
   AtIcon,
   CalendarBlankIcon,
-  FlagBannerIcon,
   ImageIcon,
   MapPinIcon,
   SmileyIcon,
@@ -16,14 +16,14 @@ import {
   XIcon,
   type Icon,
 } from "@phosphor-icons/react";
-import { api, errorMessage, type Activity, type Feeling, type Post, type PostKind, type Profile } from "../lib/api";
-import { bindEvent, combineTitles, displayLabel, eventsOf, fillTitle, lifeEvent, unbindEvent } from "../lib/lifeEvents";
+import { api, errorMessage, type Activity, type Post, type PostKind } from "../lib/api";
+import { kindOf, storyOf } from "../lib/story";
 import { useJournal } from "../lib/journal";
 import { fromDatetimeLocal, KINDS, toDatetimeLocal } from "../lib/format";
 import { AlbumEditor, AttachmentStrip, useAttachments } from "./Attachments";
-import { LifeEventBrowser, LifeEventForm } from "./LifeEventPicker";
-import { CheckInPicker, clausesOf, ExtrasChips, FeelingPicker, TagPeoplePicker } from "./PostExtras";
+import { CheckInPicker, ExtrasChips, TagPeoplePicker } from "./PostExtras";
 import { StoryEditor } from "./StoryEditor";
+import { StoryPicker } from "./StoryPicker";
 import { RichEditor, type RichEditorHandle } from "./RichEditor";
 import { Avatar, Button, ErrorText } from "./ui";
 
@@ -33,14 +33,14 @@ export const POST_KINDS: { kind: PostKind; label: string; icon: Icon }[] = [
   { kind: "status", label: "Post", icon: NotePencilIcon },
   { kind: "article", label: "Article", icon: ArticleIcon },
   { kind: "album", label: "Album", icon: ImagesSquareIcon },
-  { kind: "milestone", label: "Life event", icon: FlagBannerIcon },
 ];
 
 export function Composer(props: { defaultAuthorId?: string; editing?: Post; onDone?: () => void }) {
   const { editing, onDone } = props;
   const { snapshot, profiles, owner, refresh } = useJournal();
-  const [kind, setKind] = useState<PostKind>(editing?.kind ?? "status");
-  const [title, setTitle] = useState(editing?.title ?? "");
+  // Life-event posts from before stories are edited as posts: their events become clauses.
+  const [kind, setKind] = useState<PostKind>(editing?.kind === "milestone" ? "status" : (editing?.kind ?? "status"));
+  const [title, setTitle] = useState(editing?.kind === "milestone" ? "" : (editing?.title ?? ""));
   const [authorId, setAuthorId] = useState(editing?.authorId ?? props.defaultAuthorId ?? owner.id);
   const [content, setContent] = useState(editing?.content ?? "");
   const [when, setWhen] = useState(() => (editing ? toDatetimeLocal(editing.occurredAt) : ""));
@@ -54,30 +54,13 @@ export function Composer(props: { defaultAuthorId?: string; editing?: Post; onDo
   const [dragging, setDragging] = useState(false);
   const [withIds, setWithIds] = useState<string[]>(editing?.withIds ?? []);
   const [placeId, setPlaceId] = useState<string | null>(editing?.placeId ?? null);
-  // The story, clause by clause and in order: a feeling, activities and life events.
-  // (A feeling saved the old way becomes the first clause.)
-  const [activities, setActivities] = useState<Activity[]>(() => (editing ? clausesOf(editing) : []));
-  const setFeeling = (f: Feeling) => {
-    const word = f.text.replace(/^feeling /, "");
-    const clause: Activity = { emoji: f.emoji, verb: "feeling", object: word, thing: `feeling:${word}` };
-    setActivities((list) => {
-      const at = list.findIndex((a) => a.verb === "feeling");
-      return at >= 0 ? list.map((a, i) => (i === at ? { ...a, ...clause } : a)) : [clause, ...list];
-    });
-  };
-  // Life events: the main one first, then any combined with it.
-  // Typed templates ("Visited {country}") are edited unbound, with the thing as a field value.
-  const [events, setEvents] = useState<string[]>(() => (editing ? eventsOf(editing).map((id) => unbindEvent(id).id) : []));
-  // Which slot the browser fills: an index to replace, events.length to add one, null when closed.
-  const [picking, setPicking] = useState<number | null>(null);
-  // Template inputs per event, the profiles picked for them ("<event>|<key>"),
-  // and whether the title was typed by hand (then it stops following the templates).
-  const [eventValues, setEventValues] = useState<Record<string, Record<string, string>>>(() =>
-    Object.fromEntries((editing ? eventsOf(editing) : []).map((id) => [unbindEvent(id).id, unbindEvent(id).values])),
-  );
-  const [eventLinks, setEventLinks] = useState<Record<string, Profile>>({});
-  const [titleEdited, setTitleEdited] = useState(!!editing);
-  const [picker, setPicker] = useState<"with" | "place" | "feeling" | null>(null);
+  // The story, clause by clause and in order: feelings, activities, life events and roles.
+  const [activities, setActivities] = useState<Activity[]>(() => (editing ? storyOf(editing) : []));
+  // New clauses follow how the story is being told: "is" (now) or "was" (then).
+  const [tense, setTense] = useState<"is" | "was">(() => (editing && storyOf(editing).some((c) => c.tense === "was") ? "was" : "is"));
+  const addClause = (c: Activity) =>
+    setActivities((list) => [...list, kindOf(c) === "state" && tense === "was" ? { ...c, tense: "was" as const } : c].slice(0, 12));
+  const [picker, setPicker] = useState<"with" | "place" | "story" | null>(null);
 
   const fullScreen = expanded || kind !== "status";
 
@@ -99,73 +82,15 @@ export function Composer(props: { defaultAuthorId?: string; editing?: Post; onDo
     return () => window.removeEventListener("keydown", onKey);
   });
 
-  const unlink = (p: Profile | undefined) => {
-    if (!p) return;
-    setWithIds((ids) => ids.filter((x) => x !== p.id));
-    setPlaceId((id) => (id === p.id ? null : id));
-  };
-  const link = (p: Profile) => {
-    if (p.kind === "person" || p.kind === "me") setWithIds((ids) => (ids.includes(p.id) || p.id === authorId ? ids : [...ids, p.id]));
-    else setPlaceId(p.id);
-  };
-
-  const autoTitle = (ids: string[], values: Record<string, Record<string, string>>) => {
-    if (!titleEdited) setTitle(combineTitles(ids.map((id) => fillTitle(lifeEvent(id), values[id] ?? {}) ?? displayLabel(lifeEvent(id)))));
-  };
-
-  /** Drop an event's inputs, untagging the profiles picked for it. */
-  const forget = (id: string) => {
-    const links = Object.entries(eventLinks).filter(([k]) => k.startsWith(`${id}|`));
-    links.forEach(([, p]) => unlink(p));
-    setEventLinks((all) => Object.fromEntries(Object.entries(all).filter(([k]) => !k.startsWith(`${id}|`))));
-    const { [id]: _, ...values } = eventValues;
-    setEventValues(values);
-    return values;
-  };
-
-  const pickEvent = (picked: string) => {
-    const slot = picking ?? 0;
-    setPicking(null);
-    // "Visited Japan" from a search becomes "Visited {country}" with Japan filled in.
-    const { id, values: implied } = unbindEvent(picked);
-    if (events.includes(id)) return;
-    const values = { ...(slot < events.length ? forget(events[slot]) : eventValues), [id]: implied };
-    setEventValues(values);
-    const next = slot < events.length ? events.map((e, i) => (i === slot ? id : e)) : [...events, id];
-    setEvents(next);
-    autoTitle(next, values);
-  };
-
-  const removeEvent = (index: number) => {
-    const values = forget(events[index]);
-    const next = events.filter((_, i) => i !== index);
-    setEvents(next);
-    autoTitle(next, values);
-  };
-
-  const setEventValue = (id: string, key: string, value: string, profile: Profile | null) => {
-    const values = { ...eventValues, [id]: { ...eventValues[id], [key]: value } };
-    setEventValues(values);
-    const linkKey = `${id}|${key}`;
-    if (eventLinks[linkKey]?.id !== profile?.id) {
-      unlink(eventLinks[linkKey]);
-      if (profile) link(profile);
-      setEventLinks(({ [linkKey]: _, ...rest }) => (profile ? { ...rest, [linkKey]: profile } : rest));
-    }
-    autoTitle(events, values);
-  };
-
   const hasText = content.trim() !== "";
   const ready = !busy && !attachments.uploading && !attachments.failed;
   const canSubmit =
     ready &&
     (kind === "status"
-      ? hasText || attachments.mediaIds.length > 0
+      ? hasText || attachments.mediaIds.length > 0 || activities.some((c) => c.object.trim() !== "")
       : kind === "article"
         ? title.trim() !== "" && hasText
-        : kind === "milestone"
-          ? title.trim() !== "" && events.length > 0
-          : title.trim() !== "" && attachments.mediaIds.length > 0);
+        : title.trim() !== "" && attachments.mediaIds.length > 0);
 
   const submit = async () => {
     if (!canSubmit) return;
@@ -185,8 +110,8 @@ export function Composer(props: { defaultAuthorId?: string; editing?: Post; onDo
         placeId,
         feeling: null,
         activities,
-        eventType: events[0] ? bindEvent(events[0], eventValues[events[0]] ?? {}) : "",
-        alsoEventTypes: events.slice(1).map((id) => bindEvent(id, eventValues[id] ?? {})),
+        eventType: "",
+        alsoEventTypes: [],
       });
       attachments.committed();
       if (!editing) {
@@ -200,11 +125,7 @@ export function Composer(props: { defaultAuthorId?: string; editing?: Post; onDo
         setWithIds([]);
         setPlaceId(null);
         setActivities([]);
-        setEvents([]);
-        setPicking(null);
-        setEventValues({});
-        setEventLinks({});
-        setTitleEdited(false);
+        setTense("is");
       }
       await refresh();
       onDone?.();
@@ -221,18 +142,14 @@ export function Composer(props: { defaultAuthorId?: string; editing?: Post; onDo
       ? "Tell the story… Type @ to mention someone."
       : kind === "album"
         ? "Say something about this album (optional)…"
-        : kind === "milestone"
-          ? "Tell the story behind it (optional)…"
         : author.kind === "me"
           ? "What happened today? Type @ to mention someone."
           : `Write something as ${author.name}…`;
   const saveLabel = editing
     ? "Save changes"
-    : { status: "Encrypt & Save", article: "Publish article", album: "Create album", milestone: "Add life event" }[kind];
+    : { status: "Encrypt & Save", article: "Publish article", album: "Create album", milestone: "Encrypt & Save" }[kind];
   const hint =
-    kind === "milestone" && events.length === 0
-      ? "Choose the kind of life event"
-      : kind === "article" && !title.trim()
+    kind === "article" && !title.trim()
       ? "Add a title"
       : kind === "album" && !title.trim()
         ? "Name the album"
@@ -248,10 +165,7 @@ export function Composer(props: { defaultAuthorId?: string; editing?: Post; onDo
         <button
           key={k}
           type="button"
-          onClick={() => {
-            setKind(k);
-            if (k === "milestone") setShowWhen(true);
-          }}
+          onClick={() => setKind(k)}
           className={`flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold transition-colors ${
             kind === k ? "bg-brand-50 text-brand-700" : "text-slate-500 hover:bg-slate-100"
           }`}
@@ -287,13 +201,12 @@ export function Composer(props: { defaultAuthorId?: string; editing?: Post; onDo
       value={title}
       onChange={(e) => {
         setTitle(e.target.value.replace(/\n/g, " "));
-        if (kind === "milestone") setTitleEdited(e.target.value !== "");
         e.target.style.height = "auto";
         e.target.style.height = `${e.target.scrollHeight}px`;
       }}
       onKeyDown={(e) => e.key === "Enter" && e.preventDefault()}
       autoFocus={!editing}
-      placeholder={kind === "article" ? "Article title" : kind === "milestone" ? "What happened?" : "Album name"}
+      placeholder={kind === "article" ? "Article title" : "Album name"}
       className="mb-3 w-full resize-none overflow-hidden bg-transparent text-3xl font-bold leading-tight text-slate-900 placeholder-slate-300 outline-none"
     />
   );
@@ -336,50 +249,8 @@ export function Composer(props: { defaultAuthorId?: string; editing?: Post; onDo
         <div className={`flex gap-4 ${fullScreen ? `mx-auto w-full ${kind === "album" ? "max-w-5xl" : "max-w-3xl"} ${kind === "album" ? "" : "h-full"}` : ""}`}>
           {!editing && !fullScreen && <Avatar profile={author} />}
           <div className={`relative min-w-0 flex-1 ${fullScreen && kind !== "album" ? "flex flex-col" : ""}`}>
-            {kind === "milestone" && (events.length === 0 || picking !== null) ? (
-              <div className="mb-5">
-                <div className="mb-2 flex items-center justify-between">
-                  <p className="text-sm font-medium text-slate-600">
-                    {events.length === 0 ? "What kind of life event?" : picking === events.length ? "Combine with another life event" : "Choose a different life event"}
-                  </p>
-                  {events.length > 0 && (
-                    <button type="button" onClick={() => setPicking(null)} className="text-sm font-medium text-slate-500 hover:text-slate-800">
-                      Cancel
-                    </button>
-                  )}
-                </div>
-                <LifeEventBrowser onPick={pickEvent} />
-              </div>
-            ) : (
-              <>
-                {kind === "milestone" && (
-                  <div className="mb-5 space-y-2">
-                    {events.map((id, i) => (
-                      <LifeEventForm
-                        key={id}
-                        template={lifeEvent(bindEvent(id, eventValues[id] ?? {}))}
-                        values={eventValues[id] ?? {}}
-                        onValue={(key, value, profile) => setEventValue(id, key, value, profile)}
-                        onChange={() => setPicking(i)}
-                        onRemove={events.length > 1 ? () => removeEvent(i) : undefined}
-                      />
-                    ))}
-                    {events.length < 5 && (
-                      <button
-                        type="button"
-                        onClick={() => setPicking(events.length)}
-                        className="w-full rounded-xl border border-dashed border-slate-300 py-2 text-sm font-medium text-slate-500 hover:border-brand-400 hover:text-brand-700"
-                      >
-                        + Combine with another life event
-                      </button>
-                    )}
-                    <p className="text-xs text-slate-400">The title below fills itself in; edit it freely.</p>
-                  </div>
-                )}
-                {titleInput}
-                {editorEl}
-              </>
-            )}
+            {titleInput}
+            {editorEl}
 
             {kind === "album" ? (
               <div className="mt-4">
@@ -399,7 +270,16 @@ export function Composer(props: { defaultAuthorId?: string; editing?: Post; onDo
                 <AttachmentStrip items={attachments.items} onRemove={attachments.remove} />
               </>
             )}
-            <StoryEditor clauses={activities} onChange={setActivities} authorId={authorId} withIds={withIds} placeId={placeId} />
+            <StoryEditor
+              clauses={activities}
+              onChange={setActivities}
+              authorId={authorId}
+              withIds={withIds}
+              placeId={placeId}
+              tense={tense}
+              onTense={(t) => (setTense(t), setActivities((list) => list.map((c) => (kindOf(c) === "state" ? { ...c, tense: t === "was" ? ("was" as const) : undefined } : c))))}
+              onAdd={() => setPicker("story")}
+            />
             <ExtrasChips
               withIds={withIds}
               placeId={placeId}
@@ -469,10 +349,10 @@ export function Composer(props: { defaultAuthorId?: string; editing?: Post; onDo
             {picker === "place" && <CheckInPicker onPick={setPlaceId} onClose={() => setPicker(null)} />}
           </div>
           <div className="relative">
-            <ToolButton title="Feeling / activity" active={activities.length > 0} onClick={() => setPicker(picker === "feeling" ? null : "feeling")}>
+            <ToolButton title="Add to the story: feeling, doing, life event, as …" active={activities.length > 0} onClick={() => setPicker("story")}>
               <SmileyIcon size={20} />
             </ToolButton>
-            {picker === "feeling" && <FeelingPicker onPick={setFeeling} onAddActivity={(a) => setActivities((list) => [...list, a].slice(0, 12))} onClose={() => setPicker(null)} />}
+            {picker === "story" && <StoryPicker onAdd={addClause} onClose={() => setPicker(null)} />}
           </div>
           <ToolButton title="Set the date" active={showWhen} onClick={() => setShowWhen((s) => !s)}>
             <CalendarBlankIcon size={20} />

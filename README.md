@@ -126,30 +126,39 @@ The composer has three modes:
 | **Post** | Everyday entries: text plus up to 20 photos/videos. | Inline in the feed with a photo grid. |
 | **Article** | Long-form writing with a title. The first image is the cover. | A teaser card in the feed (cover, title, excerpt, reading time) that opens a reading view. |
 | **Album** | A titled collection of up to 500 photos and videos, each with its own caption. Drag to add; reorder; mark the cover. | A teaser with a grid in the feed, opening an album page with captioned tiles. |
-| **Life event** | One or more of **~7,500 life events** (see below), with a title that fills itself in. | A centred card with a big icon in the feed, plus a **Life events** timeline on the profile. |
 
-Every type can also carry Facebook-style extras, shown in the headline. For example: *"Alex
-Morgan is 😊 feeling happy with Sarah Jenkins and Dev Patel at The Rusty Bean."*
+There is no separate "life event" post: life events are part of a post's **story** (below). A
+post whose story has life events shows them big in the feed and in the profile's **Life
+events** timeline.
 
-- **Feeling / activity** (☺): build the post's story from **clauses**:
-  - a **feeling** (*happy*, *grateful*, *nostalgic*);
-  - **activities** (*working as a nurse*, *attending an office party*, *wearing a saree*,
-    *watching …*);
-  - **life events** (*got promoted*, *visited Japan*, *earned a BSc*), on any post.
+Every type can also carry a story and Facebook-style extras, shown in the headline. For example:
+*"Alex Morgan is 😊 feeling happy with Sarah Jenkins and Dev Patel at The Rusty Bean."*
+
+- **Story** (☺): tell what happened as a sentence, built from **clauses** chosen in four groups:
+
+  | Group | Example clause | Reads |
+  | --- | --- | --- |
+  | 😊 **Feeling** | feeling festive | *is / was* 🥳 feeling festive |
+  | 🎬 **Doing** (a verb, then a thing or your own words) | attending + an office party | *is / was* 🎄 attending an office party |
+  | 🏁 **Life events** (~7,500, grouped by category) | got promoted, visited Japan | 📈 got promoted (a done thing: no *is/was*) |
+  | 🧑‍⚕️ **As** (roles) | *as a nurse* joins the clause before it; *a nurse* stands alone | 🎄 attending the party **as a nurse** · *was* a nurse |
 
   In the story editor under the post, you can:
-  - drag clauses (or use ↑ ↓) into the order you want;
-  - reword each one;
-  - tag people on a single clause (*attending the ward Christmas party **with Dev***);
+  - drag clauses (or use ↑ ↓) into any order;
+  - switch each one between **is** (now) and **was** (then), or tell the whole story one way;
+  - reword it;
+  - tag people on just that clause (*attending the ward party **with Dev***);
   - add your own words (*wearing a saree **for the first time at work***).
 
-  A preview shows the sentence the feed will show, for example:
+  A preview shows the sentence the feed will show:
 
-  > Sarah Jenkins is 🥳 feeling festive, 💼 working as a nurse, 🎄 attending the ward Christmas
-  > party with Dev Patel and 🥻 wearing a saree for the first time at work.
+  > Sarah Jenkins was 🥳 feeling festive, 🎄 attending the ward Christmas party with Dev Patel
+  > 🧑‍⚕️ as a nurse and 🥻 wearing a saree for the first time at work.
 
-  Things that are done (life events) read without "is": *Alex 📈 got promoted with Dev after a
-  long week, and is 🏢 attending an office party.*
+  > Alex Morgan is 😊 feeling happy, 🏢 attending an office party 🧑‍⚕️ as a nurse, and 📈 got
+  > promoted and 🇱🇰 visited Sri Lanka.
+
+  A story on its own, with no text or photos, is a post.
 - **Tag people** (👤+): people and pages you were with.
 - **Check in** (📍): a place, shop or page.
 
@@ -167,21 +176,21 @@ All three use the same **rich-text editor**:
 
 Entries can be **back-dated** with "Happened on".
 
-### Life events, activities and shared vocabularies
+### Stories, life events and shared vocabularies
 
-A post can say three different kinds of thing, and they are kept apart so nothing is listed twice:
+A post's story is a list of **clauses** (`activities[]`), up to 12, in the author's order
+([story.ts](src/lib/story.ts) joins them into a sentence). Each clause has:
 
-| | What it is | Example | Where |
-| --- | --- | --- | --- |
-| **Feeling** | One mood, as a clause | 😊 feeling happy | `FEELINGS` in [catalog.ts](src/lib/catalog.ts) |
-| **Activities** | What's happening now, or in the moment the post is about | 💼 working as a nurse, 📅 attending an office party, 🥻 wearing a saree | `ACTIVITY_VERBS` in [catalog.ts](src/lib/catalog.ts) |
-| **Life events** | Real turning points. On a milestone post they are the headline (up to 5 combined); on any post they can also be clauses of the story | 🎓 Graduated from university **and** 💼 got a full-time offer | [lifeEvents.ts](src/lib/lifeEvents.ts), [lifeEventRoles.ts](src/lib/lifeEventRoles.ts) |
+- an emoji, a verb and an object;
+- the `thing` it names (`role:nurse`, `occasion:office_party`, `event:travel.visited@jp`);
+- its own tagged people (`withIds`) and extra words (`detail`);
+- a `tense` (`was`, or none for *is*).
 
-Feelings, activities and life events are all stored as **clauses** of a post (`activities[]`), in
-the author's order. A post can have up to 12. Each clause has its own tagged people and extra words.
-
-So "Sarah is 🥳 feeling festive, 💼 working as a nurse, 🎄 attending an office Christmas party and 🥻
-wearing a saree" is an ordinary post with a feeling and three activities, not a life event.
+| Clause | How it's recognised | How it joins |
+| --- | --- | --- |
+| state | a verb ("feeling", "attending"), or a role on its own ("a nurse") | after *is* or *was*; a change of tense or kind starts a new part: ", and was …" |
+| done (life event) | no verb, `thing: "event:…"` | reads on its own: "📈 got promoted" |
+| as | verb `as` | attaches to the clause before it: "attending the party as a nurse" |
 
 **Shared vocabularies** ([vocab.ts](src/lib/vocab.ts)) list each thing once:
 
@@ -189,16 +198,14 @@ wearing a saree" is an ordinary post with a feeling and three activities, not a 
 - every country, about 100 sports, 28 races, 90 hobbies, 47 instruments and 108 languages
 - pets, exams (including O/L and A/L), degrees and subjects
 
-Both sides draw on these lists:
+Doing, As and typed life events all pick from them:
 
-- An **activity** is a verb plus a thing. "Working as" picks a role, "wearing" picks clothing,
-  "attending" picks an occasion. Free text works too.
-- A **typed life event** names a kind of thing: `Visited {country}`, `Became {role}`,
-  `Took up {sport}`, `Wore {clothing} for the first time`, `Passed {exam}`.
-  - It is one template, stored bound to the thing chosen: `travel.visited@jp` reads as
-    "🇯🇵 Visited Japan".
-  - Search expands it, so typing "japan" offers Visited Japan, Moved to Japan, Started
-    learning Japanese and so on.
+- "Attending" picks an occasion, "wearing" picks clothing, **As** picks a role.
+- A **typed life event** (`Visited {country}`, `Became {role}`, `Took up {sport}`,
+  `Wore {clothing} for the first time`) is one template; choosing it asks which thing. It is
+  stored bound to that thing: `event:travel.visited@jp` reads as "🇯🇵 visited Japan".
+- Search expands typed life events, so "japan" finds Visited Japan, Moved to Japan, Started
+  learning Japanese and so on.
 
 **Life events** (about 2,100 templates covering about 7,500 concrete events) are in 27 categories,
 each split into sub-groups:
@@ -206,27 +213,23 @@ each split into sub-groups:
 | Area | Examples |
 | --- | --- |
 | Family, baby, childhood, teen | First smile, first steps, Kiri bath, Akuru kiyaweema, Grade 5 scholarship exam, first period, bar/bat/b-mitzvah, quinceañera, Seijin no Hi; mother & daughter, mother & son, father & daughter, father & son, grandparent and sibling moments |
-| Roles & careers | **Pick a role, then see its milestones**, from getting in and the first uniform to leaving. There are 50 roles: school students (boys', girls', mixed), university student, intern and software engineer, part-time, primary, preschool and secondary teacher, nurse, midwife, flight attendant, doctor, lawyer, secretary, typist, telephone operator, government clerk, postal worker, bus conductor, tea plucker, housemaid, beautician, hairdresser, fashion designer, model, dancer, receptionist, bank officer, garment worker, working abroad, homemaker, nanny, police, armed forces, pilot, chef, engineer, accountant, and part-time jobs. Each role also shows the shared **Work life** or **School life** moments, bound to it (`roles.work_life_burned_out@nurse`) |
+| Work & school life | Milestones grouped by role, from getting in and the first uniform to leaving, plus shared **Work life** and **School life** moments. The 50 groups are: school students (boys', girls', mixed), university student, intern and software engineer, part-time, primary, preschool and secondary teacher, nurse, midwife, flight attendant, doctor, lawyer, secretary, typist, telephone operator, government clerk, postal worker, bus conductor, tea plucker, housemaid, beautician, hairdresser, fashion designer, model, dancer, receptionist, bank officer, garment worker, working abroad, homemaker, nanny, police, armed forces, pilot, chef, engineer, accountant, and part-time jobs. Combine any of them with an **As** clause ("got my wings as a flight attendant") |
 | Education and career | Exams, degrees and fields of study (typed); `Became {role}`; work anniversaries |
 | Love, weddings and identity | Dating, love and intimacy, **spicy & naughty**, **heartache & mistakes**, polyamory and queerplatonic partnerships, Poruwa ceremony, Nikah, Anand Karaj, coming out, transition, Pride |
 | Women's and reproductive health | Fertility and IVF, pregnancy week by week, birth types, NICU, loss, menopause |
 | Everything else | Travel (typed by country), sports and races, hobbies and music, languages, pets, faith and culture, civic life, money, health and sobriety, style firsts, birthdays 1–110, anniversaries, later life, loss and remembrance |
 
-How the picker works:
-
-- It filters by **category**, **sub-group** (for roles, choose the role first), **life stage**
-  (baby to later life) and **tone** (🌶️ spicy & naughty or 💔 hard times), plus full-text search.
-- Placeholders in a title (`Married {person} at {place}`) become small form fields.
-  - People and places can be picked from profiles, which tags them on the post.
-  - Typed fields pick from the vocabulary.
-  - The title fills itself in until you edit it.
-- A milestone stores `eventType` (the main event) and `alsoEventTypes` (combined ones).
+The **Life events** tab filters by **category**, **sub-group**, **life stage** (baby to later
+life) and **tone** (🌶️ spicy & naughty or 💔 hard times), plus full-text search.
 
 Old ids keep working:
 
 - Per-item ids from before typed templates (`travel.visited_jp`, `career.became_nurse`) and
   per-role copies of shared moments (`roles.nurse_burned_out`) map to their new form when read.
 - Phase-2 keys (`work`, `home`, …) resolve to each category's "Other …" template.
+- **Life-event posts** saved before stories (`kind: milestone`, with `eventType` and
+  `alsoEventTypes`) display as stories: their title becomes the first clause. Editing one saves it
+  as an ordinary post with event clauses.
 
 ### Photos and videos
 
@@ -401,7 +404,7 @@ Defined in `src-tauri/src/model.rs` and mirrored in `src/lib/api.ts`.
 | --- | --- |
 | **Profile** | `kind` (me/person/page/shop/place), `name`, `tagline`, `bio`, `relationship`, `category`, `location`, `color`, `hasShop`, `genders[]`, `pronouns`, `terms` (neutral/feminine/masculine), `relationshipStatus`, `avatar`/`cover` (MediaRef), `coverPosition`, `relations[]` |
 | **Relation** (inside a profile) | `toId`, `kind` ("`toId` is my `kind`"), `label`/`inverseLabel` (custom), `since` |
-| **Post** | `kind` (status/article/album/milestone), `title`, `authorId`, `content` (Markdown), `occurredAt`, `withIds[]`, `placeId`, `feeling` {emoji, text}, `activities[]` (ordered clauses: {emoji, verb, object, thing, withIds[], detail}; a feeling is `verb: "feeling"`, a life event has no verb and `thing: "event:<id>"`), `eventType` + `alsoEventTypes[]` (life-event ids, possibly bound: `travel.visited@jp`), `media[]` |
+| **Post** | `kind` (status/article/album/milestone), `title`, `authorId`, `content` (Markdown), `occurredAt`, `withIds[]`, `placeId`, `feeling` {emoji, text}, `activities[]` (the story: ordered clauses {emoji, verb, object, thing, withIds[], detail, tense}; see [Stories](#stories-life-events-and-shared-vocabularies)), `media[]`. Read-only from older versions: `kind: milestone`, `eventType`, `alsoEventTypes[]` |
 | **MediaRef** (inside a post or profile) | `id`, `kind` (image/video), `mime`, `name`, `size`, `caption`, `tags[]` ({profileId, x, y} in 0..1) |
 | **Item** | `shopId`, `name`, `description`, `priceCents`, `currency`, `status` (available/reserved/sold) |
 | **Manifest** | workspace `name`, `ownerProfileId`, `createdAt` |
@@ -580,7 +583,7 @@ Where the build deliberately differs from `system_architecture_proposal.md`:
 | `54c8325` | **Password change:** re-wrap or full key rotation with crash-safe staging |
 | `1ef207d` | **Articles and albums:** post kinds, per-photo captions, album editor, the photo viewer, article reader, album pages |
 | `2d2a6c1` | **Facebook social features:** tag people, check-ins, feelings/activities, life events, photo tagging, relationships, profile pictures and cover photos |
-| *latest* | **Life for everyone:** shared vocabularies; an ordered story of clauses per post (feelings, activities and life events, each with its own people and words); ~7,500 life events from ~2,100 templates by category, sub-group (roles with their own milestones), life stage and tone (spicy, hard), combinable in one post; ~100 modern relationship kinds with gendered labels; non-binary gender identities, pronouns and relationship status |
+| *latest* | **Life for everyone:** stories: every post tells an ordered sentence of clauses (feelings, doing, ~7,500 life events, *as* roles), each with is/was, its own people and words, replacing the separate life-event post; shared vocabularies; life events by category, sub-group, life stage and tone (spicy, hard); ~100 modern relationship kinds with gendered labels; non-binary gender identities, pronouns and relationship status |
 
 ---
 
