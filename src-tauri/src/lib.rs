@@ -1,10 +1,13 @@
 pub mod commands;
 pub mod crypto;
 pub mod error;
+pub mod media;
 pub mod migrate;
 pub mod model;
 pub mod record;
 pub mod store;
+
+use tauri::Manager;
 
 pub fn run() {
     tauri::Builder::default()
@@ -23,7 +26,16 @@ pub fn run() {
             commands::save_item,
             commands::delete_item,
             commands::run_migration,
+            commands::stage_media,
+            commands::discard_media,
         ])
+        // Serves decrypted attachments to the webview; see media.rs.
+        .register_asynchronous_uri_scheme_protocol("journal", |ctx, request, responder| {
+            let app = ctx.app_handle().clone();
+            tauri::async_runtime::spawn_blocking(move || {
+                responder.respond(media::serve(&app.state::<commands::AppState>(), &request))
+            });
+        })
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

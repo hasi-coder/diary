@@ -3,6 +3,9 @@
 use std::path::PathBuf;
 use std::sync::Mutex;
 
+use base64::engine::general_purpose::STANDARD as B64;
+use base64::Engine;
+use tauri::ipc::{InvokeBody, Request};
 use tauri::State;
 use zeroize::Zeroizing;
 
@@ -20,7 +23,7 @@ impl AppState {
         Self { root, workspace: Mutex::new(None) }
     }
 
-    fn with_workspace<T>(&self, f: impl FnOnce(&mut Workspace) -> Result<T>) -> Result<T> {
+    pub(crate) fn with_workspace<T>(&self, f: impl FnOnce(&mut Workspace) -> Result<T>) -> Result<T> {
         let mut guard = self.workspace.lock().unwrap_or_else(|e| e.into_inner());
         f(guard.as_mut().ok_or(Error::Locked)?)
     }
@@ -119,5 +122,31 @@ pub fn run_migration(state: State<'_, AppState>) -> Result<Snapshot> {
     state.with_workspace(|ws| {
         ws.run_migration()?;
         Ok(ws.snapshot())
+    })
+}
+
+/// Stages an upload. The file bytes arrive as the raw IPC body; the original
+/// file name comes base64-encoded (UTF-8) in the `x-file-name` header.
+#[tauri::command]
+pub fn stage_media(state: State<'_, AppState>, request: Request<'_>) -> Result<MediaRef> {
+    let InvokeBody::Raw(bytes) = request.body() else {
+        return Err(Error::Invalid("Expected the file as a binary body.".into()));
+    };
+    let name = request
+        .headers()
+        .get("x-file-name")
+        .and_then(|v| v.to_str().ok())
+        .and_then(|v| B64.decode(v).ok())
+        .and_then(|v| String::from_utf8(v).ok())
+        .unwrap_or_default();
+    state.with_workspace(|ws| ws.stage_media(&name, bytes.clone()))
+}
+
+/// Drops staged uploads that won't be saved (e.g. a cancelled draft).
+#[tauri::command]
+pub fn discard_media(state: State<'_, AppState>, ids: Vec<String>) -> Result<()> {
+    state.with_workspace(|ws| {
+        ws.discard_media(&ids);
+        Ok(())
     })
 }

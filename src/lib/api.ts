@@ -1,5 +1,5 @@
 // Typed wrappers around the Rust commands in src-tauri/src/commands.rs.
-import { invoke } from "@tauri-apps/api/core";
+import { convertFileSrc, invoke } from "@tauri-apps/api/core";
 
 export type ProfileKind = "me" | "person" | "page" | "shop" | "place";
 
@@ -26,6 +26,7 @@ export interface Post {
   /** Markdown; mentions are stored as `@[profile:<uuid>]`. */
   content: string;
   occurredAt: number;
+  media: MediaRef[];
   createdAt: number;
   updatedAt: number;
 }
@@ -35,6 +36,31 @@ export interface PostInput {
   authorId: string;
   content: string;
   occurredAt?: number;
+  /** Attachments in display order: staged uploads or media already on the post. */
+  mediaIds: string[];
+}
+
+export type MediaKind = "image" | "video";
+
+export interface MediaRef {
+  id: string;
+  kind: MediaKind;
+  mime: string;
+  name: string;
+  size: number;
+}
+
+// Mirrors src-tauri/src/media.rs.
+export const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
+export const MAX_VIDEO_BYTES = 20 * 1024 * 1024;
+
+/** URL the webview loads to get decrypted media from the Rust backend. */
+export const mediaUrl = (id: string) => convertFileSrc(id, "journal");
+
+function base64Utf8(text: string): string {
+  let binary = "";
+  for (const byte of new TextEncoder().encode(text)) binary += String.fromCharCode(byte);
+  return btoa(binary);
 }
 
 export type ItemStatus = "available" | "reserved" | "sold";
@@ -116,6 +142,12 @@ export const api = {
   saveItem: (input: ItemInput) => invoke<Item>("save_item", { input }),
   deleteItem: (id: string) => invoke<void>("delete_item", { id }),
   runMigration: () => invoke<Snapshot>("run_migration"),
+  /** Uploads a file as a raw binary body; it stays in memory until a post references it. */
+  stageMedia: async (file: File) =>
+    invoke<MediaRef>("stage_media", new Uint8Array(await file.arrayBuffer()), {
+      headers: { "x-file-name": base64Utf8(file.name) },
+    }),
+  discardMedia: (ids: string[]) => invoke<void>("discard_media", { ids }),
 };
 
 export function errorMessage(e: unknown): string {

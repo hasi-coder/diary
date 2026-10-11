@@ -1,10 +1,11 @@
-// Write or edit a post, as any profile, with @mention autocomplete.
+// Write or edit a post, as any profile, with @mention autocomplete and attachments.
 import { useEffect, useMemo, useRef, useState } from "react";
-import { AtIcon, CalendarBlankIcon, ShieldCheckIcon } from "@phosphor-icons/react";
+import { AtIcon, CalendarBlankIcon, ImageIcon, ShieldCheckIcon } from "@phosphor-icons/react";
 import { api, errorMessage, type Post, type Profile } from "../lib/api";
 import { useJournal } from "../lib/journal";
 import { fromDatetimeLocal, KINDS, subtitle, toDatetimeLocal } from "../lib/format";
 import { activeMentionQuery, toEditable, toStored } from "../lib/mentions";
+import { AttachmentStrip, useAttachments } from "./Attachments";
 import { Avatar, Button, ErrorText } from "./ui";
 
 const KIND_ORDER = ["me", "person", "page", "shop", "place"] as const;
@@ -21,6 +22,9 @@ export function Composer(props: { defaultAuthorId?: string; editing?: Post; onDo
   const [mention, setMention] = useState<{ start: number; query: string } | null>(null);
   const [highlight, setHighlight] = useState(0);
   const textarea = useRef<HTMLTextAreaElement>(null);
+  const fileInput = useRef<HTMLInputElement>(null);
+  const attachments = useAttachments(editing?.media ?? []);
+  const [dragging, setDragging] = useState(false);
 
   // Follow the page we're on (e.g. composing on a shop's profile posts as that shop).
   useEffect(() => {
@@ -79,11 +83,18 @@ export function Composer(props: { defaultAuthorId?: string; editing?: Post; onDo
 
   const submit = async () => {
     const content = toStored(text.trim(), snapshot.profiles);
-    if (!content || busy) return;
+    if (!canSubmit) return;
     setBusy(true);
     setError(null);
     try {
-      await api.savePost({ id: editing?.id, authorId, content, occurredAt: when ? fromDatetimeLocal(when) : undefined });
+      await api.savePost({
+        id: editing?.id,
+        authorId,
+        content,
+        occurredAt: when ? fromDatetimeLocal(when) : undefined,
+        mediaIds: attachments.mediaIds,
+      });
+      attachments.committed();
       if (!editing) {
         setText("");
         setWhen("");
@@ -125,13 +136,33 @@ export function Composer(props: { defaultAuthorId?: string; editing?: Post; onDo
     }
   };
 
+  const canSubmit =
+    !busy && !attachments.uploading && !attachments.failed && (text.trim() !== "" || attachments.mediaIds.length > 0);
+
   const author = profiles.get(authorId) ?? owner;
   const placeholder =
     props.placeholder ??
     (author.kind === "me" ? "What happened today? (Markdown, @mentions and #tags)" : `Write something as ${author.name}…`);
 
   return (
-    <div className={editing ? "" : "rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"}>
+    <div
+      className={`${editing ? "" : "rounded-2xl border bg-white p-5 shadow-sm"} ${
+        dragging ? "border-brand-500 ring-2 ring-brand-500/20" : "border-slate-200"
+      }`}
+      onDragOver={(e) => {
+        if (e.dataTransfer.types.includes("Files")) {
+          e.preventDefault();
+          setDragging(true);
+        }
+      }}
+      onDragLeave={(e) => !e.currentTarget.contains(e.relatedTarget as Node) && setDragging(false)}
+      onDrop={(e) => {
+        if (e.dataTransfer.files.length === 0) return;
+        e.preventDefault();
+        setDragging(false);
+        attachments.add(e.dataTransfer.files);
+      }}
+    >
       <div className="flex gap-4">
         {!editing && <Avatar profile={author} />}
         <div className="relative min-w-0 flex-1">
@@ -146,6 +177,12 @@ export function Composer(props: { defaultAuthorId?: string; editing?: Post; onDo
             onClick={(e) => trackMention(text, e.currentTarget.selectionStart)}
             onKeyDown={onKeyDown}
             onBlur={() => setTimeout(() => setMention(null), 150)}
+            onPaste={(e) => {
+              if (e.clipboardData.files.length > 0) {
+                e.preventDefault();
+                attachments.add(e.clipboardData.files);
+              }
+            }}
             className="min-h-[60px] w-full resize-none bg-transparent text-sm leading-relaxed text-slate-700 placeholder-slate-400 outline-none"
             placeholder={placeholder}
           />
@@ -173,6 +210,8 @@ export function Composer(props: { defaultAuthorId?: string; editing?: Post; onDo
             </ul>
           )}
 
+          <AttachmentStrip items={attachments.items} onRemove={attachments.remove} />
+
           {showWhen && (
             <div className="mt-2 flex items-center gap-2 text-xs text-slate-500">
               <CalendarBlankIcon />
@@ -189,6 +228,20 @@ export function Composer(props: { defaultAuthorId?: string; editing?: Post; onDo
 
           <div className="mt-2 flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-3">
             <div className="flex items-center gap-1">
+              <ToolButton title="Attach photos or videos (or drag & drop, or paste)" onClick={() => fileInput.current?.click()}>
+                <ImageIcon size={20} />
+              </ToolButton>
+              <input
+                ref={fileInput}
+                type="file"
+                accept="image/*,video/*"
+                multiple
+                hidden
+                onChange={(e) => {
+                  if (e.target.files) attachments.add(e.target.files);
+                  e.target.value = "";
+                }}
+              />
               <ToolButton title="Mention a profile" onClick={insertAt}>
                 <AtIcon size={20} />
               </ToolButton>
@@ -224,7 +277,7 @@ export function Composer(props: { defaultAuthorId?: string; editing?: Post; onDo
                   Cancel
                 </Button>
               )}
-              <Button variant="dark" onClick={submit} disabled={busy || !text.trim()} title="⌘/Ctrl + Enter">
+              <Button variant="dark" onClick={submit} disabled={!canSubmit} title={attachments.failed ? "Remove the failed attachments first" : "⌘/Ctrl + Enter"}>
                 {editing ? "Save changes" : "Encrypt & Save"} <ShieldCheckIcon />
               </Button>
             </div>

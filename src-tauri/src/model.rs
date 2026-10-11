@@ -117,8 +117,31 @@ pub struct Post {
     pub content: String,
     /// When the event happened (unix millis); entries may be back-dated.
     pub occurred_at: i64,
+    /// Attached images and videos, in display order. Bytes live in `media/<id>.enc`.
+    #[serde(default)]
+    pub media: Vec<MediaRef>,
     pub created_at: i64,
     pub updated_at: i64,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum MediaKind {
+    Image,
+    Video,
+}
+
+/// Metadata for an attachment. Stored (encrypted) inside the post, so listing
+/// media never requires decrypting the large blobs.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MediaRef {
+    pub id: String,
+    pub kind: MediaKind,
+    pub mime: String,
+    /// Original file name.
+    pub name: String,
+    pub size: u64,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -128,6 +151,9 @@ pub struct PostInput {
     pub author_id: String,
     pub content: String,
     pub occurred_at: Option<i64>,
+    /// Attachments in display order: ids of staged uploads or of media already on the post.
+    #[serde(default)]
+    pub media_ids: Vec<String>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]

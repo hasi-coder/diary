@@ -18,11 +18,12 @@
         "height": 820,
         "minWidth": 800,
         "minHeight": 520,
-        "resizable": true
+        "resizable": true,
+        "dragDropEnabled": false
       }
     ],
     "security": {
-      "csp": "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; font-src 'self' data:; connect-src ipc: http://ipc.localhost"
+      "csp": "default-src 'self'; img-src 'self' data: journal: http://journal.localhost; media-src 'self' journal: http://journal.localhost; style-src 'self' 'unsafe-inline'; font-src 'self' data:; connect-src ipc: http://ipc.localhost"
     }
   },
   "bundle": {

@@ -3,6 +3,7 @@ import { api, isTauri, type Snapshot } from "./lib/api";
 import { JournalProvider, useJournal } from "./lib/journal";
 import { Sidebar } from "./components/Shell";
 import { UnlockScreen } from "./components/UnlockScreen";
+import { GalleryView } from "./views/GalleryView";
 import { MarketplaceView } from "./views/MarketplaceView";
 import { ProfilesView } from "./views/ProfilesView";
 import { ProfileView } from "./views/ProfileView";
@@ -43,6 +44,7 @@ function Workspace() {
       {route.view === "profiles" && <ProfilesView />}
       {route.view === "marketplace" && <MarketplaceView />}
       {route.view === "settings" && <SettingsView />}
+      {route.view === "gallery" && <GalleryView />}
       {route.view === "profile" && <ProfileView key={route.id} id={route.id} tab={route.tab} />}
     </div>
   );

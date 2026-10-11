@@ -20,6 +20,7 @@
 use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use base64::engine::general_purpose::STANDARD as B64;
@@ -32,6 +33,7 @@ use zeroize::Zeroizing;
 
 use crate::crypto::{self, Key};
 use crate::error::{Error, Result};
+use crate::media::{self, Bytes, MediaCache};
 use crate::migrate::{self, MigrationStatus};
 use crate::model::*;
 use crate::record::{self, Kind, CURRENT_SCHEMA};
@@ -123,6 +125,13 @@ fn post_meta(post: &Post) -> Value {
     ids.sort_unstable();
     ids.dedup();
     json!({ "mentions": ids, "tags": hashtags(&post.content) })
+}
+
+fn kind_label(kind: MediaKind) -> &'static str {
+    match kind {
+        MediaKind::Image => "image",
+        MediaKind::Video => "video",
+    }
 }
 
 fn validate_workspace_id(id: &str) -> Result<()> {
@@ -267,6 +276,7 @@ pub fn create_workspace(
             items: HashMap::new(),
             stale: HashSet::new(),
             disk_schema: CURRENT_SCHEMA,
+            media: MediaState::new(),
         };
         ws.write_manifest()?;
         ws.write_record(Kind::Profile, &owner.id, &owner, json!({}))?;
@@ -319,12 +329,49 @@ pub fn open_workspace(root: &Path, id: &str, password: &str) -> Result<Workspace
         items: HashMap::new(),
         stale,
         disk_schema: CURRENT_SCHEMA,
+        media: MediaState::new(),
     };
     ws.profiles = ws.load_all(Kind::Profile, &mut disk_schema)?;
     ws.posts = ws.load_all(Kind::Post, &mut disk_schema)?;
     ws.items = ws.load_all(Kind::Item, &mut disk_schema)?;
     ws.disk_schema = disk_schema;
+    ws.reindex_media();
     Ok(ws)
+}
+
+struct StagedMedia {
+    media: MediaRef,
+    bytes: Bytes,
+}
+
+/// Attachment bookkeeping for an unlocked workspace.
+struct MediaState {
+    /// Uploads not yet attached to a saved post. Never written to disk.
+    staged: HashMap<String, StagedMedia>,
+    /// Saved media id -> metadata, rebuilt from posts.
+    index: HashMap<String, MediaRef>,
+    cache: MediaCache,
+    /// Distinguishes this unlock from a later one, so a decrypt that finishes
+    /// after a lock/unlock cycle isn't cached into the wrong session.
+    session: u64,
+}
+
+impl MediaState {
+    fn new() -> Self {
+        Self {
+            staged: HashMap::new(),
+            index: HashMap::new(),
+            cache: MediaCache::default(),
+            session: u64::from_le_bytes(crypto::random_bytes::<8>()),
+        }
+    }
+}
+
+/// Where the protocol handler gets a media file's bytes from.
+pub enum MediaSource {
+    Ready(Bytes),
+    /// Needs decrypting; done outside the workspace lock.
+    Encrypted { key: Key, path: PathBuf, session: u64 },
 }
 
 /// An unlocked workspace: the data key plus every decrypted record.
@@ -341,6 +388,7 @@ pub struct Workspace {
     stale: HashSet<(Kind, String)>,
     /// Oldest schema found when the workspace was opened.
     disk_schema: u32,
+    media: MediaState,
 }
 
 impl Workspace {
@@ -349,6 +397,63 @@ impl Workspace {
             Kind::Manifest => self.dir.join(MANIFEST_FILE),
             _ => self.dir.join(kind.dir()).join(format!("{id}.enc")),
         }
+    }
+
+    // ---- Media ----
+
+    fn reindex_media(&mut self) {
+        self.media.index =
+            self.posts.values().flat_map(|p| p.media.iter()).map(|m| (m.id.clone(), m.clone())).collect();
+    }
+
+    /// Validates an upload and holds it in memory until a post references it.
+    pub fn stage_media(&mut self, name: &str, bytes: Vec<u8>) -> Result<MediaRef> {
+        let bytes = Zeroizing::new(bytes);
+        let (kind, mime) = media::sniff(&bytes).ok_or_else(|| {
+            Error::Invalid("Unsupported file type. Use JPEG, PNG, GIF, WebP, HEIC, AVIF, MP4, MOV or WebM.".into())
+        })?;
+        media::check_size(kind, bytes.len())?;
+        let name = match name.trim() {
+            "" => format!("{}.{}", kind_label(kind), mime.rsplit('/').next().unwrap_or("bin")),
+            n => n.chars().take(200).collect(),
+        };
+        let media = MediaRef { id: Uuid::new_v4().to_string(), kind, mime: mime.into(), name, size: bytes.len() as u64 };
+        self.media.staged.insert(media.id.clone(), StagedMedia { media: media.clone(), bytes: Arc::new(bytes) });
+        Ok(media)
+    }
+
+    /// Drops staged uploads (e.g. when a draft is cancelled). Unknown ids are ignored.
+    pub fn discard_media(&mut self, ids: &[String]) {
+        for id in ids {
+            self.media.staged.remove(id);
+        }
+    }
+
+    pub fn media_lookup(&mut self, id: &str) -> Result<(MediaRef, MediaSource)> {
+        if let Some(s) = self.media.staged.get(id) {
+            return Ok((s.media.clone(), MediaSource::Ready(s.bytes.clone())));
+        }
+        let media = self.media.index.get(id).cloned().ok_or_else(|| Error::NotFound(format!("media {id}")))?;
+        if let Some(bytes) = self.media.cache.get(id) {
+            return Ok((media, MediaSource::Ready(bytes)));
+        }
+        let source = MediaSource::Encrypted {
+            key: self.key.clone(),
+            path: self.record_path(Kind::Media, id),
+            session: self.media.session,
+        };
+        Ok((media, source))
+    }
+
+    pub fn cache_media(&mut self, session: u64, id: &str, bytes: Bytes) {
+        if session == self.media.session && self.media.index.contains_key(id) {
+            self.media.cache.insert(id.to_string(), bytes);
+        }
+    }
+
+    fn remove_media_file(&mut self, id: &str) -> Result<()> {
+        self.media.cache.remove(id);
+        self.remove_record(Kind::Media, id)
     }
 
     fn write_record<T: Serialize>(&mut self, kind: Kind, id: &str, value: &T, meta: Value) -> Result<()> {
@@ -445,6 +550,8 @@ impl Workspace {
                     let i = self.items[&id].clone();
                     self.write_record(kind, &id, &i, json!({}))?
                 }
+                // Blobs have no schema and are never marked stale.
+                Kind::Media => continue,
             }
             rewritten += 1;
         }
@@ -532,43 +639,81 @@ impl Workspace {
     // ---- Posts ----
 
     pub fn save_post(&mut self, input: PostInput) -> Result<Post> {
-        let content = required(&input.content, "Post content")?;
+        let content = input.content.trim().to_string();
+        if content.is_empty() && input.media_ids.is_empty() {
+            return Err(Error::Invalid("Write something or attach a photo or video.".into()));
+        }
         if !self.profiles.contains_key(&input.author_id) {
             return Err(Error::NotFound(format!("author {}", input.author_id)));
         }
-        let now = now_millis();
-        let post = match &input.id {
-            Some(id) => {
-                let existing = self.posts.get(id).ok_or_else(|| Error::NotFound(format!("post {id}")))?;
-                Post {
-                    id: id.clone(),
-                    author_id: input.author_id,
-                    content,
-                    occurred_at: input.occurred_at.unwrap_or(existing.occurred_at),
-                    created_at: existing.created_at,
-                    updated_at: now,
-                }
-            }
-            None => Post {
-                id: Uuid::new_v4().to_string(),
-                author_id: input.author_id,
-                content,
-                occurred_at: input.occurred_at.unwrap_or(now),
-                created_at: now,
-                updated_at: now,
-            },
+        let existing = match &input.id {
+            Some(id) => Some(self.posts.get(id).ok_or_else(|| Error::NotFound(format!("post {id}")))?.clone()),
+            None => None,
         };
+        let previous: &[MediaRef] = existing.as_ref().map_or(&[], |p| &p.media);
+
+        // Resolve attachments: keep ones already on this post, take the rest from staging.
+        let mut attached: Vec<MediaRef> = Vec::new();
+        for id in &input.media_ids {
+            if attached.iter().any(|m| &m.id == id) {
+                continue;
+            }
+            let media = previous
+                .iter()
+                .find(|m| &m.id == id)
+                .or_else(|| self.media.staged.get(id).map(|s| &s.media))
+                .ok_or_else(|| Error::NotFound(format!("attachment {id}")))?;
+            attached.push(media.clone());
+        }
+        if attached.len() > media::MAX_MEDIA_PER_POST {
+            return Err(Error::Invalid(format!("A post can have at most {} attachments.", media::MAX_MEDIA_PER_POST)));
+        }
+
+        let now = now_millis();
+        let post = Post {
+            id: existing.as_ref().map_or_else(|| Uuid::new_v4().to_string(), |p| p.id.clone()),
+            author_id: input.author_id,
+            content,
+            occurred_at: input.occurred_at.or(existing.as_ref().map(|p| p.occurred_at)).unwrap_or(now),
+            media: attached,
+            created_at: existing.as_ref().map_or(now, |p| p.created_at),
+            updated_at: now,
+        };
+
+        // Write new blobs first, then the post, then drop detached blobs. A crash
+        // at any point leaves at worst an unreferenced file, never a dangling reference.
+        fs::create_dir_all(self.dir.join(Kind::Media.dir()))?;
+        for m in &post.media {
+            if let Some(staged) = self.media.staged.get(&m.id) {
+                let sealed = record::encode_blob(&self.key, &m.id, &staged.bytes)?;
+                atomic_write(&self.record_path(Kind::Media, &m.id), &sealed)?;
+            }
+        }
         self.write_post(&post)?;
+        for m in &post.media {
+            if let Some(staged) = self.media.staged.remove(&m.id) {
+                self.media.cache.insert(m.id.clone(), staged.bytes);
+            }
+        }
+        let detached: Vec<String> =
+            previous.iter().filter(|m| !post.media.iter().any(|n| n.id == m.id)).map(|m| m.id.clone()).collect();
         self.posts.insert(post.id.clone(), post.clone());
+        self.reindex_media();
+        for id in detached {
+            self.remove_media_file(&id)?;
+        }
         Ok(post)
     }
 
     pub fn delete_post(&mut self, id: &str) -> Result<()> {
         validate_record_id(id)?;
-        if self.posts.remove(id).is_none() {
-            return Err(Error::NotFound(format!("post {id}")));
+        let post = self.posts.remove(id).ok_or_else(|| Error::NotFound(format!("post {id}")))?;
+        self.remove_record(Kind::Post, id)?;
+        self.reindex_media();
+        for m in &post.media {
+            self.remove_media_file(&m.id)?;
         }
-        self.remove_record(Kind::Post, id)
+        Ok(())
     }
 
     pub fn query_posts(&self, filter: &PostFilter) -> Vec<Post> {
@@ -787,9 +932,10 @@ mod tests {
             author_id: owner.clone(),
             content: format!("Latte at @[profile:{}] with @[profile:{}] #coffee", shop.id, sarah.id),
             occurred_at: Some(1_000),
+            media_ids: vec![],
         })
         .unwrap();
-        ws.save_post(PostInput { id: None, author_id: sarah.id.clone(), content: "Hi from Sarah".into(), occurred_at: Some(2_000) })
+        ws.save_post(PostInput { id: None, author_id: sarah.id.clone(), content: "Hi from Sarah".into(), occurred_at: Some(2_000), media_ids: vec![] })
             .unwrap();
         ws.save_item(ItemInput {
             id: None,
@@ -865,7 +1011,7 @@ mod tests {
             "can't disable a shop that still lists items"
         );
 
-        ws.save_post(PostInput { id: None, author_id: page.id.clone(), content: "Meeting Friday".into(), occurred_at: None }).unwrap();
+        ws.save_post(PostInput { id: None, author_id: page.id.clone(), content: "Meeting Friday".into(), occurred_at: None, media_ids: vec![] }).unwrap();
         ws.delete_profile(&page.id).unwrap();
         assert!(ws.posts.is_empty() && ws.items.is_empty());
 
@@ -880,6 +1026,64 @@ mod tests {
         assert!(open_workspace(root.path(), "../etc", "x").is_err());
         let mut ws = create_workspace(root.path(), "", "P", "Me", "long enough", FAST).unwrap();
         assert!(ws.delete_post("../../workspace.json").is_err());
+    }
+
+    fn post(author: &str, content: &str, media_ids: Vec<String>) -> PostInput {
+        PostInput { id: None, author_id: author.into(), content: content.into(), occurred_at: None, media_ids }
+    }
+
+    fn decrypt_saved(ws: &mut Workspace, id: &str) -> Vec<u8> {
+        ws.media.cache = MediaCache::default(); // force a disk read
+        match ws.media_lookup(id).unwrap().1 {
+            MediaSource::Encrypted { key, path, .. } => record::decode_blob(&key, id, &fs::read(path).unwrap()).unwrap().to_vec(),
+            MediaSource::Ready(_) => panic!("expected an encrypted source"),
+        }
+    }
+
+    #[test]
+    fn media_lifecycle() {
+        let root = tempfile::tempdir().unwrap();
+        let mut ws = create_workspace(root.path(), "", "Personal", "Alex", "correct horse", FAST).unwrap();
+        let owner = ws.owner_id().to_string();
+        let media_dir = root.path().join("workspace_personal/media");
+
+        let mut png = b"\x89PNG\r\n\x1a\nSECRETPIXELS".to_vec();
+        png.resize(3000, 7);
+        let jpeg = [&[0xFF, 0xD8, 0xFF, 0xE0][..], b"MOREPIXELS"].concat();
+        assert!(ws.stage_media("x.svg", b"<svg/>".to_vec()).is_err(), "unknown type");
+        assert!(ws.stage_media("big.png", [&png[..8], &vec![0; media::MAX_IMAGE_BYTES]].concat()).is_err(), "too big");
+
+        let a = ws.stage_media("beach.png", png.clone()).unwrap();
+        let b = ws.stage_media("", jpeg.clone()).unwrap();
+        assert_eq!((a.kind, a.mime.as_str(), a.size), (MediaKind::Image, "image/png", 3000));
+        assert_eq!(b.name, "image.jpeg");
+        assert!(matches!(ws.media_lookup(&a.id).unwrap().1, MediaSource::Ready(_)), "staged media is servable");
+        assert!(!media_dir.exists() || fs::read_dir(&media_dir).unwrap().count() == 0, "staging writes nothing");
+
+        assert!(ws.save_post(post(&owner, "", vec![])).is_err(), "empty post");
+        assert!(ws.save_post(post(&owner, "x", vec![Uuid::new_v4().to_string()])).is_err(), "unknown attachment");
+        let saved = ws.save_post(post(&owner, "", vec![a.id.clone(), b.id.clone(), a.id.clone()])).unwrap();
+        assert_eq!(saved.media.iter().map(|m| &m.id).collect::<Vec<_>>(), vec![&a.id, &b.id], "ordered, deduped");
+        assert_eq!(fs::read_dir(&media_dir).unwrap().count(), 2);
+        assert_no_plaintext(root.path(), &["SECRETPIXELS", "MOREPIXELS", "beach.png"]);
+
+        let mut ws = open_workspace(root.path(), "workspace_personal", "correct horse").unwrap();
+        assert_eq!(decrypt_saved(&mut ws, &a.id), png);
+        assert_eq!(ws.posts[&saved.id].media[0].name, "beach.png");
+
+        // Detaching an attachment deletes its file.
+        let edited = PostInput { id: Some(saved.id.clone()), ..post(&owner, "Beach day", vec![a.id.clone()]) };
+        ws.save_post(edited).unwrap();
+        assert!(!media_dir.join(format!("{}.enc", b.id)).exists());
+        assert!(ws.media_lookup(&b.id).is_err());
+
+        // Discarded uploads can't be attached.
+        let c = ws.stage_media("c.png", png.clone()).unwrap();
+        ws.discard_media(std::slice::from_ref(&c.id));
+        assert!(ws.save_post(post(&owner, "x", vec![c.id])).is_err());
+
+        ws.delete_post(&saved.id).unwrap();
+        assert_eq!(fs::read_dir(&media_dir).unwrap().count(), 0, "deleting a post deletes its media");
     }
 
     /// Writes a workspace exactly as Phase 1 (format 1) did.
@@ -933,7 +1137,7 @@ mod tests {
 
         // Editing one record before migrating writes it in the new format.
         let p = ws.posts[&post_id].clone();
-        ws.save_post(PostInput { id: Some(p.id.clone()), author_id: p.author_id, content: p.content, occurred_at: None }).unwrap();
+        ws.save_post(PostInput { id: Some(p.id.clone()), author_id: p.author_id, content: p.content, occurred_at: None, media_ids: vec![] }).unwrap();
         assert_eq!(ws.migration_status().stale_files, 4);
 
         assert_eq!(ws.run_migration().unwrap(), 4);

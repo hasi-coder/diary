@@ -31,6 +31,8 @@ pub const RECORD_MAGIC: &[u8; 4] = b"MDJ2";
 /// Schema written by this build. Bump it together with a new step in `migrate.rs`.
 pub const CURRENT_SCHEMA: u32 = 2;
 pub const PAD_BLOCK: usize = 1024;
+/// Media blobs are padded more coarsely; their sizes matter less than text lengths.
+pub const MEDIA_PAD_BLOCK: usize = 64 * 1024;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Kind {
@@ -38,6 +40,8 @@ pub enum Kind {
     Profile,
     Post,
     Item,
+    /// Raw attachment bytes (no JSON envelope).
+    Media,
 }
 
 impl Kind {
@@ -49,6 +53,7 @@ impl Kind {
             Kind::Profile => 2,
             Kind::Post => 3,
             Kind::Item => 4,
+            Kind::Media => 5,
         }
     }
 
@@ -58,6 +63,7 @@ impl Kind {
             Kind::Profile => "profile",
             Kind::Post => "post",
             Kind::Item => "item",
+            Kind::Media => "media",
         }
     }
 
@@ -68,6 +74,7 @@ impl Kind {
             Kind::Profile => "entities",
             Kind::Post => "posts",
             Kind::Item => "items",
+            Kind::Media => "media",
         }
     }
 
@@ -139,6 +146,22 @@ pub fn decode(key: &Key, kind: Kind, id: &str, bytes: &[u8]) -> Result<Decoded> 
     Ok(Decoded { schema: envelope.schema, meta: envelope.meta, data: envelope.data })
 }
 
+/// Seals attachment bytes: same header and AAD scheme as records, but the
+/// plaintext is the raw file (padded), so nothing is base64-inflated.
+pub fn encode_blob(key: &Key, id: &str, bytes: &[u8]) -> Result<Vec<u8>> {
+    let padded = crypto::pad(bytes, MEDIA_PAD_BLOCK)?;
+    let mut out = header(Kind::Media).to_vec();
+    out.extend(crypto::seal_raw(key, &aad(Kind::Media, id), &padded)?);
+    Ok(out)
+}
+
+pub fn decode_blob(key: &Key, id: &str, bytes: &[u8]) -> Result<zeroize::Zeroizing<Vec<u8>>> {
+    let h = header(Kind::Media);
+    let body = bytes.strip_prefix(h.as_slice()).ok_or(Error::Crypto)?;
+    let padded = crypto::open_raw(key, &aad(Kind::Media, id), body)?;
+    Ok(zeroize::Zeroizing::new(crypto::unpad(&padded)?.to_vec()))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -161,6 +184,18 @@ mod tests {
         let mut relabelled = bytes.clone();
         relabelled[4] = 4;
         assert!(decode(&key, Kind::Item, "a", &relabelled).is_err(), "header is authenticated");
+    }
+
+    #[test]
+    fn blob_round_trip() {
+        let key = crypto::random_key();
+        let data = vec![42u8; 100_000];
+        let sealed = encode_blob(&key, "m", &data).unwrap();
+        assert_eq!(sealed[4], 5);
+        assert_eq!((sealed.len() - 5 - 12 - 16) % MEDIA_PAD_BLOCK, 0);
+        assert_eq!(&decode_blob(&key, "m", &sealed).unwrap()[..], &data[..]);
+        assert!(decode_blob(&key, "other", &sealed).is_err());
+        assert!(decode(&key, Kind::Post, "m", &sealed).is_err(), "a blob is not a record");
     }
 
     #[test]

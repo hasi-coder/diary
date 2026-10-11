@@ -4,6 +4,7 @@ import { api, type Post } from "../lib/api";
 import { useJournal } from "../lib/journal";
 import { formatPostDate, subtitle } from "../lib/format";
 import { Composer } from "./Composer";
+import { MediaGrid } from "./Media";
 import { PostContent } from "./PostContent";
 import { Avatar, ConfirmDialog } from "./ui";
 
@@ -52,12 +53,26 @@ export function PostCard({ post, onTag }: { post: Post; onTag?: (tag: string) =>
         </div>
       </div>
 
-      {editing ? <Composer editing={post} onDone={() => setEditing(false)} /> : <PostContent content={post.content} onTag={onTag} />}
+      {editing ? (
+        <Composer editing={post} onDone={() => setEditing(false)} />
+      ) : (
+        <>
+          {post.content && <PostContent content={post.content} onTag={onTag} />}
+          <MediaGrid
+            media={post.media}
+            caption={
+              <span>
+                <span className="font-medium text-white">{author?.name ?? "Unknown"}</span> · {formatPostDate(post.occurredAt)}
+              </span>
+            }
+          />
+        </>
+      )}
 
       {confirming && (
         <ConfirmDialog
           title="Delete post?"
-          message="This permanently removes the encrypted post file from the workspace."
+          message={`This permanently removes the encrypted post${post.media.length ? ` and its ${post.media.length} attachment${post.media.length > 1 ? "s" : ""}` : ""} from the workspace.`}
           onConfirm={async () => {
             await api.deletePost(post.id);
             await refresh();

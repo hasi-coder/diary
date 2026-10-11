@@ -15,12 +15,13 @@ import { useJournal, usePosts } from "../lib/journal";
 import { canSell, colorOf, KINDS, subtitle } from "../lib/format";
 import { Composer } from "../components/Composer";
 import { ItemCard } from "../components/ItemCard";
+import { MediaGallery } from "../components/Media";
 import { ItemForm, ProfileForm } from "../components/forms";
 import { PostCard } from "../components/PostCard";
 import { Page } from "../components/Shell";
 import { Avatar, Button, ConfirmDialog, EmptyState, KindBadge } from "../components/ui";
 
-type Tab = "posts" | "about" | "shop";
+type Tab = "posts" | "about" | "media" | "shop";
 
 export function ProfileView({ id, tab }: { id: string; tab?: Tab }) {
   const { profiles, snapshot, navigate, refresh } = useJournal();
@@ -45,6 +46,7 @@ export function ProfileView({ id, tab }: { id: string; tab?: Tab }) {
   const tabs: { key: Tab; label: string }[] = [
     { key: "posts", label: "Posts" },
     { key: "about", label: "About" },
+    { key: "media", label: "Photos & videos" },
     ...(sells ? [{ key: "shop" as Tab, label: `Shop · ${items.length}` }] : []),
   ];
 
@@ -128,6 +130,7 @@ export function ProfileView({ id, tab }: { id: string; tab?: Tab }) {
           </div>
         )}
         {active === "about" && <AboutCard profile={profile} />}
+        {active === "media" && <MediaGallery profileId={profile.id} />}
         {active === "shop" && <ShopTab profile={profile} />}
       </div>
 

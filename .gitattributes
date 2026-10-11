@@ -1,0 +1,6 @@
+# Encrypted journal data is opaque: never diff, merge or normalise it as text.
+data_sources/**/*.enc binary
+
+# Encrypted photos and videos go to Git LFS so repository history stays small.
+# Requires `git lfs install` once per machine; without it these are committed as plain blobs.
+data_sources/**/media/*.enc filter=lfs diff=lfs merge=lfs -text

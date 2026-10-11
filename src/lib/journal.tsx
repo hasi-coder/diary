@@ -7,7 +7,8 @@ export type Route =
   | { view: "profiles" }
   | { view: "marketplace" }
   | { view: "settings" }
-  | { view: "profile"; id: string; tab?: "posts" | "about" | "shop" };
+  | { view: "gallery" }
+  | { view: "profile"; id: string; tab?: "posts" | "about" | "media" | "shop" };
 
 interface Journal {
   snapshot: Snapshot;

@@ -139,8 +139,138 @@ fn seed(ws: &mut Workspace) -> Result<(), Box<dyn std::error::Error>> {
         (&me, format!("New year's resolution: fewer lattes at {}. Already failing. #coffee", mention(&bean)), 280 * DAY),
         (&sarah, "Happy birthday to me 🎂".into(), 330 * DAY),
     ];
+    // Procedural photos for a few posts, keyed by how long ago the post was.
+    let photos: Vec<(i64, Vec<(&str, Scene)>)> = vec![
+        (2 * HOUR, vec![("latte.png", Scene::Coffee)]),
+        (3 * DAY + 3 * HOUR, vec![("sunrise.png", Scene::Sunrise), ("still-water.png", Scene::Lake)]),
+        (33 * DAY, vec![("north-shore.png", Scene::Lake), ("kayak.png", Scene::Sunset), ("dusk.png", Scene::Sunrise)]),
+    ];
     for (author, content, ago) in posts {
-        ws.save_post(PostInput { id: None, author_id: author.id.clone(), content, occurred_at: Some(now - ago) })?;
+        let mut media_ids = Vec::new();
+        for (name, scene) in photos.iter().filter(|(a, _)| *a == ago).flat_map(|(_, p)| p) {
+            media_ids.push(ws.stage_media(name, png(480, 320, |x, y| scene.pixel(x, y)))?.id);
+        }
+        ws.save_post(PostInput { id: None, author_id: author.id.clone(), content, occurred_at: Some(now - ago), media_ids })?;
     }
     Ok(())
+}
+
+#[derive(Clone, Copy)]
+enum Scene {
+    Sunrise,
+    Sunset,
+    Lake,
+    Coffee,
+}
+
+impl Scene {
+    fn pixel(self, x: u32, y: u32) -> [u8; 3] {
+        let (fx, fy) = (x as f32 / 480.0, y as f32 / 320.0);
+        let mix = |a: [f32; 3], b: [f32; 3], t: f32| [0, 1, 2].map(|i| (a[i] + (b[i] - a[i]) * t.clamp(0.0, 1.0)) as u8);
+        let near = |cx: f32, cy: f32, r: f32| ((fx - cx) * 1.5).powi(2) + (fy - cy).powi(2) < r * r;
+        match self {
+            Scene::Sunrise | Scene::Sunset => {
+                let (top, horizon) = if matches!(self, Scene::Sunrise) {
+                    ([255.0, 183.0, 94.0], [255.0, 111.0, 97.0])
+                } else {
+                    ([88.0, 56.0, 140.0], [247.0, 120.0, 72.0])
+                };
+                if fy > 0.62 {
+                    let ripple = ((fx * 60.0 + fy * 25.0).sin() * 0.08) + (fy - 0.62) * 1.6;
+                    mix([40.0, 70.0, 120.0], [15.0, 30.0, 60.0], ripple)
+                } else if near(0.5, 0.58, 0.14) {
+                    [255, 236, 179]
+                } else {
+                    mix(top, horizon, fy / 0.62)
+                }
+            }
+            Scene::Lake => {
+                if fy < 0.45 {
+                    mix([150.0, 200.0, 240.0], [210.0, 235.0, 250.0], fy / 0.45)
+                } else if fy < 0.55 && (fx * 9.0).sin() * 0.04 + 0.5 > fy - 0.0 {
+                    [46, 90, 60]
+                } else {
+                    mix([90.0, 160.0, 200.0], [30.0, 80.0, 120.0], (fy - 0.45) * 1.8)
+                }
+            }
+            Scene::Coffee => {
+                if near(0.5, 0.5, 0.36) && !near(0.5, 0.5, 0.3) {
+                    [245, 240, 232]
+                } else if near(0.5, 0.5, 0.3) {
+                    let foam = near(0.5, 0.5, 0.12) || ((fx - 0.5).abs() < 0.02 && (fy - 0.5).abs() < 0.22);
+                    if foam { [236, 214, 180] } else { mix([150.0, 95.0, 55.0], [110.0, 65.0, 35.0], fy) }
+                } else {
+                    mix([120.0, 84.0, 60.0], [70.0, 46.0, 32.0], fx * 0.5 + fy * 0.5)
+                }
+            }
+        }
+    }
+}
+
+/// Minimal PNG encoder (RGB, stored deflate blocks) so the seed needs no image crates.
+fn png(width: u32, height: u32, pixel: impl Fn(u32, u32) -> [u8; 3]) -> Vec<u8> {
+    fn crc32(data: &[u8]) -> u32 {
+        let mut c = 0xFFFF_FFFFu32;
+        for &b in data {
+            c ^= b as u32;
+            for _ in 0..8 {
+                c = if c & 1 != 0 { 0xEDB8_8320 ^ (c >> 1) } else { c >> 1 };
+            }
+        }
+        !c
+    }
+    fn chunk(out: &mut Vec<u8>, kind: &[u8; 4], data: &[u8]) {
+        out.extend((data.len() as u32).to_be_bytes());
+        let body = [&kind[..], data].concat();
+        out.extend(&body);
+        out.extend(crc32(&body).to_be_bytes());
+    }
+
+    let mut raw = Vec::with_capacity(((width * 3 + 1) * height) as usize);
+    for y in 0..height {
+        raw.push(0); // no filter
+        for x in 0..width {
+            raw.extend(pixel(x, y));
+        }
+    }
+    let mut zlib = vec![0x78, 0x01];
+    let blocks: Vec<&[u8]> = raw.chunks(65_535).collect();
+    for (i, block) in blocks.iter().enumerate() {
+        zlib.push(u8::from(i == blocks.len() - 1));
+        let len = block.len() as u16;
+        zlib.extend(len.to_le_bytes());
+        zlib.extend((!len).to_le_bytes());
+        zlib.extend(*block);
+    }
+    let (mut a, mut b) = (1u32, 0u32);
+    for &x in &raw {
+        a = (a + x as u32) % 65_521;
+        b = (b + a) % 65_521;
+    }
+    zlib.extend(((b << 16) | a).to_be_bytes());
+
+    let mut ihdr = Vec::new();
+    ihdr.extend(width.to_be_bytes());
+    ihdr.extend(height.to_be_bytes());
+    ihdr.extend([8, 2, 0, 0, 0]); // 8-bit RGB
+    let mut out = b"\x89PNG\r\n\x1a\n".to_vec();
+    chunk(&mut out, b"IHDR", &ihdr);
+    chunk(&mut out, b"IDAT", &zlib);
+    chunk(&mut out, b"IEND", &[]);
+    out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn writes_valid_pngs() {
+        let dir = std::env::var_os("SEED_PNG_DIR").map(std::path::PathBuf::from).unwrap_or_else(std::env::temp_dir);
+        for (name, scene) in [("sunrise", Scene::Sunrise), ("sunset", Scene::Sunset), ("lake", Scene::Lake), ("coffee", Scene::Coffee)] {
+            let bytes = png(480, 320, |x, y| scene.pixel(x, y));
+            assert_eq!(&bytes[..8], b"\x89PNG\r\n\x1a\n");
+            fs::write(dir.join(format!("seed-{name}.png")), bytes).unwrap();
+        }
+    }
 }

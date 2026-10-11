@@ -24,8 +24,12 @@ for the full design.
 - **Timeline**: a year/month scrubber, active-entity filters, search, and hover profile cards.
 - The decrypted cache lives **only in memory**. Locking drops it and zeroizes the key.
 
-Not yet built (later phases): media attachments and the `journal://` protocol, Git LFS,
-SQLCipher cache, map view, password change.
+- **Photos and videos** (Phase 3): attach them with the image button, by drag-and-drop or by paste.
+  Images can be up to 5 MB (JPEG, PNG, GIF, WebP, HEIC, AVIF) and videos up to 20 MB (MP4, MOV, WebM).
+  There's a Facebook-style grid and a lightbox on posts, a **Media Gallery**, and a "Photos & videos"
+  tab on every profile.
+
+Not yet built: SQLCipher cache, map view, password change.
 
 ## On-disk format
 
@@ -35,7 +39,8 @@ data_sources/workspace_<label>/
 ├── manifest.enc        workspace name, owner profile, created time
 ├── entities/<uuid>.enc profiles
 ├── posts/<uuid>.enc    journal entries
-└── items/<uuid>.enc    shop listings
+├── items/<uuid>.enc    shop listings
+└── media/<uuid>.enc    photo and video bytes (Git LFS)
 ```
 
 Each record file looks like this:
@@ -52,6 +57,32 @@ renamed, swapped or relabelled file fails to decrypt.
 **What the repo reveals:** the folder label you chose, the format version, the KDF parameters, the
 number of records of each kind, their sizes in 1 KiB steps, and git commit times. Everything else
 is ciphertext.
+
+## Media
+
+- **Uploads:** the bytes go to Rust as a raw IPC body. Rust identifies the file type from its magic
+  bytes and ignores the declared type. Uploads are **staged in memory** until the post is saved, so
+  an abandoned draft never leaves a file behind.
+- **Saved files:** each one is stored as `"MDJ2" | 0x05 | nonce | AES-256-GCM( pad_64KiB( bytes ) )`.
+  The file name, type and size live inside the encrypted post, so listing media never decrypts the
+  large files.
+- **Serving:** the webview loads `journal://localhost/<id>`. The handler (`media.rs`) decrypts the
+  file into a 256 MB in-memory LRU cache and answers HTTP `Range` requests for video seeking.
+  Responses are `no-store`. Decrypted bytes never touch the disk, and the cache is dropped and
+  zeroized when you lock.
+- **Deleting:** removing an attachment, deleting its post, or deleting the post's author deletes
+  the media file.
+
+### Git LFS
+
+`.gitattributes` routes `data_sources/**/media/*.enc` through Git LFS and marks every `.enc` file
+as binary. Enable it once per machine **before committing real photos**:
+
+```bash
+brew install git-lfs && git lfs install
+```
+
+Without it, media is committed as ordinary git blobs.
 
 ## Migrations
 

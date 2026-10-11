@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import {
   BookOpenIcon,
   GearIcon,
+  ImagesIcon,
   LockIcon,
   ShieldCheckIcon,
   ShoppingBagIcon,
@@ -37,6 +38,7 @@ export function Sidebar() {
       <nav className="thin-scroll flex-1 space-y-1 overflow-y-auto p-4">
         <NavLink icon={TimerIcon} label="Timeline" target={{ view: "timeline" }} active={route.view === "timeline"} />
         <NavLink icon={UsersThreeIcon} label="Profiles" target={{ view: "profiles" }} active={route.view === "profiles"} />
+        <NavLink icon={ImagesIcon} label="Media Gallery" target={{ view: "gallery" }} active={route.view === "gallery"} />
         <NavLink icon={ShoppingBagIcon} label="Marketplace" target={{ view: "marketplace" }} active={route.view === "marketplace"} />
 
         <div className="pt-5">
