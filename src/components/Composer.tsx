@@ -16,8 +16,8 @@ import {
   XIcon,
   type Icon,
 } from "@phosphor-icons/react";
-import { api, errorMessage, type Feeling, type Post, type PostKind, type Profile } from "../lib/api";
-import { combineTitles, eventsOf, fillTitle, lifeEvent } from "../lib/lifeEvents";
+import { api, errorMessage, type Activity, type Feeling, type Post, type PostKind, type Profile } from "../lib/api";
+import { bindEvent, combineTitles, displayLabel, eventsOf, fillTitle, lifeEvent, unbindEvent } from "../lib/lifeEvents";
 import { useJournal } from "../lib/journal";
 import { fromDatetimeLocal, KINDS, toDatetimeLocal } from "../lib/format";
 import { AlbumEditor, AttachmentStrip, useAttachments } from "./Attachments";
@@ -54,13 +54,17 @@ export function Composer(props: { defaultAuthorId?: string; editing?: Post; onDo
   const [withIds, setWithIds] = useState<string[]>(editing?.withIds ?? []);
   const [placeId, setPlaceId] = useState<string | null>(editing?.placeId ?? null);
   const [feeling, setFeeling] = useState<Feeling | null>(editing?.feeling ?? null);
+  const [activities, setActivities] = useState<Activity[]>(editing?.activities ?? []);
   // Life events: the main one first, then any combined with it.
-  const [events, setEvents] = useState<string[]>(() => (editing ? eventsOf(editing) : []));
+  // Typed templates ("Visited {country}") are edited unbound, with the thing as a field value.
+  const [events, setEvents] = useState<string[]>(() => (editing ? eventsOf(editing).map((id) => unbindEvent(id).id) : []));
   // Which slot the browser fills: an index to replace, events.length to add one, null when closed.
   const [picking, setPicking] = useState<number | null>(null);
   // Template inputs per event, the profiles picked for them ("<event>|<key>"),
   // and whether the title was typed by hand (then it stops following the templates).
-  const [eventValues, setEventValues] = useState<Record<string, Record<string, string>>>({});
+  const [eventValues, setEventValues] = useState<Record<string, Record<string, string>>>(() =>
+    Object.fromEntries((editing ? eventsOf(editing) : []).map((id) => [unbindEvent(id).id, unbindEvent(id).values])),
+  );
   const [eventLinks, setEventLinks] = useState<Record<string, Profile>>({});
   const [titleEdited, setTitleEdited] = useState(!!editing);
   const [picker, setPicker] = useState<"with" | "place" | "feeling" | null>(null);
@@ -96,7 +100,7 @@ export function Composer(props: { defaultAuthorId?: string; editing?: Post; onDo
   };
 
   const autoTitle = (ids: string[], values: Record<string, Record<string, string>>) => {
-    if (!titleEdited) setTitle(combineTitles(ids.map((id) => fillTitle(lifeEvent(id), values[id] ?? {}) ?? lifeEvent(id).label)));
+    if (!titleEdited) setTitle(combineTitles(ids.map((id) => fillTitle(lifeEvent(id), values[id] ?? {}) ?? displayLabel(lifeEvent(id)))));
   };
 
   /** Drop an event's inputs, untagging the profiles picked for it. */
@@ -109,11 +113,14 @@ export function Composer(props: { defaultAuthorId?: string; editing?: Post; onDo
     return values;
   };
 
-  const pickEvent = (id: string) => {
+  const pickEvent = (picked: string) => {
     const slot = picking ?? 0;
     setPicking(null);
+    // "Visited Japan" from a search becomes "Visited {country}" with Japan filled in.
+    const { id, values: implied } = unbindEvent(picked);
     if (events.includes(id)) return;
-    const values = slot < events.length ? forget(events[slot]) : eventValues;
+    const values = { ...(slot < events.length ? forget(events[slot]) : eventValues), [id]: implied };
+    setEventValues(values);
     const next = slot < events.length ? events.map((e, i) => (i === slot ? id : e)) : [...events, id];
     setEvents(next);
     autoTitle(next, values);
@@ -167,8 +174,9 @@ export function Composer(props: { defaultAuthorId?: string; editing?: Post; onDo
         withIds,
         placeId,
         feeling,
-        eventType: events[0] ?? "",
-        alsoEventTypes: events.slice(1),
+        activities,
+        eventType: events[0] ? bindEvent(events[0], eventValues[events[0]] ?? {}) : "",
+        alsoEventTypes: events.slice(1).map((id) => bindEvent(id, eventValues[id] ?? {})),
       });
       attachments.committed();
       if (!editing) {
@@ -182,6 +190,7 @@ export function Composer(props: { defaultAuthorId?: string; editing?: Post; onDo
         setWithIds([]);
         setPlaceId(null);
         setFeeling(null);
+        setActivities([]);
         setEvents([]);
         setPicking(null);
         setEventValues({});
@@ -339,7 +348,7 @@ export function Composer(props: { defaultAuthorId?: string; editing?: Post; onDo
                     {events.map((id, i) => (
                       <LifeEventForm
                         key={id}
-                        template={lifeEvent(id)}
+                        template={lifeEvent(bindEvent(id, eventValues[id] ?? {}))}
                         values={eventValues[id] ?? {}}
                         onValue={(key, value, profile) => setEventValue(id, key, value, profile)}
                         onChange={() => setPicking(i)}
@@ -385,6 +394,8 @@ export function Composer(props: { defaultAuthorId?: string; editing?: Post; onDo
               withIds={withIds}
               placeId={placeId}
               feeling={feeling}
+              activities={activities}
+              onRemoveActivity={(i) => setActivities((list) => list.filter((_, x) => x !== i))}
               onRemoveWith={(id) => setWithIds((ids) => ids.filter((x) => x !== id))}
               onRemovePlace={() => setPlaceId(null)}
               onRemoveFeeling={() => setFeeling(null)}
@@ -452,10 +463,10 @@ export function Composer(props: { defaultAuthorId?: string; editing?: Post; onDo
             {picker === "place" && <CheckInPicker onPick={setPlaceId} onClose={() => setPicker(null)} />}
           </div>
           <div className="relative">
-            <ToolButton title="Feeling / activity" active={!!feeling} onClick={() => setPicker(picker === "feeling" ? null : "feeling")}>
+            <ToolButton title="Feeling / activity" active={!!feeling || activities.length > 0} onClick={() => setPicker(picker === "feeling" ? null : "feeling")}>
               <SmileyIcon size={20} />
             </ToolButton>
-            {picker === "feeling" && <FeelingPicker onPick={setFeeling} onClose={() => setPicker(null)} />}
+            {picker === "feeling" && <FeelingPicker onPick={setFeeling} onAddActivity={(a) => setActivities((list) => [...list, a].slice(0, 8))} onClose={() => setPicker(null)} />}
           </div>
           <ToolButton title="Set the date" active={showWhen} onClick={() => setShowWhen((s) => !s)}>
             <CalendarBlankIcon size={20} />

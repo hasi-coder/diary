@@ -1,5 +1,6 @@
-// Life-event templates: thousands of them, from a baby's first smile to a
-// 100th birthday. Each belongs to a category and a sub-group, suits one or
+// Life-event templates: real turning points, from a baby's first smile to a
+// 100th birthday. (What you're doing or wearing right now is an activity, not a
+// life event: see ACTIVITIES in catalog.ts.) Each belongs to a category and a sub-group, suits one or
 // more life stages, and has a title template with placeholders:
 //
 //   {person}            a person — pick a profile (tags them) or type a name
@@ -7,11 +8,16 @@
 //                       a place or organisation — pick a profile (checks in) or type
 //   {n}                 a number
 //   {anything[:hint]}   free text, e.g. {what:book title}
+//   {country} {sport} {role} {clothing} …
+//                       a thing from vocab.ts. A label with one ("Visited {country}")
+//                       is a typed template: one entry that stands for every
+//                       country, stored bound to the chosen one (`travel.visited@jp`).
 //
 // The id (`category.slug`) is stored in posts, so never rename a label without
 // keeping its id: add the old id to ALIASES instead.
 
-import { EVERYDAY, LOVE_SPICY, MORE_ROLES, PARENT_CHILD, ROLES, STYLE, WORK_HARD, WORK_SPICY } from "./lifeEventRoles";
+import { LOVE_SPICY, MORE_ROLES, PARENT_CHILD, ROLES, SHARED_ROLE_MOMENTS, STYLE } from "./lifeEventRoles";
+import { findThing, isVocabKind, KINDS, slugify, thing, VOCAB, type Thing, type VocabKind } from "./vocab";
 
 export type Stage = "baby" | "child" | "teen" | "young" | "adult" | "midlife" | "elder";
 
@@ -45,6 +51,12 @@ export interface LifeEventTemplate {
   stages: Stage[];
   /** Spicy (naughty, romantic) or hard (painful) moments; filterable in the picker. */
   tone?: Tone;
+  /** Typed template: the vocabulary its label is about ("Visited {country}"). */
+  vocab?: VocabKind;
+  /** Moments every job ("job") or every student role ("student") can have; bound to a role. */
+  shared?: "job" | "student";
+  /** The thing a typed or shared template is bound to (`…@jp`). */
+  bound?: Thing;
 }
 
 export type Tone = "spicy" | "hard";
@@ -76,7 +88,6 @@ export const CATEGORIES: LifeEventCategory[] = [
   { id: "civic", emoji: "🗳️", label: "Civic & community" },
   { id: "money", emoji: "💰", label: "Money & milestones" },
   { id: "pets", emoji: "🐾", label: "Pets & animals" },
-  { id: "everyday", emoji: "☕", label: "Everyday moments" },
   { id: "birthday", emoji: "🎂", label: "Birthdays & anniversaries" },
   { id: "aging", emoji: "🧓", label: "Later life" },
   { id: "achievement", emoji: "🏆", label: "Achievements" },
@@ -918,31 +929,6 @@ function stageForAge(age: number): Stage {
   return age <= 3 ? "baby" : age <= 12 ? "child" : age <= 19 ? "teen" : age <= 29 ? "young" : age <= 49 ? "adult" : age <= 64 ? "midlife" : "elder";
 }
 
-/** "lk" → 🇱🇰 */
-const flag = (code: string) => String.fromCodePoint(...[...code.toUpperCase()].map((c) => 0x1f1e6 + c.charCodeAt(0) - 65));
-
-const COUNTRIES = `af Afghanistan|al Albania|dz Algeria|ad Andorra|ao Angola|ag Antigua and Barbuda|ar Argentina|am Armenia|au Australia|at Austria|az Azerbaijan|bs the Bahamas|bh Bahrain|bd Bangladesh|bb Barbados|by Belarus|be Belgium|bz Belize|bj Benin|bt Bhutan|bo Bolivia|ba Bosnia and Herzegovina|bw Botswana|br Brazil|bn Brunei|bg Bulgaria|bf Burkina Faso|bi Burundi|cv Cabo Verde|kh Cambodia|cm Cameroon|ca Canada|cf the Central African Republic|td Chad|cl Chile|cn China|co Colombia|km Comoros|cg the Congo|cd the DR Congo|cr Costa Rica|ci Côte d'Ivoire|hr Croatia|cu Cuba|cy Cyprus|cz Czechia|dk Denmark|dj Djibouti|dm Dominica|do the Dominican Republic|ec Ecuador|eg Egypt|sv El Salvador|gq Equatorial Guinea|er Eritrea|ee Estonia|sz Eswatini|et Ethiopia|fj Fiji|fi Finland|fr France|ga Gabon|gm the Gambia|ge Georgia|de Germany|gh Ghana|gr Greece|gd Grenada|gt Guatemala|gn Guinea|gw Guinea-Bissau|gy Guyana|ht Haiti|hn Honduras|hu Hungary|is Iceland|in India|id Indonesia|ir Iran|iq Iraq|ie Ireland|il Israel|it Italy|jm Jamaica|jp Japan|jo Jordan|kz Kazakhstan|ke Kenya|ki Kiribati|kw Kuwait|kg Kyrgyzstan|la Laos|lv Latvia|lb Lebanon|ls Lesotho|lr Liberia|ly Libya|li Liechtenstein|lt Lithuania|lu Luxembourg|mg Madagascar|mw Malawi|my Malaysia|mv the Maldives|ml Mali|mt Malta|mh the Marshall Islands|mr Mauritania|mu Mauritius|mx Mexico|fm Micronesia|md Moldova|mc Monaco|mn Mongolia|me Montenegro|ma Morocco|mz Mozambique|mm Myanmar|na Namibia|nr Nauru|np Nepal|nl the Netherlands|nz New Zealand|ni Nicaragua|ne Niger|ng Nigeria|kp North Korea|mk North Macedonia|no Norway|om Oman|pk Pakistan|pw Palau|ps Palestine|pa Panama|pg Papua New Guinea|py Paraguay|pe Peru|ph the Philippines|pl Poland|pt Portugal|qa Qatar|ro Romania|ru Russia|rw Rwanda|kn Saint Kitts and Nevis|lc Saint Lucia|vc Saint Vincent and the Grenadines|ws Samoa|sm San Marino|st São Tomé and Príncipe|sa Saudi Arabia|sn Senegal|rs Serbia|sc Seychelles|sl Sierra Leone|sg Singapore|sk Slovakia|si Slovenia|sb the Solomon Islands|so Somalia|za South Africa|kr South Korea|ss South Sudan|es Spain|lk Sri Lanka|sd Sudan|sr Suriname|se Sweden|ch Switzerland|sy Syria|tw Taiwan|tj Tajikistan|tz Tanzania|th Thailand|tl Timor-Leste|tg Togo|to Tonga|tt Trinidad and Tobago|tn Tunisia|tr Türkiye|tm Turkmenistan|tv Tuvalu|ug Uganda|ua Ukraine|ae the United Arab Emirates|gb the United Kingdom|us the United States|uy Uruguay|uz Uzbekistan|vu Vanuatu|va Vatican City|ve Venezuela|vn Vietnam|ye Yemen|zm Zambia|zw Zimbabwe|hk Hong Kong|mo Macau|pr Puerto Rico|gl Greenland|fo the Faroe Islands|aq Antarctica`;
-
-const SPORTS = `⚽ football|🏏 cricket|🏀 basketball|🏐 volleyball|🏉 rugby|🏈 American football|⚾ baseball|🥎 softball|🎾 tennis|🏸 badminton|🏓 table tennis|🎾 squash|🎾 padel|🥒 pickleball|🏑 field hockey|🏒 ice hockey|🥍 lacrosse|🤾 handball|🏐 netball|🏊 swimming|🤽 water polo|🤿 free diving|🏄 surfing|🏄 bodyboarding|🪁 kitesurfing|🏄 windsurfing|🏄 paddleboarding|🚣 rowing|🛶 kayaking|🛶 canoeing|⛵ sailing|🚤 waterskiing|🏃 running|🏃 trail running|🏃 sprinting|🏃 cross-country|🏃 track and field|🦘 long jump|🏋️ weightlifting|🏋️ powerlifting|🏋️ CrossFit|💪 bodybuilding|🤸 gymnastics|🤸 calisthenics|🤸 parkour|🧘 yoga|🧘 Pilates|🥊 boxing|🥋 karate|🥋 judo|🥋 taekwondo|🥋 Brazilian jiu-jitsu|🥋 kung fu|🥋 aikido|🥋 kickboxing|🥋 Muay Thai|🥋 MMA|🤺 fencing|🤼 wrestling|🥋 angampora|🥋 kalaripayattu|🥋 capoeira|🚴 cycling|🚵 mountain biking|🚴 BMX|🛹 skateboarding|🛼 roller skating|🛼 roller derby|⛸️ figure skating|⛸️ speed skating|🎿 skiing|🏂 snowboarding|🎿 cross-country skiing|🧗 rock climbing|🧗 bouldering|🧗 mountaineering|🥾 hiking|🏇 horse riding|🏇 show jumping|🏇 polo|⛳ golf|🎳 bowling|🎯 darts|🎱 snooker|🎱 pool|🏹 archery|🎯 shooting|🥏 ultimate frisbee|🥏 disc golf|🏎️ motor racing|🏍️ motocross|🏁 karting|🏐 beach volleyball|🏊 triathlon|🏃 duathlon|🏊 open-water swimming|🧗 obstacle racing|🤸 cheerleading|💃 dancesport|🧊 curling|🛷 bobsleigh|🏋️ kettlebells|🥏 dodgeball|🏏 elle|🪀 kabaddi|🏸 sepak takraw|🎽 orienteering|♟️ chess|🎮 esports`;
-
-const LANGUAGES = `Sinhala|Tamil|English|Hindi|Bengali|Urdu|Punjabi|Gujarati|Marathi|Telugu|Kannada|Malayalam|Nepali|Pali|Sanskrit|Mandarin|Cantonese|Japanese|Korean|Vietnamese|Thai|Khmer|Lao|Burmese|Indonesian|Malay|Tagalog|Arabic|Hebrew|Persian|Turkish|Kurdish|Pashto|Dari|Spanish|Portuguese|French|Italian|German|Dutch|Afrikaans|Swedish|Norwegian|Danish|Icelandic|Finnish|Estonian|Latvian|Lithuanian|Polish|Czech|Slovak|Hungarian|Romanian|Bulgarian|Greek|Albanian|Serbian|Croatian|Bosnian|Slovenian|Macedonian|Ukrainian|Russian|Belarusian|Georgian|Armenian|Azerbaijani|Kazakh|Uzbek|Mongolian|Tibetan|Swahili|Amharic|Somali|Yoruba|Igbo|Hausa|Zulu|Xhosa|Shona|Malagasy|Welsh|Irish|Scottish Gaelic|Basque|Catalan|Galician|Maltese|Latin|Ancient Greek|Esperanto|Hawaiian|Māori|Samoan|Quechua|Navajo|Cherokee|Inuktitut|Yiddish|Haitian Creole|American Sign Language|British Sign Language|Sri Lankan Sign Language|Auslan|Braille|Python|JavaScript|Rust`;
-
-const INSTRUMENTS = `🎹 piano|🎸 guitar|🎸 bass guitar|🎸 electric guitar|🎻 violin|🎻 viola|🎻 cello|🎻 double bass|🪕 banjo|🪕 mandolin|🪕 ukulele|🪈 flute|🪈 recorder|🎷 saxophone|🎺 trumpet|🎺 trombone|🎺 French horn|🎺 tuba|🎷 clarinet|🎷 oboe|🎷 bassoon|🥁 drums|🥁 tabla|🥁 djembe|🥁 Kandyan drum (geta bera)|🥁 thammattama|🥁 cajón|🥁 percussion|🎵 harp|🎹 organ|🎹 synthesiser|🎹 harmonium|🪗 accordion|🪗 harmonica|🪕 sitar|🪕 veena|🪕 erhu|🪕 guzheng|🪕 koto|🪕 shamisen|🪕 oud|🎵 bagpipes|🎵 steel pan|🎵 marimba|🎵 xylophone|🎵 handpan|🎧 DJ decks|🎤 singing|🎶 music production`;
-
-const HOBBIES = `📷 photography|🎥 filmmaking|✍️ creative writing|📝 journaling|📖 poetry|📚 a book club|🎨 painting|🖌️ watercolour|🖍️ drawing|✏️ calligraphy|🏺 pottery|🗿 sculpture|🧶 knitting|🧶 crochet|🧵 sewing|🪡 embroidery|🧵 quilting|🪢 macramé|🪵 woodworking|🔨 carpentry|💍 jewellery making|🕯️ candle making|🧼 soap making|🌸 flower arranging|🌱 gardening|🌵 houseplants|🌳 bonsai|🍳 cooking|🍞 baking|🍞 sourdough|🍷 wine tasting|☕ coffee roasting|🍺 home brewing|🧀 cheese making|🎲 board games|🧩 jigsaw puzzles|🧠 crosswords|♟️ chess|🃏 card games|🎮 gaming|🕹️ retro gaming|🎲 tabletop role-playing|🤖 robotics|🔌 electronics|🖨️ 3D printing|💻 programming|🔭 astronomy|🐦 birdwatching|🦋 butterfly watching|🎣 fishing|🍄 foraging|🪨 rock collecting|🪙 coin collecting|📮 stamp collecting|💿 vinyl collecting|🚂 model trains|✈️ model aircraft|🛩️ drones|🎭 acting|🎤 stand-up comedy|🎤 karaoke|💃 dancing|💃 salsa|💃 ballet|💃 hip-hop dance|💃 Kandyan dance|💃 Bharatanatyam|🧙 cosplay|🧘 meditation|🗺️ geocaching|🧳 genealogy|🎨 digital art|🎞️ animation|📹 vlogging|🎙️ podcasting|🧑‍🍳 food blogging|🪁 kite flying|🎯 magic tricks|🌌 stargazing|♻️ upcycling|🐟 aquariums`;
-
-const PETS = `🐶 dog|🐶 puppy|🐱 cat|🐱 kitten|🐰 rabbit|🐹 hamster|🐹 guinea pig|🐭 rat|🐭 mouse|🐿️ chinchilla|🦔 hedgehog|🦦 ferret|🐦 budgie|🦜 parrot|🦜 cockatiel|🐤 canary|🐔 chicken|🦆 duck|🐐 goat|🐑 sheep|🐄 cow|🐖 pig|🐴 horse|🫏 donkey|🦙 alpaca|🐢 tortoise|🐢 turtle|🦎 lizard|🦎 gecko|🦎 bearded dragon|🐍 snake|🐸 frog|🐟 goldfish|🐠 tropical fish|🐝 bees|🕷️ tarantula|🦀 hermit crab`;
-
-const PROFESSIONS = `🧑‍⚕️ doctor|🧑‍⚕️ nurse|🧑‍⚕️ midwife|🧑‍⚕️ surgeon|🧑‍⚕️ paramedic|🧑‍⚕️ pharmacist|🦷 dentist|🧑‍⚕️ physiotherapist|🧠 psychologist|🧠 therapist|🧑‍⚕️ veterinarian|🧑‍🏫 teacher|🧑‍🏫 lecturer|🧑‍🏫 professor|🧑‍🏫 tutor|🧑‍🏫 early-years educator|🧑‍🔬 scientist|🧑‍🔬 researcher|🧑‍💻 software engineer|🧑‍💻 developer|🧑‍💻 data scientist|🧑‍💻 designer|🧑‍💻 product manager|🧑‍💻 engineering manager|🛡️ security engineer|🧑‍🔧 engineer|🏗️ civil engineer|⚡ electrical engineer|🛠️ mechanical engineer|🏛️ architect|🧑‍⚖️ lawyer|🧑‍⚖️ judge|🧑‍⚖️ paralegal|📊 accountant|📈 financial analyst|🏦 banker|💼 consultant|📣 marketer|📰 journalist|📸 photographer|🎬 filmmaker|🎭 actor|🎤 musician|🎨 artist|✍️ writer|📚 librarian|🧑‍🍳 chef|🍰 baker|☕ barista|🍸 bartender|🍽️ server|🛒 shop assistant|🏪 shopkeeper|💇 hairdresser|💅 beautician|💆 massage therapist|🏋️ personal trainer|🧘 yoga teacher|⚽ professional athlete|🧑‍🌾 farmer|🌿 gardener|🔧 mechanic|🔌 electrician|🚰 plumber|🪚 carpenter|🧱 builder|🎨 painter and decorator|🚚 driver|🚕 taxi driver|🛵 delivery rider|✈️ pilot|🛫 flight attendant|🚢 sailor|🚂 train driver|🧑‍🚒 firefighter|👮 police officer|🪖 soldier|🛡️ security guard|🏛️ civil servant|🗳️ politician|🧑‍💼 entrepreneur|🧑‍💼 freelancer|🧑‍💼 executive assistant|📞 customer-service agent|🧑‍🏭 factory worker|🧹 cleaner|🧑‍🍼 nanny|🧓 carer|🧑‍⚕️ social worker|🙏 priest|🙏 monk|🙏 nun|🙏 imam|🙏 rabbi|🎙️ podcaster|📹 content creator|🎮 streamer|🧑‍🔬 lab technician|🏠 estate agent|🧾 tax adviser|📦 warehouse worker|🧵 tailor|👗 fashion designer|💍 jeweller|🪡 seamstress|🌍 diplomat|🧑‍✈️ air-traffic controller|🗺️ tour guide|🏨 hotel manager|🧑‍🏫 headteacher|🧑‍⚕️ dietitian|🧑‍⚕️ optometrist|🩻 radiographer|🧑‍⚕️ occupational therapist|🧑‍⚕️ speech therapist|🧑‍🔬 pharmacologist|🦺 health-and-safety officer|🔥 welder|🧑‍🌾 fisher|🌳 forester|🐄 dairy farmer|🍵 tea planter|🧑‍🎨 tattoo artist|🎪 performer|🃏 magician|🧑‍🏫 driving instructor|🧑‍💻 IT support|🧑‍💻 DevOps engineer|🧑‍💻 UX researcher|📈 investor|🧾 auditor|🏛️ curator|📜 historian|🗣️ translator|🗣️ interpreter|🧑‍⚖️ mediator|🧑‍🤝‍🧑 community organiser|🏳️ charity worker|🧑‍🚀 astronaut`;
-
-const DEGREES = `high-school diploma|GED|associate degree|foundation degree|higher national diploma|bachelor's degree|BA|BSc|BEng|LLB|BEd|BBA|MBBS|master's degree|MA|MSc|MBA|MEng|LLM|MPhil|PhD|doctorate|MD|JD|DDS|PharmD|EdD|postgraduate diploma|postgraduate certificate|teaching qualification`;
-
-const SUBJECTS = `computer science|software engineering|medicine|nursing|law|engineering|mechanical engineering|electrical engineering|civil engineering|architecture|business|management|accounting|finance|economics|marketing|psychology|sociology|anthropology|history|philosophy|politics|international relations|English literature|creative writing|linguistics|journalism|media studies|film|music|fine art|graphic design|fashion design|theatre|dance|education|early-childhood education|mathematics|statistics|physics|chemistry|biology|biochemistry|genetics|neuroscience|environmental science|geology|geography|agriculture|veterinary science|pharmacy|dentistry|public health|social work|criminology|religious studies|Buddhist studies|archaeology|data science|artificial intelligence|cybersecurity|hospitality|tourism|sport science|nutrition`;
-
-const EXAMS = `📝 G.C.E. O/L|📝 G.C.E. A/L|📝 Grade 5 scholarship exam|📝 GCSEs|📝 A-levels|📝 IB Diploma|📝 SAT|📝 ACT|📝 AP exams|📝 gaokao|📝 Suneung (CSAT)|📝 JEE|📝 NEET|📝 Matric|📝 Leaving Cert|📝 Baccalauréat|📝 Abitur|📝 HSC|📝 VCE|📝 NCEA|📝 IELTS|📝 TOEFL|📝 Duolingo English Test|📝 JLPT|📝 HSK|📝 DELF|📝 DELE|📝 Goethe exam|📝 GRE|📝 GMAT|📝 LSAT|📝 MCAT|📝 UCAT|📝 USMLE|📝 PLAB|📝 NCLEX|📝 bar exam|📝 CPA exam|📝 CFA Level I|📝 CFA Level II|📝 CFA Level III|📝 ACCA|📝 CIMA|📝 CA Sri Lanka|📝 PMP|📝 AWS certification|📝 Azure certification|📝 Google Cloud certification|📝 CCNA|📝 CISSP|📝 Scrum Master certification|📝 Six Sigma|📝 ABRSM grade exam|📝 Trinity music exam|🚗 driving theory test|🚗 driving test|🤿 PADI Open Water|🧑‍🚒 first-aid certificate|🧑‍🏫 TEFL|🥋 black-belt grading`;
-
-const RACES = `🏃 5K|🏃 10K|🏃 parkrun|🏃 half marathon|🏃 marathon|🏃 ultramarathon|🏃 Boston Marathon|🏃 London Marathon|🏃 New York City Marathon|🏃 Colombo Marathon|🏃 Berlin Marathon|🏃 Tokyo Marathon|🏃 Chicago Marathon|🏊 sprint triathlon|🏊 Olympic triathlon|🏊 half Ironman|🏊 Ironman|🚴 century ride|🚴 cycling sportive|🧗 Tough Mudder|🧗 Spartan Race|🏊 open-water mile|🏊 Channel swim|🥾 Three Peaks Challenge|🥾 Camino de Santiago|🏔️ Everest Base Camp trek|🏔️ Kilimanjaro climb|🥾 Inca Trail`;
-
 const FAITH = `
 ☸️ Took refuge (Buddhism) | | ctyame
 ☸️ Ordained as a monk or nun | | ctyame
@@ -1288,26 +1274,61 @@ const OTHER_BLOCKS = String.raw`
 📅 A day I'll never forget | |
 `;
 
+// Typed templates: one entry per kind of thing (see vocab.ts). Their ids are
+// what the per-item lists generated before them map to (LEGACY below).
+const TYPED = String.raw`
+@education
+# Degrees & diplomas
+🎓 Earned {degree} | Earned {degree} from {school} | tyame
+# Fields of study
+📚 Started studying {subject} | Started studying {subject} at {school} | tyame
+# Exams & certifications
+📝 Sat {exam} | | ctyame
+✅ Passed {exam} | Passed {exam} with {what:result} | ctyame
+@career
+# New career
+💼 Became {role} | Started working as {role} at {company} | tyame
+@travel
+# Countries
+🌍 Visited {country} | |
+🏠 Moved to {country} | Moved to {place}, {country} |
+@fitness
+# Sports
+🏅 Took up {sport} | | ctyame
+🏁 First {sport} competition | Competed in {what:event} | ctyame
+🏆 Won a {sport} title | Won the {what:title} in {sport} | ctyame
+# Races & challenges
+🏃 Finished {race} | Finished {race} in {time} | ctyame
+@hobbies
+# New hobbies
+✨ Took up {hobby} | | ctyame
+# Music
+🎵 Started learning {instrument} | | ctyame
+🎶 First performance playing {instrument} | Performed {instrument} at {place} | ctyame
+@learning
+# Languages
+🗣️ Started learning {language} | | ctyame
+💬 Became fluent in {language} | | ctyame
+@pets
+# New arrivals
+🐾 Welcomed {pet} | Welcomed {pet} named {name} |
+`;
+
 // ── Assembly ─────────────────────────────────────────────────────────────────
 
 const TEMPLATES: LifeEventTemplate[] = [];
+const SHARED_GROUPS: Record<string, "job" | "student"> = { "Work life": "job", "School life": "student" };
 const GROUP_EMOJI = new Map<string, string>();
 const byId = new Map<string, LifeEventTemplate>();
 
-const slugify = (s: string) =>
-  s
-    .normalize("NFKD")
-    .replace(/[̀-ͯ]/g, "")
-    .toLowerCase()
-    .replace(/\{[^}]*\}/g, "")
-    .replace(/[^a-z0-9]+/g, "_")
-    .replace(/^_+|_+$/g, "")
-    .slice(0, 60);
 
 function add(category: string, group: string, emoji: string, label: string, title = "", stages: Stage[] = ALL_STAGES, slug = slugify(label), tone?: Tone) {
   let id = `${category}.${slug}`;
   for (let n = 2; byId.has(id); n++) id = `${category}.${slug}_${n}`;
   const t: LifeEventTemplate = { id, category, group, emoji, label, title: title || label, stages, ...(tone && { tone }) };
+  const kind = /\{(\w+)\}/.exec(label)?.[1];
+  if (kind && isVocabKind(kind)) t.vocab = kind;
+  if (category === "roles" && group in SHARED_GROUPS) t.shared = SHARED_GROUPS[group];
   TEMPLATES.push(t);
   byId.set(id, t);
 }
@@ -1348,33 +1369,6 @@ function parse(block: string, fallbackCategory?: string) {
   }
 }
 
-/** Every job role also gets the common workplace crushes and hard days. */
-function addWorkplaceMoments() {
-  const roles = [...new Set(TEMPLATES.filter((t) => t.category === "roles").map((t) => t.group))];
-  for (const role of roles) {
-    if (/^(Student|University student)/.test(role)) continue;
-    for (const [lines, tone] of [[WORK_SPICY, "spicy"], [WORK_HARD, "hard"]] as const) {
-      for (const line of lines.trim().split("\n")) {
-        const [head, title = "", codes = ""] = line.split("|").map((s) => s.trim());
-        const space = head.indexOf(" ");
-        const label = head.slice(space + 1).trim();
-        const stages = codes ? [...codes].map((c) => CODES[c]).filter(Boolean) : ALL_STAGES;
-        const slug = `${slugify(role)}_${slugify(label)}`.slice(0, 70);
-        if (!byId.has(`roles.${slug}`)) add("roles", role, head.slice(0, space), label, title, stages, slug, tone);
-      }
-    }
-  }
-}
-
-const each = (list: string, fn: (emoji: string, name: string) => void) =>
-  list.split("|").forEach((entry) => {
-    const e = entry.trim();
-    const space = e.indexOf(" ");
-    // Entries without an emoji are plain names.
-    if (/^\p{Extended_Pictographic}|^\p{Regional_Indicator}/u.test(e)) fn(e.slice(0, space), e.slice(space + 1));
-    else fn("", e);
-  });
-
 const YOUNG_ON: Stage[] = ["child", "teen", "young", "adult", "midlife", "elder"];
 const GROWN: Stage[] = ["teen", "young", "adult", "midlife", "elder"];
 const ADULT: Stage[] = ["young", "adult", "midlife", "elder"];
@@ -1384,9 +1378,9 @@ parse(FAITH, "faith");
 parse(OTHER_BLOCKS);
 parse(ROLES);
 parse(MORE_ROLES);
-addWorkplaceMoments();
+parse(SHARED_ROLE_MOMENTS);
 parse(PARENT_CHILD);
-parse(EVERYDAY);
+parse(TYPED);
 parse(STYLE);
 parse(LOVE_SPICY);
 
@@ -1395,57 +1389,15 @@ for (let m = 1; m <= 24; m++) add("baby", "Monthly milestones", "🍼", `Baby tu
 for (let w = 4; w <= 42; w++) add("womens", "Pregnancy week by week", "🤰", `Pregnancy week ${w}`, `${w} weeks pregnant`, ["teen", "young", "adult"], `pregnancy_week_${w}`);
 for (let g = 1; g <= 13; g++) add("education", "School years", "🎒", `Started grade ${g}`, `{person} started grade ${g}`, g < 8 ? ["child"] : ["child", "teen"], `grade_${g}`);
 
-// Education: degrees, subjects and exams.
-each(DEGREES, (_, d) => add("education", "Degrees & diplomas", "🎓", `Earned a ${d}`, `Earned a ${d} from {school}`, GROWN, `degree_${slugify(d)}`));
-each(SUBJECTS, (_, s) => add("education", "Fields of study", "📚", `Started studying ${s}`, `Started studying ${s} at {school}`, GROWN, `study_${slugify(s)}`));
-each(EXAMS, (e, x) => {
-  add("education", "Exams & certifications", e, `Sat the ${x}`, "", YOUNG_ON, `sat_${slugify(x)}`);
-  add("education", "Exams & certifications", "✅", `Passed the ${x}`, `Passed the ${x} with {what:result}`, YOUNG_ON, `passed_${slugify(x)}`);
-});
-
-// Career: professions.
-each(PROFESSIONS, (e, p) => add("career", "Became a…", e, `Became ${/^[aeiou]/i.test(p) ? "an" : "a"} ${p}`, `Started working as ${/^[aeiou]/i.test(p) ? "an" : "a"} ${p} at {company}`, GROWN, `became_${slugify(p)}`));
-
 for (const n of [1, 2, 3, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50]) add("career", "Work anniversaries", "🎉", `${n} year${n > 1 ? "s" : ""} at work`, `${n} year${n > 1 ? "s" : ""} at {company}`, ADULT, `work_anniversary_${n}`);
 
-// Travel: every country, visited and moved to.
-each(COUNTRIES, (_, entry) => {
-  const code = entry.slice(0, 2);
-  const name = entry.slice(3);
-  const plain = name.replace(/^the /, "");
-  add("travel", "Countries visited", flag(code), `Visited ${plain}`, `Visited ${name}`, ALL_STAGES, `visited_${code}`);
-  add("travel", "Countries lived in", flag(code), `Moved to ${plain}`, `Moved to {place}, ${name}`, ALL_STAGES, `moved_${code}`);
-});
-
-// Fitness: sports and races.
-each(SPORTS, (e, s) => {
-  add("fitness", "Sports", e, `Took up ${s}`, "", YOUNG_ON, `started_${slugify(s)}`);
-  add("fitness", "Competitions", e, `First ${s} competition`, `Competed in {what:event}`, YOUNG_ON, `competed_${slugify(s)}`);
-  add("fitness", "Wins & titles", "🏆", `Won a ${s} title`, `Won the {what:title} in ${s}`, YOUNG_ON, `won_${slugify(s)}`);
-});
-each(RACES, (e, r) => add("fitness", "Races & challenges", e, `Finished a ${r}`, `Finished the {what:race} in {time}`, YOUNG_ON, `finished_${slugify(r)}`));
 for (const s of ["first pull-up", "first push-up", "100 push-ups", "a 5-minute plank", "the splits", "a handstand", "a body-weight squat", "a body-weight deadlift"])
   add("fitness", "Personal bests", "💪", `Did ${s}`, "", YOUNG_ON, `did_${slugify(s)}`);
 
-// Hobbies and learning.
-each(HOBBIES, (e, h) => add("hobbies", "New hobbies", e, `Took up ${h}`, "", ALL_STAGES.slice(1), `took_up_${slugify(h)}`));
-each(INSTRUMENTS, (e, i) => {
-  const what = i === "singing" || i === "music production" || i === "percussion" ? i : `the ${i}`;
-  add("hobbies", "Music", e, `Started learning ${what}`, "", YOUNG_ON, `learning_${slugify(i)}`);
-  add("hobbies", "Music", "🎶", `First performance on ${what}`, `Performed on ${what} at {place}`, YOUNG_ON, `performed_${slugify(i)}`);
-});
-each(LANGUAGES, (_, l) => {
-  add("learning", "Languages", "🗣️", `Started learning ${l}`, "", YOUNG_ON, `learning_${slugify(l)}`);
-  add("learning", "Languages", "💬", `Became fluent in ${l}`, "", YOUNG_ON, `fluent_${slugify(l)}`);
-});
+// Skills.
 for (const s of ["to cook", "to drive", "to swim", "to code", "to sew", "to dance", "to type", "first aid", "sign language", "to fix a car", "to knit", "to meditate", "to play chess", "to ride a horse", "to sail", "to fly a plane", "to surf", "to ski", "a magic trick", "to juggle"])
   add("learning", "Skills", "🧠", `Learned ${s}`, "", ALL_STAGES.slice(1), `learned_${slugify(s)}`);
 
-// Pets.
-each(PETS, (e, p) => {
-  const a = /^[aeiou]/i.test(p) ? "an" : "a";
-  add("pets", "New arrivals", e, `Welcomed ${a} ${p}`, `Welcomed {name}, our ${p}`, ALL_STAGES, `welcomed_${slugify(p)}`);
-});
 parse(`@pets
 # Pet life
 🐾 Adopted from a shelter | Adopted {name} from {place} |
@@ -1490,47 +1442,144 @@ for (let n = 1; n <= 40; n++) {
 // One catch-all per category, keyed by the category id, so old posts and
 // "something else" both have a home.
 for (const c of CATEGORIES) {
-  const t: LifeEventTemplate = { id: c.id, category: c.id, group: "Other", emoji: c.emoji, label: `Other ${c.label.toLowerCase()} event`, title: "", stages: ALL_STAGES };
+  const t: LifeEventTemplate = { id: c.id, category: c.id, group: "Other", emoji: c.emoji, label: c.id === "other" ? "Other life event" : `Other ${c.label.toLowerCase()} event`, title: "", stages: ALL_STAGES };
   if (!byId.has(c.id)) {
     TEMPLATES.push(t);
     byId.set(c.id, t);
   }
 }
 
-/** Phase-2 life-event keys that are not category ids. */
-const ALIASES: Record<string, string> = { work: "career" };
+/** Ids that moved: Phase-2 keys, and student exam lines now under Education. */
+const ALIASES: Record<string, string> = {
+  work: "career",
+  "roles.student_boys_school_sat_the_o_l": "education.sat@g_c_e_o_l",
+  "roles.student_boys_school_sat_the_a_l": "education.sat@g_c_e_a_l",
+  "roles.student_girls_school_sat_the_o_l": "education.sat@g_c_e_o_l",
+  "roles.student_girls_school_sat_the_a_l": "education.sat@g_c_e_a_l",
+  "roles.student_mixed_school_sat_the_o_l": "education.sat@g_c_e_o_l",
+  "roles.student_mixed_school_sat_the_a_l": "education.sat@g_c_e_a_l",
+};
+
+/** Per-item ids from before typed templates ("travel.visited_jp") → their typed template. */
+const LEGACY: [prefix: string, template: string][] = [
+  ["travel.visited_", "travel.visited"],
+  ["travel.moved_", "travel.moved_to"],
+  ["fitness.started_", "fitness.took_up"],
+  ["fitness.competed_", "fitness.first_competition"],
+  ["fitness.won_", "fitness.won_a_title"],
+  ["fitness.finished_", "fitness.finished"],
+  ["hobbies.took_up_", "hobbies.took_up"],
+  ["hobbies.learning_", "hobbies.started_learning"],
+  ["hobbies.performed_", "hobbies.first_performance_playing"],
+  ["learning.learning_", "learning.started_learning"],
+  ["learning.fluent_", "learning.became_fluent_in"],
+  ["pets.welcomed_", "pets.welcomed"],
+  ["education.degree_", "education.earned"],
+  ["education.study_", "education.started_studying"],
+  ["education.sat_", "education.sat"],
+  ["education.passed_", "education.passed"],
+  ["career.became_", "career.became"],
+];
+
+/** Old per-role copies of shared moments ("roles.nurse_burned_out") → `roles.work_life_burned_out@nurse`. */
+function legacyShared(id: string): string | undefined {
+  for (const t of TEMPLATES) {
+    if (!t.shared) continue;
+    const rest = t.id.slice(`roles.${slugify(t.group)}_`.length);
+    if (id.startsWith("roles.") && id.endsWith(`_${rest}`)) return `${t.id}@${id.slice(6, -rest.length - 1)}`;
+  }
+  return undefined;
+}
+
+function canonical(id: string): string {
+  if (ALIASES[id]) return ALIASES[id];
+  if (byId.has(id.split("@")[0])) return id;
+  for (const [prefix, template] of LEGACY) if (id.startsWith(prefix) && thing(byId.get(template)!.vocab!, id.slice(prefix.length))) return `${template}@${id.slice(prefix.length)}`;
+  return legacyShared(id) ?? id;
+}
+
+/** A typed or shared template bound to one thing: "Visited {country}" + jp → "Visited Japan". */
+function bind(t: LifeEventTemplate, thingId: string): LifeEventTemplate {
+  if (t.vocab) {
+    const th = thing(t.vocab, thingId);
+    if (!th) return t;
+    const fill = (s: string) => s.replace(`{${t.vocab}}`, th.phrase);
+    return { ...t, id: `${t.id}@${th.id}`, label: fill(t.label), title: fill(t.title), emoji: th.emoji, bound: th };
+  }
+  if (t.shared) {
+    const role = thing("role", thingId);
+    if (role) return { ...t, id: `${t.id}@${role.id}`, group: role.label, bound: role };
+  }
+  return t;
+}
 
 export const LIFE_EVENTS: readonly LifeEventTemplate[] = TEMPLATES;
 export const categoryOf = (id: string) => CATEGORIES.find((c) => c.id === id) ?? CATEGORIES[CATEGORIES.length - 1];
 
 /** The template for a stored event type, falling back to the "Other" catch-all. */
 export function lifeEvent(id: string): LifeEventTemplate {
-  return byId.get(ALIASES[id] ?? id) ?? byId.get("other")!;
+  const [base, thingId] = canonical(id).split("@");
+  const t = byId.get(base) ?? (base.startsWith("roles.") ? byId.get("roles") : undefined) ?? byId.get("other")!;
+  return thingId ? bind(t, thingId) : t;
 }
 
+/** How a template reads before its thing is chosen: "Visited …". */
+export const displayLabel = (t: LifeEventTemplate) => (t.vocab && !t.bound ? t.label.replace(`{${t.vocab}}`, "…") : t.label);
+
+/** Split a stored id into the template the composer edits and the values it implies. */
+export function unbindEvent(id: string): { id: string; values: Record<string, string> } {
+  const t = lifeEvent(id);
+  if (t.vocab && t.bound) return { id: t.id.split("@")[0], values: { [t.vocab]: t.bound.label } };
+  return { id: t.id, values: {} };
+}
+
+/** The id to store: a typed template bound to the thing its field names, when it names one. */
+export function bindEvent(id: string, values: Record<string, string>): string {
+  const t = lifeEvent(id);
+  if (!t.vocab || t.bound) return t.id;
+  const th = findThing([t.vocab], values[t.vocab] ?? "");
+  return th ? `${t.id}@${th.id}` : t.id;
+}
+
+/** How many concrete life events a template stands for (typed: one per thing; shared: one per role). */
+const breadth = (t: LifeEventTemplate) =>
+  t.vocab ? VOCAB[t.vocab].length : t.shared ? VOCAB.role.filter((r) => !!r.student === (t.shared === "student")).length : 1;
+
+/** Every concrete life event the catalog can express. */
+export const LIFE_EVENT_COUNT = TEMPLATES.reduce((n, t) => n + breadth(t), 0);
+
 /** A category's sub-groups (for roles: the roles), in catalog order. */
-export function groupsOf(category: string): { name: string; emoji: string; count: number }[] {
-  const out = new Map<string, { name: string; emoji: string; count: number }>();
+export function groupsOf(category: string): { name: string; emoji: string; count: number; shared: boolean }[] {
+  const out = new Map<string, { name: string; emoji: string; count: number; shared: boolean }>();
   for (const t of TEMPLATES) {
     if (t.category !== category) continue;
-    const g = out.get(t.group) ?? { name: t.group, emoji: GROUP_EMOJI.get(`${category}/${t.group}`) ?? t.emoji, count: 0 };
-    g.count++;
+    const g = out.get(t.group) ?? { name: t.group, emoji: GROUP_EMOJI.get(`${category}/${t.group}`) ?? t.emoji, count: 0, shared: !!t.shared };
+    g.count += breadth(t);
     out.set(t.group, g);
   }
+  // A role also lists the shared moments for its kind (work or school life).
+  if (category === "roles")
+    for (const g of out.values()) {
+      if (g.shared) continue;
+      const role = VOCAB.role.find((r) => r.label === g.name);
+      if (role) g.count += TEMPLATES.filter((t) => t.shared === (role.student ? "student" : "job")).length;
+    }
   return [...out.values()];
 }
 
 /** Count of templates per category, for the picker's sidebar. */
-export const CATEGORY_COUNTS = new Map(CATEGORIES.map((c) => [c.id, TEMPLATES.filter((t) => t.category === c.id).length]));
+export const CATEGORY_COUNTS = new Map(CATEGORIES.map((c) => [c.id, TEMPLATES.filter((t) => t.category === c.id).reduce((n, t) => n + breadth(t), 0)]));
 
 // ── Placeholders ─────────────────────────────────────────────────────────────
 
-export type FieldKind = "person" | "place" | "number" | "text";
+export type FieldKind = "person" | "place" | "number" | "text" | "vocab";
 export interface TemplateField {
   /** The placeholder as written, e.g. "what:book title". */
   key: string;
   kind: FieldKind;
   label: string;
+  /** For "vocab" fields: the list to pick from. */
+  vocab?: VocabKind;
 }
 
 const PLACE_KEYS = new Set(["place", "school", "org", "company", "team"]);
@@ -1540,6 +1589,10 @@ export function fieldsOf(title: string): TemplateField[] {
   for (const [, key] of title.matchAll(/\{([^}]+)\}/g)) {
     if (out.some((f) => f.key === key)) continue;
     const [name, hint] = key.split(":");
+    if (isVocabKind(name)) {
+      out.push({ key, kind: "vocab", label: KINDS[name].label, vocab: name });
+      continue;
+    }
     const kind: FieldKind = name === "person" || name === "partner" || name === "grandparent" ? "person" : PLACE_KEYS.has(name) ? "place" : name === "n" ? "number" : "text";
     const label = hint ?? { person: "Who", partner: "Partner", grandparent: "Grandparent", place: "Where", school: "School", org: "Organisation", company: "Company", team: "Team", n: "Number" }[name] ?? name;
     out.push({ key, kind, label: label[0].toUpperCase() + label.slice(1) });
@@ -1565,6 +1618,8 @@ export function fillTitle(template: LifeEventTemplate, values: Record<string, st
   const filled = template.title.replace(/\{([^}]+)\}/g, (_, key: string) => {
     const v = values[key]?.trim();
     if (!v) missing = true;
+    // A picked thing reads naturally: "saree" → "a saree", "Netherlands" → "the Netherlands".
+    if (v && isVocabKind(key)) return findThing([key], v)?.phrase ?? v;
     return v ?? "";
   });
   return missing ? null : filled;
@@ -1573,32 +1628,55 @@ export function fillTitle(template: LifeEventTemplate, values: Record<string, st
 // ── Search ───────────────────────────────────────────────────────────────────
 
 const fold = (s: string) => s.normalize("NFKD").replace(/[̀-ͯ]/g, "").toLowerCase();
-const haystacks = new Map(TEMPLATES.map((t) => [t.id, fold(`${t.label} ${t.group} ${categoryOf(t.category).label} ${t.title.replace(/\{[^}]*\}/g, "")}`)]));
+const haystackOf = (t: LifeEventTemplate) =>
+  fold(`${displayLabel(t)} ${t.group} ${categoryOf(t.category).label} ${t.title.replace(/\{[^}]*\}/g, "")} ${t.vocab && !t.bound ? `${KINDS[t.vocab].label} ${KINDS[t.vocab].plural}` : ""}`);
+const haystacks = new Map(TEMPLATES.map((t) => [t.id, haystackOf(t)]));
+const escape = (w: string) => w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
-/** Templates matching every word of `query`, best first: label starts, then word starts, then anywhere. */
+/** -1 when a word is missing; otherwise higher for label starts, then word starts, then anywhere. */
+function score(t: LifeEventTemplate, words: string[]): number {
+  const hay = haystacks.get(t.id) ?? haystackOf(t);
+  const label = fold(displayLabel(t));
+  let total = 0;
+  for (const w of words) {
+    if (!hay.includes(w)) return -1;
+    total += label.startsWith(w) ? 3 : new RegExp(`(^|[^a-z0-9])${escape(w)}`).test(label) ? 2 : label.includes(w) ? 1 : 0;
+  }
+  return total;
+}
+
+/**
+ * Templates matching every word of `query`, best first. A search also expands
+ * typed templates ("japan" finds "Visited Japan"). Within a role
+ * (`category: "roles"`, `group: <role>`), the shared work or school moments are
+ * listed too, bound to that role.
+ */
 export function searchLifeEvents(query: string, opts: { category?: string; group?: string; stage?: Stage; tone?: Tone } = {}): LifeEventTemplate[] {
   const words = fold(query).split(/\s+/).filter(Boolean);
-  const scored: [LifeEventTemplate, number][] = [];
+  const role = opts.category === "roles" && opts.group ? VOCAB.role.find((r) => r.label === opts.group) : undefined;
+  const candidates: LifeEventTemplate[] = [];
   for (const t of TEMPLATES) {
     if (opts.category && t.category !== opts.category) continue;
-    if (opts.group && t.group !== opts.group) continue;
-    if (opts.tone && t.tone !== opts.tone) continue;
-    if (opts.stage && !t.stages.includes(opts.stage)) continue;
-    if (words.length === 0) {
-      scored.push([t, 0]);
+    if (role) {
+      if (t.group === opts.group) candidates.push(t);
+      else if (t.shared === (role.student ? "student" : "job")) candidates.push(bind(t, role.id));
       continue;
     }
-    const hay = haystacks.get(t.id)!;
-    const label = fold(t.label);
-    let score = 0;
-    for (const w of words) {
-      if (!hay.includes(w)) {
-        score = -1;
-        break;
-      }
-      score += label.startsWith(w) ? 3 : new RegExp(`(^|[^a-z0-9])${w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`).test(label) ? 2 : label.includes(w) ? 1 : 0;
-    }
-    if (score >= 0) scored.push([t, score]);
+    if (opts.group && t.group !== opts.group) continue;
+    candidates.push(t);
+    if (words.length > 0 && t.vocab) for (const th of VOCAB[t.vocab]) candidates.push(bind(t, th.id));
+  }
+  const seen = new Set<string>();
+  const scored: [LifeEventTemplate, number][] = [];
+  for (const t of candidates) {
+    if (opts.tone && t.tone !== opts.tone) continue;
+    if (opts.stage && !t.stages.includes(opts.stage)) continue;
+    // A role's own line wins over the shared one with the same name.
+    const key = role ? displayLabel(t) : t.id;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    const s = words.length === 0 ? 0 : score(t, words);
+    if (s >= 0) scored.push([t, s]);
   }
   if (words.length === 0) return scored.map(([t]) => t);
   return scored.sort((a, b) => b[1] - a[1] || a[0].label.length - b[0].label.length).map(([t]) => t);

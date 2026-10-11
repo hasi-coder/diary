@@ -180,6 +180,9 @@ fn clean_genders(genders: &[String]) -> Vec<String> {
     out
 }
 
+/// Activities ("wearing a saree") one post can have.
+const MAX_ACTIVITIES: usize = 8;
+
 /// Extra life events one milestone can combine, besides its main one.
 const MAX_COMBINED_EVENTS: usize = 4;
 
@@ -1125,12 +1128,19 @@ impl Workspace {
             .as_ref()
             .map(|f| Feeling { emoji: short(&f.emoji, 16), text: short(&f.text, 80) })
             .filter(|f| !f.text.is_empty());
-        let event_type = short(&input.event_type, 80);
+        let activities: Vec<Activity> = input
+            .activities
+            .iter()
+            .map(|a| Activity { emoji: short(&a.emoji, 16), verb: short(&a.verb, 40), object: short(&a.object, 100), thing: short(&a.thing, 80) })
+            .filter(|a| !a.verb.is_empty() && !a.object.is_empty())
+            .take(MAX_ACTIVITIES)
+            .collect();
+        let event_type = short(&input.event_type, 120);
         if input.kind == PostKind::Milestone && (title.is_empty() || event_type.is_empty()) {
             return Err(Error::Invalid("A life event needs a type and a title.".into()));
         }
         let mut also_event_types: Vec<String> = Vec::new();
-        for t in input.also_event_types.iter().map(|t| short(t, 80)) {
+        for t in input.also_event_types.iter().map(|t| short(t, 120)) {
             if !t.is_empty() && t != event_type && !also_event_types.contains(&t) && also_event_types.len() < MAX_COMBINED_EVENTS {
                 also_event_types.push(t);
             }
@@ -1142,6 +1152,7 @@ impl Workspace {
             with_ids,
             place_id: input.place_id.clone(),
             feeling,
+            activities,
             also_event_types: if input.kind == PostKind::Milestone { also_event_types } else { Vec::new() },
             event_type: if input.kind == PostKind::Milestone { event_type } else { String::new() },
             kind: input.kind,
@@ -1312,9 +1323,11 @@ impl Workspace {
             .filter_map(|id| self.profiles.get(id).map(|p| p.name.as_str()))
             .collect::<Vec<_>>()
             .join(" ");
+        let activities = post.activities.iter().map(|a| format!("{} {}", a.verb, a.object)).collect::<Vec<_>>().join(" ");
         let extra = format!(
-            "{} {} {}",
+            "{} {} {} {}",
             post.feeling.as_ref().map_or("", |f| f.text.as_str()),
+            activities,
             post.event_type,
             post.also_event_types.join(" ")
         );
@@ -1983,6 +1996,20 @@ mod tests {
         assert_eq!(ws.query_posts(&PostFilter { profile_id: Some(sarah.id.clone()), ..Default::default() }).len(), 1);
         assert_eq!(ws.search("sarah", 10).totals.posts, 1, "tagged names are searchable");
         assert_eq!(ws.search("happy", 10).totals.posts, 1, "feelings are searchable");
+
+        // Several activities on one post, cleaned and searchable.
+        let act = |verb: &str, object: &str| Activity { emoji: "✨".into(), verb: verb.into(), object: object.into(), thing: String::new() };
+        let busy = ws
+            .save_post(PostInput {
+                activities: vec![act("working as", " a nurse "), act("attending", "an office party"), act("wearing", "a saree"), act("eating", "")],
+                ..base()
+            })
+            .unwrap();
+        assert_eq!(busy.activities.len(), 3, "empty objects are dropped");
+        assert_eq!(busy.activities[0].object, "a nurse");
+        assert_eq!(ws.search("saree", 10).totals.posts, 1, "activities are searchable");
+        let many = ws.save_post(PostInput { activities: (0..20).map(|i| act("doing", &format!("thing {i}"))).collect(), ..base() }).unwrap();
+        assert_eq!(many.activities.len(), 8);
 
         // Photo tags.
         let img = ws.stage_media("p.png", [&b"\x89PNG\r\n\x1a\n"[..], &[1u8; 50]].concat()).unwrap();

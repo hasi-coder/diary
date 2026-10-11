@@ -38,7 +38,7 @@ export function PostCard({ post, onTag }: { post: Post; onTag?: (tag: string) =>
           <div>
             <div>
               <PostHeadline post={post} action={action} />
-              {!action && !post.feeling && !post.withIds.length && !post.placeId && author && author.kind !== "me" && (
+              {!action && !post.feeling && !post.activities?.length && !post.withIds.length && !post.placeId && author && author.kind !== "me" && (
                 <span className="ml-1.5 text-sm text-slate-400">· {subtitle(author)}</span>
               )}
             </div>

@@ -126,13 +126,13 @@ The composer has three modes:
 | **Post** | Everyday entries: text plus up to 20 photos/videos. | Inline in the feed with a photo grid. |
 | **Article** | Long-form writing with a title. The first image is the cover. | A teaser card in the feed (cover, title, excerpt, reading time) that opens a reading view. |
 | **Album** | A titled collection of up to 500 photos and videos, each with its own caption. Drag to add; reorder; mark the cover. | A teaser with a grid in the feed, opening an album page with captioned tiles. |
-| **Life event** | One or more of **~4,400 templates** (see below), with a title that fills itself in. | A centred card with a big icon in the feed, plus a **Life events** timeline on the profile. |
+| **Life event** | One or more of **~7,500 life events** (see below), with a title that fills itself in. | A centred card with a big icon in the feed, plus a **Life events** timeline on the profile. |
 
 Every type can also carry Facebook-style extras, shown in the headline. For example: *"Alex
 Morgan is 😊 feeling happy with Sarah Jenkins and Dev Patel at The Rusty Bean."*
 
-- **Feeling / activity** (☺): feelings like *happy*, *grateful* or *nostalgic*, or activities
-  like *watching …*, *eating …* or *travelling to …*.
+- **Feeling / activity** (☺): one feeling (*happy*, *grateful*, *nostalgic*) and any number of
+  activities: *working as a nurse*, *attending an office party*, *wearing a saree*, *watching …*.
 - **Tag people** (👤+): people and pages you were with.
 - **Check in** (📍): a place, shop or page.
 
@@ -150,37 +150,63 @@ All three use the same **rich-text editor**:
 
 Entries can be **back-dated** with "Happened on".
 
-### Life-event templates
+### Life events, activities and shared vocabularies
 
-[src/lib/lifeEvents.ts](src/lib/lifeEvents.ts) and
-[src/lib/lifeEventRoles.ts](src/lib/lifeEventRoles.ts) hold about 4,400 life-event templates in 28
-categories, each split into sub-groups (for example, Women's & reproductive health › Fertility).
+A post can say three different kinds of thing, and they are kept apart so nothing is listed twice:
+
+| | What it is | Example | Where |
+| --- | --- | --- | --- |
+| **Feeling** | One mood | 😊 feeling happy | `FEELINGS` in [catalog.ts](src/lib/catalog.ts) |
+| **Activities** | What's happening now, or in the moment the post is about. A post can have up to 8 | 💼 working as a nurse, 📅 attending an office party, 🥻 wearing a saree | `ACTIVITY_VERBS` in [catalog.ts](src/lib/catalog.ts) |
+| **Life events** | Real turning points, on milestone posts. Up to 5 can be combined | 🎓 Graduated from university **and** 💼 got a full-time offer | [lifeEvents.ts](src/lib/lifeEvents.ts), [lifeEventRoles.ts](src/lib/lifeEventRoles.ts) |
+
+So "Sarah is 🥳 feeling festive, 💼 working as a nurse, 🎄 attending an office Christmas party and 🥻
+wearing a saree" is an ordinary post with a feeling and three activities, not a life event.
+
+**Shared vocabularies** ([vocab.ts](src/lib/vocab.ts)) list each thing once:
+
+- about 210 roles, 75 pieces of clothing, 90 occasions and 90 everyday moments
+- every country, about 100 sports, 28 races, 90 hobbies, 47 instruments and 108 languages
+- pets, exams (including O/L and A/L), degrees and subjects
+
+Both sides draw on these lists:
+
+- An **activity** is a verb plus a thing. "Working as" picks a role, "wearing" picks clothing,
+  "attending" picks an occasion. Free text works too.
+- A **typed life event** names a kind of thing: `Visited {country}`, `Became {role}`,
+  `Took up {sport}`, `Wore {clothing} for the first time`, `Passed {exam}`.
+  - It is one template, stored bound to the thing chosen: `travel.visited@jp` reads as
+    "🇯🇵 Visited Japan".
+  - Search expands it, so typing "japan" offers Visited Japan, Moved to Japan, Started
+    learning Japanese and so on.
+
+**Life events** (about 2,100 templates covering about 7,500 concrete events) are in 27 categories,
+each split into sub-groups:
 
 | Area | Examples |
 | --- | --- |
-| Family, baby, childhood, teen | First smile, first steps, Kiri bath, Akuru kiyaweema, Grade 5 scholarship exam, first period, bar/bat/b-mitzvah, quinceañera, Seijin no Hi, turned 18 |
-| Roles & careers | **Pick a role, then see its milestones**, from getting in and the first uniform to leaving. There are 50 roles: boys', girls' and mixed school student; university student; intern and software engineer; part-time, primary, preschool and secondary teacher; nurse; midwife; flight attendant; doctor; lawyer; secretary; typist; telephone operator; government clerk; postal worker; bus conductor; tea plucker; housemaid; beautician; hairdresser; fashion designer; model; dancer; receptionist; bank officer; garment worker; working abroad; homemaker; nanny; police; armed forces; pilot; chef; engineer; accountant; and part-time jobs (shop assistant, cashier, waiter or waitress, barista, call centre, babysitter, promoter, delivery rider). Each job role has its own spicy moments (crushes, office romances) and hard times (bullying, burnout). Uniform milestones include the white school uniform, the nurse's cap, getting your wings, the white coat and the court gown |
-| Education and career | O/L, A/L and ~60 other exams; degrees; fields of study; ~150 professions |
-| Family moments | Mother & daughter, mother & son, father & daughter, father & son, parent & child, grandparent & grandchild, siblings |
-| Everyday moments | Small joys, home life, food, out and about, work days, feelings, love life, hard days |
-| Style & clothing | First saree, osariya, half-saree ceremony, hijab, first suit or heels, festival outfits, wedding outfits, style changes |
-| Love, weddings and identity | Dating, love and intimacy, **spicy & naughty**, **heartache & mistakes** (cheating, ghosting, scares, leaving a toxic relationship, healing), polyamory and queerplatonic partnerships, Poruwa ceremony, Nikah, Anand Karaj, coming out, transition, Pride |
+| Family, baby, childhood, teen | First smile, first steps, Kiri bath, Akuru kiyaweema, Grade 5 scholarship exam, first period, bar/bat/b-mitzvah, quinceañera, Seijin no Hi; mother & daughter, mother & son, father & daughter, father & son, grandparent and sibling moments |
+| Roles & careers | **Pick a role, then see its milestones**, from getting in and the first uniform to leaving. There are 50 roles: school students (boys', girls', mixed), university student, intern and software engineer, part-time, primary, preschool and secondary teacher, nurse, midwife, flight attendant, doctor, lawyer, secretary, typist, telephone operator, government clerk, postal worker, bus conductor, tea plucker, housemaid, beautician, hairdresser, fashion designer, model, dancer, receptionist, bank officer, garment worker, working abroad, homemaker, nanny, police, armed forces, pilot, chef, engineer, accountant, and part-time jobs. Each role also shows the shared **Work life** or **School life** moments, bound to it (`roles.work_life_burned_out@nurse`) |
+| Education and career | Exams, degrees and fields of study (typed); `Became {role}`; work anniversaries |
+| Love, weddings and identity | Dating, love and intimacy, **spicy & naughty**, **heartache & mistakes**, polyamory and queerplatonic partnerships, Poruwa ceremony, Nikah, Anand Karaj, coming out, transition, Pride |
 | Women's and reproductive health | Fertility and IVF, pregnancy week by week, birth types, NICU, loss, menopause |
-| Everything else | Every country (visited or moved to) with its flag; ~100 sports; ~100 languages; instruments, hobbies, pets, faith and culture (Vesak, Poson, dansala, Diwali, Eid, Hajj, Christmas and more), civic life, money, health and sobriety, every birthday from 1 to 110, anniversaries, later life, loss and remembrance |
+| Everything else | Travel (typed by country), sports and races, hobbies and music, languages, pets, faith and culture, civic life, money, health and sobriety, style firsts, birthdays 1–110, anniversaries, later life, loss and remembrance |
 
-- Inside a category, chips narrow it to one sub-group; for Roles & careers, you choose a role
-  first.
-- Templates can carry a **tone**: 🌶️ spicy & naughty, or 💔 hard times. A filter shows only those.
-- **Combine** up to five life events in one post ("graduated and got a full-time offer"). The
-  title joins their filled-in titles, and the post stores `eventType` (main) plus
-  `alsoEventTypes`.
-- Each template suits one or more **life stages**: baby, child, teen, young adult, adult,
-  midlife and later life. The picker filters by stage, by category, and by full-text search.
-- Placeholders in the title (`Married {person} at {place}`) become small form fields.
-  - **People and places** can be picked from profiles, which tags them on the post.
+How the picker works:
+
+- It filters by **category**, **sub-group** (for roles, choose the role first), **life stage**
+  (baby to later life) and **tone** (🌶️ spicy & naughty or 💔 hard times), plus full-text search.
+- Placeholders in a title (`Married {person} at {place}`) become small form fields.
+  - People and places can be picked from profiles, which tags them on the post.
+  - Typed fields pick from the vocabulary.
   - The title fills itself in until you edit it.
-- The stored `eventType` is a stable id such as `relationship.got_engaged`. Old keys (`work`,
-  `home`, …) still resolve, to each category's "Other …" template.
+- A milestone stores `eventType` (the main event) and `alsoEventTypes` (combined ones).
+
+Old ids keep working:
+
+- Per-item ids from before typed templates (`travel.visited_jp`, `career.became_nurse`) and
+  per-role copies of shared moments (`roles.nurse_burned_out`) map to their new form when read.
+- Phase-2 keys (`work`, `home`, …) resolve to each category's "Other …" template.
 
 ### Photos and videos
 
@@ -355,7 +381,7 @@ Defined in `src-tauri/src/model.rs` and mirrored in `src/lib/api.ts`.
 | --- | --- |
 | **Profile** | `kind` (me/person/page/shop/place), `name`, `tagline`, `bio`, `relationship`, `category`, `location`, `color`, `hasShop`, `genders[]`, `pronouns`, `terms` (neutral/feminine/masculine), `relationshipStatus`, `avatar`/`cover` (MediaRef), `coverPosition`, `relations[]` |
 | **Relation** (inside a profile) | `toId`, `kind` ("`toId` is my `kind`"), `label`/`inverseLabel` (custom), `since` |
-| **Post** | `kind` (status/article/album/milestone), `title`, `authorId`, `content` (Markdown), `occurredAt`, `withIds[]`, `placeId`, `feeling` {emoji, text}, `eventType`, `media[]` |
+| **Post** | `kind` (status/article/album/milestone), `title`, `authorId`, `content` (Markdown), `occurredAt`, `withIds[]`, `placeId`, `feeling` {emoji, text}, `activities[]` {emoji, verb, object, thing}, `eventType` + `alsoEventTypes[]` (life-event ids, possibly bound: `travel.visited@jp`), `media[]` |
 | **MediaRef** (inside a post or profile) | `id`, `kind` (image/video), `mime`, `name`, `size`, `caption`, `tags[]` ({profileId, x, y} in 0..1) |
 | **Item** | `shopId`, `name`, `description`, `priceCents`, `currency`, `status` (available/reserved/sold) |
 | **Manifest** | workspace `name`, `ownerProfileId`, `createdAt` |
@@ -534,7 +560,7 @@ Where the build deliberately differs from `system_architecture_proposal.md`:
 | `54c8325` | **Password change:** re-wrap or full key rotation with crash-safe staging |
 | `1ef207d` | **Articles and albums:** post kinds, per-photo captions, album editor, the photo viewer, article reader, album pages |
 | `2d2a6c1` | **Facebook social features:** tag people, check-ins, feelings/activities, life events, photo tagging, relationships, profile pictures and cover photos |
-| *latest* | **Life for everyone:** ~4,400 life-event templates by category, sub-group (roles with their own milestones), life stage and tone (spicy, hard), combinable in one post; ~100 modern relationship kinds with gendered labels; non-binary gender identities, pronouns and relationship status |
+| *latest* | **Life for everyone:** shared vocabularies; multiple activities per post (verb + thing); ~7,500 life events from ~2,100 templates by category, sub-group (roles with their own milestones), life stage and tone (spicy, hard), combinable in one post; ~100 modern relationship kinds with gendered labels; non-binary gender identities, pronouns and relationship status |
 
 ---
 

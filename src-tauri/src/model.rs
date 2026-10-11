@@ -209,6 +209,19 @@ pub struct Feeling {
     pub text: String,
 }
 
+/// What someone is doing in a post: a verb and its object ("working as" + "a nurse",
+/// "wearing" + "a saree"). A post can have several, alongside one feeling.
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Activity {
+    pub emoji: String,
+    pub verb: String,
+    pub object: String,
+    /// The vocabulary item it names, as `kind:id` (e.g. `role:nurse`); empty for free text.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub thing: String,
+}
+
 /// A person (or page) tagged at a spot on a photo; `x`/`y` are 0..1 of the image size.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -240,6 +253,8 @@ pub struct Post {
     pub place_id: Option<String>,
     #[serde(default)]
     pub feeling: Option<Feeling>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub activities: Vec<Activity>,
     /// Milestones only: the life-event template id, e.g. `career.started_a_new_job`.
     #[serde(default)]
     pub event_type: String,
@@ -295,6 +310,8 @@ pub struct PostInput {
     pub place_id: Option<String>,
     #[serde(default)]
     pub feeling: Option<Feeling>,
+    #[serde(default)]
+    pub activities: Vec<Activity>,
     #[serde(default)]
     pub event_type: String,
     #[serde(default)]

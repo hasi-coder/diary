@@ -14,14 +14,9 @@ export const ROLES = String.raw`
 🏉 Made the school rugby team | | ct
 🥁 Joined the school band or cadets | | ct
 🏆 Big match / Battle of the Blues | Watched the {what:big match} | ct
-🎖️ Got my prefect badge | | t
 👑 Became head prefect | | t
 🤝 Old boys' day | | tyame
-🧑‍🤝‍🧑 Made lifelong friends at school | | ct
-📝 Sat the O/L | | t
-📝 Sat the A/L | | t
 😬 Detention or caning | | ct
-🎓 Last day of school | | t
 👔 Wore the old boys' tie | | tyame
 # 👧 Student — girls' school
 🏫 Got into a girls' school | Got into {school} | c
@@ -32,13 +27,8 @@ export const ROLES = String.raw`
 🎶 Joined the school choir | | ct
 💃 Danced at the school concert | | ct
 🧕 Joined the Girl Guides | | ct
-🎖️ Got my prefect badge | | t
 👑 Became head girl | | t
-🧑‍🤝‍🧑 Made lifelong friends at school | | ct
-📝 Sat the O/L | | t
-📝 Sat the A/L | | t
 🥻 Wore a saree to the school prize-giving | | t
-🎓 Last day of school | | t
 🤝 Past pupils' day | | tyame
 # 🧒 Student — mixed school
 🎒 First day at {school} | | c
@@ -47,9 +37,6 @@ export const ROLES = String.raw`
 💌 First school crush | | ct
 🎖️ Became a prefect | | t
 🏅 Sports day win | | ct
-📝 Sat the O/L | | t
-📝 Sat the A/L | | t
-🎓 Last day of school | | t
 🎓 School leavers' party | | t
 # 🧑‍🎓 University student
 📩 Got my university admission | Admitted to {school} | ty
@@ -363,39 +350,19 @@ export const ROLES = String.raw`
 export const STYLE = String.raw`
 @style
 # Firsts
-👔 First school uniform | | bc
-👟 First pair of sports shoes | | bc
-👠 First pair of heels | | ctyame
+✨ Wore {clothing} for the first time | |
 💄 First lipstick | | tyame
-👙 First bikini or swimsuit | | ctyame
-🩱 First lingerie set | | tyame
-👔 First suit | | tyame
-👔 First tie | | ctyame
 ⌚ First watch | | ctyame
 💍 First piece of real jewellery | | ctyame
 👜 First designer bag | | tyame
-🕶️ First sunglasses | | ctyame
 💇 First salon haircut | | ctyame
 💅 First manicure | | ctyame
-🖋️ First tattoo | | tyame
 # Traditional & cultural dress
-🥻 Wore a saree for the first time | | ctyame
-🥻 Wore an osariya (Kandyan saree) | | tyame
 👘 Half-saree ceremony | | ct
 🥻 Wore my mother's wedding saree | | tyame
-🧥 Wore a sarong for the first time | | ctyame
-👕 Wore national dress | | ctyame
-👗 Wore a lehenga | | ctyame
-👘 Wore a kimono | | ctyame
-👗 Wore a hanbok | | ctyame
-👗 Wore a cheongsam / qipao | | ctyame
 🧕 Started wearing the hijab | | ctyame
 🧕 Stopped wearing the hijab | | tyame
 🪖 Tied my first turban | | ctyame
-👗 Avurudu outfit | |
-👗 Diwali outfit | |
-👗 Eid outfit | |
-🎄 Christmas outfit | |
 # Big-day outfits
 🎓 Graduation gown | | tyame
 💃 Prom or formal dress | | ty
@@ -404,8 +371,6 @@ export const STYLE = String.raw`
 🥻 Chose my wedding saree | | yame
 🤵 Got my wedding suit or nilame outfit | | yame
 👗 Bridesmaid dress | | ctyame
-👗 Party outfit I loved | | tyame
-🎭 Costume party | Dressed as {what:costume} |
 # Style changes
 ✨ Found my style | | tyame
 💇 Big haircut | |
@@ -414,7 +379,6 @@ export const STYLE = String.raw`
 🧔 Grew a beard | | tyame
 👓 New glasses | |
 🏳️‍⚧️ Gender-affirming wardrobe | | tyame
-👗 Wore a dress for the first time | | tyame
 🛍️ Wardrobe clear-out | | tyame
 ♻️ Went thrift-only | | tyame
 🧵 Made my own clothes | | ctyame
@@ -453,6 +417,8 @@ export const LOVE_SPICY = String.raw`
 💞 Had a threesome | | yame
 ✈️ Joined the mile-high club | | yame
 🚿 Showered together | | yame
+😈 Couldn't keep our hands off each other | | yame
+🔥 Spontaneous afternoon | | yame
 😈 Best night ever | | yame
 # Heartache & mistakes
 💔 Unrequited love | | ctyame
@@ -502,7 +468,6 @@ export const MORE_ROLES = String.raw`
 🧑‍💼 Became PA to the chairman | | ame
 🏅 Long-service award | | ame
 ## spicy
-😏 Crush on the boss | | yame
 🌙 Late nights at the office | | yame
 🤫 Office affair | | yame
 🍸 Business-trip romance | | yame
@@ -605,7 +570,6 @@ export const MORE_ROLES = String.raw`
 🙈 Got caught with a love letter | | ct
 # 🧒 Student — mixed school
 ## spicy
-💌 Passed notes in class | | ct
 💑 School sweetheart | With {person} | t
 🎒 Held hands behind the school building | | t
 # 🧑‍🎓 University student
@@ -675,8 +639,22 @@ export const MORE_ROLES = String.raw`
 🎖️ Uniform at a wedding turned heads | | yame
 `;
 
-/** Added to every job role, as spicy moments. */
-export const WORK_SPICY = `
+/**
+ * Moments every job (Work life) or every student role (School life) can have.
+ * They are listed once and shown under each role, bound to it: an id like
+ * `roles.work_life_crush_on_a_colleague@nurse`.
+ */
+export const SHARED_ROLE_MOMENTS = String.raw`
+@roles
+# Work life
+🪪 First day at a new workplace | First day at {company} | tyame
+🏅 Employee of the month | | tyame
+📈 Got a raise | | yame
+🎉 Office party to remember | | tyame
+🍰 Workplace birthday surprise | | tyame
+🤝 Made a work best friend | Became work best friends with {person} | tyame
+👋 Farewell from the team | | tyame
+## spicy
 😍 Crush on a colleague | | yame
 😏 Flirted at work | | yame
 💋 Kissed someone at a work party | | yame
@@ -685,10 +663,7 @@ export const WORK_SPICY = `
 🍸 Hooked up after a work night out | | yame
 😏 Crush on the boss | | yame
 📱 A customer or client asked me out | | yame
-`;
-
-/** Added to every job role, as hard times. */
-export const WORK_HARD = `
+## hard
 😓 Toughest day at work | | yame
 😤 Bullied at work | | yame
 🛡️ Harassed at work | | yame
@@ -696,6 +671,21 @@ export const WORK_HARD = `
 🤔 Thought about quitting | | yame
 📉 Passed over for promotion | | yame
 💸 Pay cut or unpaid wages | | yame
+# School life
+🎖️ Got my prefect badge | | t
+🧑‍🤝‍🧑 Made lifelong friends at school | | ct
+🏅 Won a prize at prize-giving | | ct
+🎭 Performed at the school concert | | ct
+🏃 Sports meet | | ct
+🎓 Last day of school | | t
+✍️ Signed each other's shirts | | t
+## spicy
+💌 First crush at school | | ct
+💌 Passed notes in class | | ct
+## hard
+😬 Got into trouble at school | | ct
+😢 Bullied at school | | ct
+😓 Failed an exam | | ct
 `;
 
 export const PARENT_CHILD = String.raw`
@@ -716,8 +706,6 @@ export const PARENT_CHILD = String.raw`
 🤱 Became a grandmother through her | | me
 🫂 She became my best friend | | 
 💬 Our first real grown-up talk | | 
-💔 We had a big fight | | 
-🤝 We made up | | 
 # 👩‍👦 Mother & son
 👩‍👦 First mother–son day out | With {person} | yame
 ⚽ Cheered at his first match | | yame
@@ -731,8 +719,6 @@ export const PARENT_CHILD = String.raw`
 ☕ Mother–son coffee date | | 
 🧳 Mother–son trip | Trip with {person} to {place} | 
 💬 He came to me for advice | | 
-💔 We had a big fight | | 
-🤝 We made up | | 
 # 👨‍👧 Father & daughter
 👨‍👧 First father–daughter date | With {person} | yame
 🚲 Taught her to ride a bike | | yame
@@ -742,8 +728,6 @@ export const PARENT_CHILD = String.raw`
 👰 Walked her down the aisle | | ame
 🛠️ Taught her to fix things | | yame
 💌 She called me her hero | | 
-💔 We had a big fight | | 
-🤝 We made up | | 
 # 👨‍👦 Father & son
 👨‍👦 First father–son outing | With {person} | yame
 🎣 First fishing trip together | | 
@@ -754,8 +738,6 @@ export const PARENT_CHILD = String.raw`
 🔧 Fixed the car together | | 
 🎓 Proud dad at his graduation | | ame
 🤝 He asked for my advice as a man | | ame
-💔 We had a big fight | | 
-🤝 We made up | | 
 # 👪 Parent & child
 👣 Their first day of school | | yame
 📖 Bedtime story tradition | | yame
@@ -765,6 +747,8 @@ export const PARENT_CHILD = String.raw`
 🫂 They said "I love you" first | | 
 💬 They told me a secret | | 
 🙏 They thanked me | | 
+💔 We had a big fight | |
+🤝 We made up | |
 👵 They cared for me when I was ill | | me
 🏠 Visited them in their own home | | me
 # 👵 Grandparent & grandchild
@@ -781,106 +765,4 @@ export const PARENT_CHILD = String.raw`
 🤝 Defended my sibling | | 
 🎉 Sibling surprise | | 
 🧳 Sibling trip | Trip with {person} to {place} | 
-`;
-
-export const EVERYDAY = String.raw`
-@everyday
-# Small joys
-☕ Perfect morning coffee | | tyame
-🌅 Watched the sunrise | | 
-🌇 Beautiful sunset | | 
-🌧️ Rainy day in | | 
-🌈 Saw a rainbow | | 
-📚 Finished a good book | | 
-🎬 Movie night | Watched {what:movie} | 
-🎶 A song that made my day | | 
-😂 Laughed until I cried | | 
-💌 An unexpected message | From {person} | 
-🎁 A small surprise | | 
-😊 A stranger's kindness | | 
-💐 Bought myself flowers | | tyame
-🛁 Long bath | | 
-😴 Slept in | | 
-🧘 A quiet moment | | 
-🍀 Found money in an old pocket | | 
-👗 Good hair day | | ctyame
-💪 Productive day | | 
-# Home life
-🧹 Deep-cleaned the house | | tyame
-🪴 New plant | | 
-🛋️ Rearranged the furniture | | tyame
-🧺 Laundry mountain conquered | | tyame
-🔧 Fixed something myself | | 
-🔌 Power cut | | 
-🐜 Ant invasion | | 
-🏠 Lazy Sunday at home | | 
-👨‍👩‍👧 Family dinner | | 
-📺 Binge-watched a series | Binged {what:series} | 
-📞 Long call with family | With {person} | 
-🧑‍🍳 Cooked for everyone | | tyame
-# Food & drink
-🍳 Tried a new recipe | Made {what:dish} | 
-🍰 Baked something | | 
-🍜 Found a new favourite place | | 
-🥘 Mum's cooking | | 
-🍛 Rice and curry the way I like it | | 
-🍦 Ice cream treat | | 
-🍕 Pizza night | | 
-🍵 Evening tea | | 
-🥂 Celebrated with a drink | | yame
-# Out & about
-🚶 Long walk | | 
-🚌 Commute story | | tyame
-🚦 Stuck in traffic | | tyame
-🛒 Big grocery run | | tyame
-🛍️ Shopping day | | 
-🎡 Day out | Day out at {place} | 
-☕ Coffee with a friend | With {person} | tyame
-🏖️ Beach day | | 
-⛰️ Weekend hike | | 
-⛪ Visited a temple, church or mosque | | 
-🎟️ Went to an event | Went to {what:event} | 
-💈 Haircut day | | 
-# Work & study days
-💵 Payday | | tyame
-📝 Exam day | | ctyame
-✅ Ticked off a to-do list | | 
-🎉 Friday feeling | | tyame
-🏁 Finished a big task | | 
-😴 Worked late | | yame
-🏡 Worked from home | | yame
-# Feelings
-🥰 Felt loved | | 
-🙏 Felt grateful | | 
-😌 Felt at peace | | 
-💪 Felt proud of myself | | 
-🫶 Self-care day | | 
-🌱 Small step forward | | 
-💭 Big realisation | | 
-# Love life
-🌙 Date night | With {person} | tyame
-🛏️ Lazy morning in bed together | | yame
-💋 Stolen kiss | | tyame
-🍷 Candlelit dinner at home | | yame
-🫂 Long cuddle | | 
-💌 Left a love note | | tyame
-## spicy
-😈 Couldn't keep our hands off each other | | yame
-🚿 Shower together | | yame
-🔥 Spontaneous afternoon | | yame
-# Hard days
-## hard
-😞 Bad day | | 
-😢 Cried | | 
-😤 Argument | With {person} | 
-🤝 Made up | With {person} | 
-🤒 Sick day | | 
-😰 Anxious day | | 
-😴 Couldn't sleep | | 
-🔑 Lost my keys | | 
-📱 Broke my phone | | 
-🚗 Car broke down | | yame
-💸 Money worries | | tyame
-😔 Felt lonely | | 
-🫠 Overwhelmed | | 
 `;

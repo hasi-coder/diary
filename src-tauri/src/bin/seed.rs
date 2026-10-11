@@ -197,8 +197,8 @@ fn seed(ws: &mut Workspace) -> Result<(), Box<dyn std::error::Error>> {
         ("home.moved_to_a_new_city", "Moved to Minneapolis", 300 * DAY, "New city, new lakes."),
         ("career.started_a_new_job", "Started a new job as Senior Engineer at Northwind", 200 * DAY, ""),
         ("relationship.queerplatonic_partnership", "Became queerplatonic partners with Robin Okafor", 120 * DAY, "No rings, just a shared sourdough starter."),
-        ("travel.visited_jp", "Visited Japan", 60 * DAY, "Two weeks, four cities, too many konbini snacks."),
-        ("fitness.started_kayaking", "Took up kayaking", 33 * DAY + HOUR, "Paddled the whole north shore. About 14 km. Sore arms, very happy."),
+        ("travel.visited@jp", "Visited Japan", 60 * DAY, "Two weeks, four cities, too many konbini snacks."),
+        ("fitness.took_up@kayaking", "Took up kayaking", 33 * DAY + HOUR, "Paddled the whole north shore. About 14 km. Sore arms, very happy."),
     ] {
         ws.save_post(PostInput {
             kind: PostKind::Milestone,
@@ -210,6 +210,26 @@ fn seed(ws: &mut Workspace) -> Result<(), Box<dyn std::error::Error>> {
             ..Default::default()
         })?;
     }
+
+    // Several activities at once: a role, an occasion and an outfit.
+    let act = |emoji: &str, verb: &str, object: &str, thing: &str| Activity {
+        emoji: emoji.into(),
+        verb: verb.into(),
+        object: object.into(),
+        thing: thing.into(),
+    };
+    ws.save_post(PostInput {
+        author_id: sarah.id.clone(),
+        content: "Night shift swapped for the ward Christmas party. First time in a saree at work!".into(),
+        feeling: Some(Feeling { emoji: "🥳".into(), text: "feeling festive".into() }),
+        activities: vec![
+            act("💼", "working as", "a nurse", "role:nurse"),
+            act("🎄", "attending", "an office Christmas party", "occasion:office_christmas_party"),
+            act("🥻", "wearing", "a saree", "clothing:saree"),
+        ],
+        occurred_at: Some(now - 20 * DAY),
+        ..Default::default()
+    })?;
 
     // Two life events in one post.
     ws.save_post(PostInput {

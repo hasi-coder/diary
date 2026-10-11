@@ -50,6 +50,14 @@ export interface Feeling {
   text: string;
 }
 
+/** A verb and its object: "working as" + "a nurse". `thing` is the vocabulary item (`role:nurse`), if any. */
+export interface Activity {
+  emoji: string;
+  verb: string;
+  object: string;
+  thing?: string;
+}
+
 export interface Post {
   id: string;
   kind: PostKind;
@@ -64,6 +72,8 @@ export interface Post {
   /** Check-in place, shop or page. */
   placeId: string | null;
   feeling: Feeling | null;
+  /** What they're doing: "working as a nurse", "wearing a saree"; absent when none. */
+  activities?: Activity[];
   /** Life-event template id (milestones only). */
   eventType: string;
   /** More life events combined into this milestone; absent when none. */
@@ -82,6 +92,7 @@ export interface PostInput {
   withIds: string[];
   placeId: string | null;
   feeling: Feeling | null;
+  activities: Activity[];
   eventType: string;
   alsoEventTypes: string[];
   authorId: string;

@@ -1,6 +1,7 @@
-// Fixed vocabularies: feelings and activities, gender identity, relationship
-// kinds and statuses. Life events live in lifeEvents.ts.
+// Fixed vocabularies: feelings and activity verbs, gender identity, relationship
+// kinds and statuses. Life events live in lifeEvents.ts, shared things in vocab.ts.
 import type { Profile, Relation } from "./api";
+import type { VocabKind } from "./vocab";
 import relationsCatalog from "./relations.json";
 
 export const FEELINGS: { emoji: string; text: string }[] = [
@@ -9,19 +10,48 @@ export const FEELINGS: { emoji: string; text: string }[] = [
   ["😢", "sad"], ["😔", "lonely"], ["😟", "worried"], ["😤", "frustrated"], ["🤒", "sick"], ["🥳", "festive"],
 ].map(([emoji, word]) => ({ emoji, text: `feeling ${word}` }));
 
-/** Activities need an object, typed by the user: "watching" + " Dune". */
-export const ACTIVITIES: { emoji: string; verb: string; prompt: string }[] = [
-  { emoji: "🍽️", verb: "eating", prompt: "What are you eating?" },
-  { emoji: "☕", verb: "drinking", prompt: "What are you drinking?" },
-  { emoji: "🎬", verb: "watching", prompt: "What are you watching?" },
-  { emoji: "📖", verb: "reading", prompt: "What are you reading?" },
-  { emoji: "🎧", verb: "listening to", prompt: "What are you listening to?" },
-  { emoji: "🎮", verb: "playing", prompt: "What are you playing?" },
-  { emoji: "✈️", verb: "travelling to", prompt: "Where to?" },
-  { emoji: "🎉", verb: "celebrating", prompt: "What are you celebrating?" },
-  { emoji: "📅", verb: "attending", prompt: "What are you attending?" },
-  { emoji: "💭", verb: "thinking about", prompt: "What's on your mind?" },
+/**
+ * Activities: a verb plus a thing, happening now or in the moment a post is
+ * about. Verbs with `kinds` pick from the shared vocabularies (vocab.ts), so
+ * "working as a nurse", "attending an office party" and "wearing a saree" can
+ * all go on one post; any verb also takes free text.
+ */
+export interface ActivityVerb {
+  emoji: string;
+  verb: string;
+  kinds: VocabKind[];
+  prompt: string;
+}
+
+export const ACTIVITY_VERBS: ActivityVerb[] = [
+  { emoji: "💼", verb: "working as", kinds: ["role"], prompt: "What role?" },
+  { emoji: "📅", verb: "attending", kinds: ["occasion"], prompt: "What are you attending?" },
+  { emoji: "🎉", verb: "celebrating", kinds: ["occasion"], prompt: "What are you celebrating?" },
+  { emoji: "🏠", verb: "hosting", kinds: ["occasion"], prompt: "What are you hosting?" },
+  { emoji: "👗", verb: "wearing", kinds: ["clothing"], prompt: "What are you wearing?" },
+  { emoji: "✨", verb: "having", kinds: ["moment"], prompt: "What kind of moment?" },
+  { emoji: "📚", verb: "studying", kinds: ["subject", "exam"], prompt: "What are you studying?" },
+  { emoji: "🏅", verb: "playing", kinds: ["sport", "instrument"], prompt: "What are you playing?" },
+  { emoji: "🎯", verb: "practising", kinds: ["sport", "instrument", "hobby"], prompt: "What are you practising?" },
+  { emoji: "🧠", verb: "learning", kinds: ["language", "instrument", "hobby"], prompt: "What are you learning?" },
+  { emoji: "🏃", verb: "training for", kinds: ["race", "sport"], prompt: "What are you training for?" },
+  { emoji: "🎨", verb: "enjoying", kinds: ["hobby"], prompt: "What are you enjoying?" },
+  { emoji: "✈️", verb: "travelling to", kinds: ["country"], prompt: "Where to?" },
+  { emoji: "🧭", verb: "visiting", kinds: ["country"], prompt: "Where are you visiting?" },
+  { emoji: "🐾", verb: "walking", kinds: ["pet"], prompt: "Walking who?" },
+  { emoji: "🍽️", verb: "eating", kinds: [], prompt: "What are you eating?" },
+  { emoji: "☕", verb: "drinking", kinds: [], prompt: "What are you drinking?" },
+  { emoji: "🧑‍🍳", verb: "cooking", kinds: [], prompt: "What are you cooking?" },
+  { emoji: "🎬", verb: "watching", kinds: [], prompt: "What are you watching?" },
+  { emoji: "📖", verb: "reading", kinds: [], prompt: "What are you reading?" },
+  { emoji: "🎧", verb: "listening to", kinds: [], prompt: "What are you listening to?" },
+  { emoji: "🛍️", verb: "shopping for", kinds: [], prompt: "What are you shopping for?" },
+  { emoji: "💭", verb: "thinking about", kinds: [], prompt: "What's on your mind?" },
 ];
+
+/** "with a, b and c" style list. */
+export const joinAnd = (parts: string[]) => (parts.length <= 1 ? (parts[0] ?? "") : `${parts.slice(0, -1).join(", ")} and ${parts[parts.length - 1]}`);
+
 
 export { lifeEvent } from "./lifeEvents";
 

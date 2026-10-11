@@ -6,13 +6,16 @@ import { useMemo, useState } from "react";
 import { ArrowLeftIcon, MagnifyingGlassIcon, XIcon } from "@phosphor-icons/react";
 import type { Profile } from "../lib/api";
 import { useJournal } from "../lib/journal";
+import { KINDS, VOCAB } from "../lib/vocab";
 import {
   CATEGORIES,
   CATEGORY_COUNTS,
   categoryOf,
+  displayLabel,
   fieldsOf,
   groupsOf,
-  LIFE_EVENTS,
+  lifeEvent,
+  LIFE_EVENT_COUNT,
   searchLifeEvents,
   STAGES,
   TONES,
@@ -40,7 +43,8 @@ export function LifeEventBrowser({ onPick }: { onPick: (id: string) => void }) {
         : [],
     [query, category, group, stage, tone],
   );
-  const groups = useMemo(() => (category ? groupsOf(category) : []), [category]);
+  // Shared work/school moments show inside each role, not as a role of their own.
+  const groups = useMemo(() => (category ? groupsOf(category).filter((g) => !g.shared) : []), [category]);
   const browsing = !query.trim() && !category && !stage && !tone;
   const choosingRole = category === "roles" && !group && !query.trim();
 
@@ -53,7 +57,7 @@ export function LifeEventBrowser({ onPick }: { onPick: (id: string) => void }) {
             autoFocus
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder={`Search ${LIFE_EVENTS.length.toLocaleString()} life events — "first steps", "graduated", "Japan", "HRT"…`}
+            placeholder={`Search ${LIFE_EVENT_COUNT.toLocaleString()} life events — "first steps", "graduated", "Japan", "HRT"…`}
             className="min-w-0 flex-1 bg-transparent text-sm outline-none"
           />
         </label>
@@ -77,7 +81,7 @@ export function LifeEventBrowser({ onPick }: { onPick: (id: string) => void }) {
 
       <div className="flex h-[min(62vh,40rem)]">
         <nav className="thin-scroll w-60 shrink-0 overflow-y-auto border-r border-slate-100 py-1">
-          <CategoryButton active={!category} onClick={() => chooseCategory(null)} emoji="✨" label="All categories" count={LIFE_EVENTS.length} />
+          <CategoryButton active={!category} onClick={() => chooseCategory(null)} emoji="✨" label="All categories" count={LIFE_EVENT_COUNT} />
           {CATEGORIES.map((c) => (
             <CategoryButton
               key={c.id}
@@ -192,7 +196,12 @@ function ResultList({ results, grouped, onPick }: { results: LifeEventTemplate[]
               >
                 <span className="w-7 shrink-0 text-center text-xl">{t.emoji}</span>
                 <span className="min-w-0">
-                  <span className="block truncate text-sm text-slate-800">{t.label}</span>
+                  <span className="block truncate text-sm text-slate-800">{displayLabel(t)}</span>
+                  {t.vocab && !t.bound && (
+                    <span className="block truncate text-[11px] text-brand-600">
+                      any of {VOCAB[t.vocab].length} {KINDS[t.vocab].plural}
+                    </span>
+                  )}
                   {!grouped && (
                     <span className="block truncate text-[11px] text-slate-400">
                       {categoryOf(t.category).label} · {t.group}
@@ -253,7 +262,8 @@ export function LifeEventForm(props: {
 }) {
   const { snapshot } = useJournal();
   const { template } = props;
-  const fields = fieldsOf(template.title);
+  // A bound typed template ("Visited Japan") still offers its country field, to change it.
+  const fields = fieldsOf((template.vocab && template.bound ? lifeEvent(template.id.split("@")[0]) : template).title);
   const people = useMemo(() => snapshot.profiles.filter((p) => p.kind === "person" || p.kind === "me"), [snapshot.profiles]);
   const places = useMemo(() => snapshot.profiles.filter((p) => p.kind === "place" || p.kind === "shop" || p.kind === "page"), [snapshot.profiles]);
   const category = categoryOf(template.category);
@@ -266,7 +276,7 @@ export function LifeEventForm(props: {
           <div className="text-[11px] font-semibold uppercase tracking-wider text-brand-600">
             {category.label} › {template.group}
           </div>
-          <div className="truncate font-semibold text-slate-800">{template.label}</div>
+          <div className="truncate font-semibold text-slate-800">{displayLabel(template)}</div>
         </div>
         <button
           type="button"
@@ -291,7 +301,8 @@ export function LifeEventForm(props: {
         <div className="mt-4 grid gap-3 sm:grid-cols-2">
           {fields.map((f) => {
             const options = f.kind === "person" ? people : f.kind === "place" ? places : null;
-            const listId = options ? `le-${template.id}-${f.key}` : undefined;
+            const things = f.kind === "vocab" && f.vocab ? VOCAB[f.vocab] : null;
+            const listId = options || things ? `le-${template.id}-${f.key}`.replace(/[^\w-]/g, "_") : undefined;
             return (
               <label key={f.key} className="block">
                 <span className="mb-1 flex items-center gap-1 text-xs font-medium text-slate-600">
@@ -308,8 +319,15 @@ export function LifeEventForm(props: {
                     const match = options?.find((p) => p.name.toLowerCase() === v.trim().toLowerCase()) ?? null;
                     props.onValue(f.key, v, match);
                   }}
-                  placeholder={f.kind === "person" ? "Name" : f.kind === "place" ? "Name of the place" : ""}
+                  placeholder={f.kind === "person" ? "Name" : f.kind === "place" ? "Name of the place" : f.vocab ? `Choose ${KINDS[f.vocab].any}…` : ""}
                 />
+                {things && (
+                  <datalist id={listId}>
+                    {things.map((t) => (
+                      <option key={t.id} value={t.label} />
+                    ))}
+                  </datalist>
+                )}
                 {options && (
                   <datalist id={listId}>
                     {options.map((p) => (
