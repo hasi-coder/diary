@@ -239,13 +239,56 @@ pub struct Activity {
     pub tense: String,
 }
 
-/// A person (or page) tagged at a spot on a photo; `x`/`y` are 0..1 of the image size.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+/// A person (or page) or a product tagged at a spot on a photo; `x`/`y` are 0..1
+/// of the image size. Exactly one of `profile_id` and `item_id` is set.
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PhotoTag {
+    #[serde(default, skip_serializing_if = "String::is_empty")]
     pub profile_id: String,
+    /// A shop item: "shop the look".
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub item_id: String,
     pub x: f32,
     pub y: f32,
+}
+
+/// A named collection of posts, articles and albums ("Japan trip", "Wedding
+/// planning"). A post can be in several series, so their timelines can overlap.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Series {
+    pub id: String,
+    pub title: String,
+    #[serde(default)]
+    pub description: String,
+    #[serde(default)]
+    pub color: String,
+    pub created_at: i64,
+    pub updated_at: i64,
+}
+
+/// A series as the UI sees it: its posts in date order and the span they cover.
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SeriesSummary {
+    #[serde(flatten)]
+    pub series: Series,
+    pub post_ids: Vec<String>,
+    /// `occurred_at` of its first and last posts; `None` while it is empty.
+    pub from: Option<i64>,
+    pub to: Option<i64>,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SeriesInput {
+    pub id: Option<String>,
+    pub title: String,
+    #[serde(default)]
+    pub description: String,
+    #[serde(default)]
+    pub color: String,
 }
 
 /// A journal entry. Mentions are embedded in the Markdown as `@[profile:<uuid>]`.
@@ -278,6 +321,9 @@ pub struct Post {
     /// Milestones only: more life events combined into this one ("graduated and got engaged").
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub also_event_types: Vec<String>,
+    /// Series this post belongs to.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub series_ids: Vec<String>,
     /// Attached images and videos, in display order. Bytes live in `media/<id>.enc`.
     #[serde(default)]
     pub media: Vec<MediaRef>,
@@ -333,6 +379,8 @@ pub struct PostInput {
     pub event_type: String,
     #[serde(default)]
     pub also_event_types: Vec<String>,
+    #[serde(default)]
+    pub series_ids: Vec<String>,
     pub author_id: String,
     pub content: String,
     pub occurred_at: Option<i64>,
@@ -362,6 +410,9 @@ pub struct Item {
     #[serde(default)]
     pub currency: String,
     pub status: ItemStatus,
+    /// Product photos and videos, in display order (the first is the main one).
+    #[serde(default)]
+    pub media: Vec<MediaRef>,
     pub created_at: i64,
     pub updated_at: i64,
 }
@@ -378,6 +429,9 @@ pub struct ItemInput {
     #[serde(default)]
     pub currency: String,
     pub status: ItemStatus,
+    /// Staged uploads or photos already on the item, in display order.
+    #[serde(default)]
+    pub media_ids: Vec<String>,
 }
 
 #[derive(Clone, Debug, Default, Deserialize)]
@@ -386,6 +440,8 @@ pub struct PostFilter {
     /// Posts written by, or mentioning, this profile.
     pub profile_id: Option<String>,
     pub kind: Option<PostKind>,
+    /// Posts in this series.
+    pub series_id: Option<String>,
     /// Inclusive lower bound on `occurred_at` (unix millis).
     pub from: Option<i64>,
     /// Exclusive upper bound on `occurred_at` (unix millis).
@@ -417,6 +473,7 @@ pub struct Snapshot {
     pub workspace: WorkspaceSummary,
     pub profiles: Vec<Profile>,
     pub items: Vec<Item>,
+    pub series: Vec<SeriesSummary>,
     pub stats: HashMap<String, ProfileStats>,
     /// `occurred_at` of every post, so the UI can build the year/month scrubber
     /// in the viewer's local time zone.

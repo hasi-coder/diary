@@ -10,6 +10,7 @@ import { ProfilesView } from "./views/ProfilesView";
 import { PostView } from "./views/PostView";
 import { ProfileView } from "./views/ProfileView";
 import { SearchView } from "./views/SearchView";
+import { SeriesView } from "./views/SeriesView";
 import { SettingsView } from "./views/SettingsView";
 import { TimelineView } from "./views/TimelineView";
 
@@ -62,6 +63,7 @@ function Workspace() {
       {route.view === "marketplace" && <MarketplaceView />}
       {route.view === "settings" && <SettingsView />}
       {route.view === "gallery" && <GalleryView />}
+      {route.view === "series" && <SeriesView key={route.id ?? "all"} id={route.id} />}
       {route.view === "search" && <SearchView key={route.query} initial={route.query} />}
       {route.view === "post" && <PostView key={route.id} id={route.id} />}
       {route.view === "profile" && <ProfileView key={route.id} id={route.id} tab={route.tab} />}

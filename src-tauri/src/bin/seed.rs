@@ -126,6 +126,7 @@ fn seed(ws: &mut Workspace) -> Result<(), Box<dyn std::error::Error>> {
         ("Holiday blend", "Seasonal; back next December.", 1600, ItemStatus::Sold),
     ] {
         ws.save_item(ItemInput {
+            media_ids: Vec::new(),
             id: None,
             shop_id: bean.id.clone(),
             name: name.into(),
@@ -136,6 +137,7 @@ fn seed(ws: &mut Workspace) -> Result<(), Box<dyn std::error::Error>> {
         })?;
     }
     ws.save_item(ItemInput {
+        media_ids: Vec::new(),
         id: None,
         shop_id: club.id.clone(),
         name: "Club tote bag".into(),
@@ -203,41 +205,50 @@ fn seed(ws: &mut Workspace) -> Result<(), Box<dyn std::error::Error>> {
     let event = |emoji: &str, object: &str, id: &str| act(emoji, "", object, &format!("event:{id}"));
     let was = |a: Activity| Activity { tense: "was".into(), ..a };
     let me = ws.profiles[&me_id].clone();
-    let mut story = |author: &Profile, ago: i64, content: &str, activities: Vec<Activity>| {
+    // Series: posts can be in several, so these two overlap (kayaking is in both).
+    let series = |ws: &mut Workspace, title: &str, description: &str, color: &str| {
+        ws.save_series(SeriesInput { id: None, title: title.into(), description: description.into(), color: color.into() }).map(|s| s.id)
+    };
+    let moving = series(ws, "Moving to Minneapolis", "A new city, a new job, a new lake.", "sky")?;
+    let firsts = series(ws, "A year of firsts", "Everything I tried for the first time this year.", "amber")?;
+    let looks = series(ws, "Avurudu looks", "What we wore for the New Year.", "pink")?;
+
+    let mut story = |author: &Profile, ago: i64, content: &str, series_ids: Vec<String>, activities: Vec<Activity>| {
         ws.save_post(PostInput {
             author_id: author.id.clone(),
             content: content.into(),
+            series_ids,
             activities,
             occurred_at: Some(now - ago),
             ..Default::default()
         })
     };
 
-    story(&me, 400 * DAY, "Same week. Still can't believe it.", vec![
+    story(&me, 400 * DAY, "Same week. Still can't believe it.", vec![], vec![
         event("🎓", "graduated from the University of Minnesota", "education.graduated_from_university"),
         event("🎉", "got a full-time offer", "roles.intern_software_engineer_got_a_full_time_offer"),
         act("🧑‍💻", "as", "an intern software engineer", "role:intern_software_engineer"),
     ])?;
-    story(&me, 300 * DAY, "New city, new lakes.", vec![event("🏠", "moved to Minneapolis", "home.moved_to_a_new_city")])?;
-    story(&me, 200 * DAY, "", vec![
+    story(&me, 300 * DAY, "New city, new lakes.", vec![moving.clone()], vec![event("🏠", "moved to Minneapolis", "home.moved_to_a_new_city")])?;
+    story(&me, 200 * DAY, "", vec![moving.clone()], vec![
         event("💼", "started a new job at Northwind", "career.started_a_new_job"),
         act("🧑‍💻", "as", "a senior engineer", "role:software_engineer"),
     ])?;
-    story(&me, 120 * DAY, "No rings, just a shared sourdough starter.", vec![Activity {
+    story(&me, 120 * DAY, "No rings, just a shared sourdough starter.", vec![firsts.clone()], vec![Activity {
         with_ids: vec![robin.id.clone()],
         ..event("🤍", "became queerplatonic partners", "relationship.queerplatonic_partnership")
     }])?;
-    story(&me, 60 * DAY, "Two weeks, four cities, too many konbini snacks.", vec![
+    story(&me, 60 * DAY, "Two weeks, four cities, too many konbini snacks.", vec![firsts.clone()], vec![
         event("🇯🇵", "visited Japan", "travel.visited@jp"),
         was(act("🍜", "eating", "everything in sight", "")),
     ])?;
-    story(&me, 33 * DAY + HOUR, "About 14 km. Sore arms, very happy.", vec![
+    story(&me, 33 * DAY + HOUR, "About 14 km. Sore arms, very happy.", vec![moving.clone(), firsts.clone()], vec![
         event("🛶", "took up kayaking", "fitness.took_up@kayaking"),
         Activity { detail: "on the north shore".into(), ..was(act("🏞️", "paddling", "the whole lake", "")) },
     ])?;
 
     // Sarah's evening, told in the past: a feeling, a role, an occasion with Dev, an outfit.
-    story(&sarah, 20 * DAY, "Night shift swapped for the ward Christmas party. First time in a saree at work!", vec![
+    story(&sarah, 20 * DAY, "Night shift swapped for the ward Christmas party. First time in a saree at work!", vec![], vec![
         was(act("🥳", "feeling", "festive", "feeling:festive")),
         was(Activity {
             with_ids: vec![dev.id.clone()],
@@ -305,7 +316,52 @@ fn seed(ws: &mut Workspace) -> Result<(), Box<dyn std::error::Error>> {
         })?;
 
     let first = album.media[0].id.clone();
-    ws.set_photo_tags(&album.id, &first, vec![PhotoTag { profile_id: dev.id.clone(), x: 0.45, y: 0.55 }])?;
+    ws.set_photo_tags(&album.id, &first, vec![PhotoTag { profile_id: dev.id.clone(), x: 0.45, y: 0.55, ..Default::default() }])?;
+
+    // A boutique with photographed products, and a look tagged with them.
+    let boutique = ws.save_profile(ProfileInput {
+        category: "Boutique".into(),
+        tagline: "Handloom sarees and everything to go with them.".into(),
+        ..profile(ProfileKind::Shop, "Saree House", "pink")
+    })?;
+    let mut products = Vec::new();
+    for (name, price, base, accent, shots) in [
+        ("Kandyan silk saree", 2_450_000, [128, 20, 40], [218, 165, 32], &[0u8, 2, 1][..]),
+        ("Gold jhumka earrings", 890_000, [218, 165, 32], [120, 60, 10], &[1, 2][..]),
+        ("Embroidered clutch", 640_000, [20, 110, 80], [240, 220, 160], &[2, 0][..]),
+    ] {
+        let media_ids = shots
+            .iter()
+            .map(|&pattern| ws.stage_media("product.png", png(320, 320, |x, y| fabric(base, accent, pattern, x, y))).map(|m| m.id))
+            .collect::<Result<Vec<_>, _>>()?;
+        products.push(ws.save_item(ItemInput {
+            media_ids,
+            id: None,
+            shop_id: boutique.id.clone(),
+            name: name.into(),
+            description: "Handmade in Kandy.".into(),
+            price_cents: Some(price),
+            currency: "LKR".into(),
+            status: ItemStatus::Available,
+        })?);
+    }
+    let look_ids = [[128, 20, 40], [20, 110, 80]]
+        .iter()
+        .map(|&dress| ws.stage_media("look.png", png(320, 480, |x, y| figure(dress, x, y))).map(|m| m.id))
+        .collect::<Result<Vec<_>, _>>()?;
+    let look = ws.save_post(PostInput {
+        kind: PostKind::Album,
+        title: "Avurudu look".into(),
+        author_id: sarah.id.clone(),
+        content: "Maroon and gold for the New Year. Everything from Saree House.".into(),
+        occurred_at: Some(now - 10 * DAY),
+        media_ids: look_ids,
+        series_ids: vec![looks],
+        ..Default::default()
+    })?;
+    let tag = |item: &Item, x: f32, y: f32| PhotoTag { item_id: item.id.clone(), x, y, ..Default::default() };
+    ws.set_photo_tags(&look.id, &look.media[0].id, vec![tag(&products[0], 0.5, 0.62), tag(&products[1], 0.57, 0.2), tag(&products[2], 0.3, 0.55)])?;
+    ws.set_photo_tags(&look.id, &look.media[1].id, vec![tag(&products[2], 0.68, 0.5)])?;
 
     let cover = ws.stage_media("cover.png", png(480, 320, |x, y| Scene::Sunset.pixel(x, y)))?.id;
     ws.save_post(PostInput {
@@ -333,6 +389,34 @@ fn seed(ws: &mut Workspace) -> Result<(), Box<dyn std::error::Error>> {
             ..Default::default()
         })?;
     Ok(())
+}
+
+/// A product photo: fabric in `base` with an `accent` pattern (stripes, dots or a border).
+fn fabric(base: [u8; 3], accent: [u8; 3], pattern: u8, x: u32, y: u32) -> [u8; 3] {
+    let on = match pattern {
+        0 => (x + y) % 40 < 8,
+        1 => ((x % 32) as i32 - 16).pow(2) + ((y % 32) as i32 - 16).pow(2) < 30,
+        _ => y > 250 || (y > 230 && (x / 10) % 2 == 0),
+    };
+    if on {
+        accent
+    } else {
+        base
+    }
+}
+
+/// A look: someone in a `dress` colour against a warm backdrop.
+fn figure(dress: [u8; 3], x: u32, y: u32) -> [u8; 3] {
+    let (fx, fy) = (x as f32 / 320.0, y as f32 / 480.0);
+    let head = (fx - 0.5).powi(2) + ((fy - 0.16) * 0.67).powi(2) < 0.006;
+    let body = fy > 0.24 && fy < 0.95 && (fx - 0.5).abs() < 0.08 + (fy - 0.24) * 0.3;
+    if head {
+        [150, 100, 70]
+    } else if body {
+        dress
+    } else {
+        [(240.0 - fy * 40.0) as u8, (220.0 - fy * 60.0) as u8, (200.0 - fy * 80.0) as u8]
+    }
 }
 
 #[derive(Clone, Copy)]

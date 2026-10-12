@@ -116,6 +116,16 @@ pub fn delete_item(state: State<'_, AppState>, id: String) -> Result<()> {
     state.with_workspace(|ws| ws.delete_item(&id))
 }
 
+#[tauri::command]
+pub fn save_series(state: State<'_, AppState>, input: SeriesInput) -> Result<Series> {
+    state.with_workspace(|ws| ws.save_series(input))
+}
+
+#[tauri::command]
+pub fn delete_series(state: State<'_, AppState>, id: String) -> Result<()> {
+    state.with_workspace(|ws| ws.delete_series(&id))
+}
+
 /// Rewrites files still stored in an older format, then returns the fresh snapshot.
 #[tauri::command]
 pub fn run_migration(state: State<'_, AppState>) -> Result<Snapshot> {

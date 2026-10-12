@@ -181,6 +181,12 @@ fn clean_genders(genders: &[String]) -> Vec<String> {
     out
 }
 
+/// Series one post can be part of.
+const MAX_SERIES_PER_POST: usize = 10;
+
+/// Photos and videos per shop item.
+pub const MAX_MEDIA_PER_ITEM: usize = 20;
+
 /// Activities ("wearing a saree") one post can have.
 const MAX_ACTIVITIES: usize = 12;
 
@@ -420,6 +426,7 @@ pub fn create_workspace(
             profiles: HashMap::new(),
             posts: HashMap::new(),
             items: HashMap::new(),
+            series: HashMap::new(),
             stale: HashSet::new(),
             disk_schema: CURRENT_SCHEMA,
             media: MediaState::new(),
@@ -471,6 +478,7 @@ pub fn open_workspace(root: &Path, id: &str, password: &str) -> Result<Workspace
         profiles: HashMap::new(),
         posts: HashMap::new(),
         items: HashMap::new(),
+        series: HashMap::new(),
         stale,
         disk_schema: CURRENT_SCHEMA,
         media: MediaState::new(),
@@ -479,6 +487,7 @@ pub fn open_workspace(root: &Path, id: &str, password: &str) -> Result<Workspace
     ws.profiles = ws.load_all(Kind::Profile, &mut disk_schema)?;
     ws.posts = ws.load_all(Kind::Post, &mut disk_schema)?;
     ws.items = ws.load_all(Kind::Item, &mut disk_schema)?;
+    ws.series = ws.load_all(Kind::Series, &mut disk_schema)?;
     ws.disk_schema = disk_schema;
     ws.reindex_media();
     ws.rebuild_index();
@@ -530,6 +539,7 @@ pub struct Workspace {
     pub profiles: HashMap<String, Profile>,
     pub posts: HashMap<String, Post>,
     pub items: HashMap<String, Item>,
+    pub series: HashMap<String, Series>,
     /// Records still on disk in an older schema.
     stale: HashSet<(Kind, String)>,
     /// Oldest schema found when the workspace was opened.
@@ -552,7 +562,8 @@ impl Workspace {
     fn reindex_media(&mut self) {
         let post_media = self.posts.values().flat_map(|p| p.media.iter());
         let profile_media = self.profiles.values().flat_map(|p| p.avatar.iter().chain(p.cover.iter()));
-        self.media.index = post_media.chain(profile_media).map(|m| (m.id.clone(), m.clone())).collect();
+        let item_media = self.items.values().flat_map(|i| i.media.iter());
+        self.media.index = post_media.chain(profile_media).chain(item_media).map(|m| (m.id.clone(), m.clone())).collect();
     }
 
     /// Decrypted bytes of a staged or saved attachment.
@@ -634,6 +645,47 @@ impl Workspace {
     pub fn cache_media(&mut self, session: u64, id: &str, bytes: Bytes) {
         if session == self.media.session && self.media.index.contains_key(id) {
             self.media.cache.insert(id.to_string(), bytes);
+        }
+    }
+
+    /// Resolves the media a record will reference: ones it already has, then staged uploads.
+    fn resolve_media(&self, ids: &[String], previous: &[MediaRef], max: usize, what: &str) -> Result<Vec<MediaRef>> {
+        let mut attached: Vec<MediaRef> = Vec::new();
+        for id in ids {
+            if attached.iter().any(|m| &m.id == id) {
+                continue;
+            }
+            let media = previous
+                .iter()
+                .find(|m| &m.id == id)
+                .or_else(|| self.media.staged.get(id).map(|s| &s.media))
+                .ok_or_else(|| Error::NotFound(format!("attachment {id}")))?;
+            attached.push(media.clone());
+        }
+        if attached.len() > max {
+            return Err(Error::Invalid(format!("At most {max} photos and videos per {what}.")));
+        }
+        Ok(attached)
+    }
+
+    /// Seals staged uploads among `media` to disk (before the record that references them is written).
+    fn seal_staged(&self, media: &[MediaRef]) -> Result<()> {
+        fs::create_dir_all(self.dir.join(Kind::Media.dir()))?;
+        for m in media {
+            if let Some(staged) = self.media.staged.get(&m.id) {
+                let sealed = record::encode_blob(&self.key, &m.id, &staged.bytes)?;
+                atomic_write(&self.record_path(Kind::Media, &m.id), &sealed)?;
+            }
+        }
+        Ok(())
+    }
+
+    /// After the record is written: moves sealed uploads from staging to the cache.
+    fn commit_staged(&mut self, media: &[MediaRef]) {
+        for m in media {
+            if let Some(staged) = self.media.staged.remove(&m.id) {
+                self.media.cache.insert(m.id.clone(), staged.bytes);
+            }
         }
     }
 
@@ -781,6 +833,9 @@ impl Workspace {
         for i in self.items.values() {
             put(record_rel_path(Kind::Item, &i.id), record::encode(key, Kind::Item, &i.id, serde_json::to_value(i)?, json!({}))?)?;
         }
+        for x in self.series.values() {
+            put(record_rel_path(Kind::Series, &x.id), record::encode(key, Kind::Series, &x.id, serde_json::to_value(x)?, json!({}))?)?;
+        }
 
         let media_dir = self.dir.join(Kind::Media.dir());
         if media_dir.exists() {
@@ -833,6 +888,10 @@ impl Workspace {
                 Kind::Item => {
                     let i = self.items[&id].clone();
                     self.write_record(kind, &id, &i, json!({}))?
+                }
+                Kind::Series => {
+                    let x = self.series[&id].clone();
+                    self.write_record(kind, &id, &x, json!({}))?
                 }
                 // Blobs have no schema and are never marked stale.
                 Kind::Media => continue,
@@ -1089,25 +1148,12 @@ impl Workspace {
         let previous: &[MediaRef] = existing.as_ref().map_or(&[], |p| &p.media);
 
         // Resolve attachments: keep ones already on this post, take the rest from staging.
-        let mut attached: Vec<MediaRef> = Vec::new();
-        for id in &input.media_ids {
-            if attached.iter().any(|m| &m.id == id) {
-                continue;
-            }
-            let media = previous
-                .iter()
-                .find(|m| &m.id == id)
-                .or_else(|| self.media.staged.get(id).map(|s| &s.media))
-                .ok_or_else(|| Error::NotFound(format!("attachment {id}")))?;
-            let mut media = media.clone();
-            if let Some(caption) = input.captions.get(id) {
+        let (max, what) = if input.kind == PostKind::Album { (media::MAX_MEDIA_PER_ALBUM, "album") } else { (media::MAX_MEDIA_PER_POST, "post") };
+        let mut attached = self.resolve_media(&input.media_ids, previous, max, what)?;
+        for media in &mut attached {
+            if let Some(caption) = input.captions.get(&media.id) {
                 media.caption = caption.trim().chars().take(2000).collect();
             }
-            attached.push(media);
-        }
-        let max = if input.kind == PostKind::Album { media::MAX_MEDIA_PER_ALBUM } else { media::MAX_MEDIA_PER_POST };
-        if attached.len() > max {
-            return Err(Error::Invalid(format!("At most {max} photos and videos per {}.", if max > 20 { "album" } else { "post" })));
         }
 
         let mut with_ids: Vec<String> = Vec::new();
@@ -1153,6 +1199,15 @@ impl Workspace {
                 tense: if a.tense == "was" { "was".into() } else { String::new() },
             });
         }
+        let mut series_ids: Vec<String> = Vec::new();
+        for id in &input.series_ids {
+            if !self.series.contains_key(id) {
+                return Err(Error::NotFound(format!("series {id}")));
+            }
+            if !series_ids.contains(id) && series_ids.len() < MAX_SERIES_PER_POST {
+                series_ids.push(id.clone());
+            }
+        }
         let event_type = short(&input.event_type, 120);
         if input.kind == PostKind::Milestone && (title.is_empty() || event_type.is_empty()) {
             return Err(Error::Invalid("A life event needs a type and a title.".into()));
@@ -1173,6 +1228,7 @@ impl Workspace {
             activities,
             also_event_types: if input.kind == PostKind::Milestone { also_event_types } else { Vec::new() },
             event_type: if input.kind == PostKind::Milestone { event_type } else { String::new() },
+            series_ids,
             kind: input.kind,
             title: if input.kind == PostKind::Status { String::new() } else { title },
             author_id: input.author_id,
@@ -1185,19 +1241,9 @@ impl Workspace {
 
         // Write new blobs first, then the post, then drop detached blobs. A crash
         // at any point leaves at worst an unreferenced file, never a dangling reference.
-        fs::create_dir_all(self.dir.join(Kind::Media.dir()))?;
-        for m in &post.media {
-            if let Some(staged) = self.media.staged.get(&m.id) {
-                let sealed = record::encode_blob(&self.key, &m.id, &staged.bytes)?;
-                atomic_write(&self.record_path(Kind::Media, &m.id), &sealed)?;
-            }
-        }
+        self.seal_staged(&post.media)?;
         self.write_post(&post)?;
-        for m in &post.media {
-            if let Some(staged) = self.media.staged.remove(&m.id) {
-                self.media.cache.insert(m.id.clone(), staged.bytes);
-            }
-        }
+        self.commit_staged(&post.media);
         let detached: Vec<String> =
             previous.iter().filter(|m| !post.media.iter().any(|n| n.id == m.id)).map(|m| m.id.clone()).collect();
         self.posts.insert(post.id.clone(), post.clone());
@@ -1221,19 +1267,24 @@ impl Workspace {
         Ok(())
     }
 
-    /// Replaces the people tagged on one photo of a post.
+    /// Replaces the people and products tagged on one photo of a post.
     pub fn set_photo_tags(&mut self, post_id: &str, media_id: &str, tags: Vec<PhotoTag>) -> Result<Post> {
         let mut post = self.posts.get(post_id).ok_or_else(|| Error::NotFound(format!("post {post_id}")))?.clone();
         let mut clean: Vec<PhotoTag> = Vec::new();
         for tag in tags {
-            if !self.profiles.contains_key(&tag.profile_id) {
-                return Err(Error::NotFound(format!("profile {}", tag.profile_id)));
+            match (tag.profile_id.is_empty(), tag.item_id.is_empty()) {
+                (false, true) if !self.profiles.contains_key(&tag.profile_id) => {
+                    return Err(Error::NotFound(format!("profile {}", tag.profile_id)))
+                }
+                (true, false) if !self.items.contains_key(&tag.item_id) => return Err(Error::NotFound(format!("item {}", tag.item_id))),
+                (false, true) | (true, false) => {}
+                _ => return Err(Error::Invalid("Tag a person or a product.".into())),
             }
             if !(tag.x.is_finite() && tag.y.is_finite()) {
                 return Err(Error::Invalid("Invalid tag position.".into()));
             }
-            clean.retain(|t| t.profile_id != tag.profile_id);
-            clean.push(PhotoTag { profile_id: tag.profile_id, x: tag.x.clamp(0.0, 1.0), y: tag.y.clamp(0.0, 1.0) });
+            clean.retain(|t| t.profile_id != tag.profile_id || t.item_id != tag.item_id);
+            clean.push(PhotoTag { x: tag.x.clamp(0.0, 1.0), y: tag.y.clamp(0.0, 1.0), ..tag });
         }
         clean.truncate(50);
         let media = post.media.iter_mut().find(|m| m.id == media_id).ok_or_else(|| Error::NotFound(format!("photo {media_id}")))?;
@@ -1261,6 +1312,7 @@ impl Workspace {
                 None => true,
             })
             .filter(|p| filter.kind.map_or(true, |k| p.kind == k))
+            .filter(|p| filter.series_id.as_ref().map_or(true, |s| p.series_ids.contains(s)))
             .filter(|p| filter.from.map_or(true, |from| p.occurred_at >= from))
             .filter(|p| filter.to.map_or(true, |to| p.occurred_at < to))
             .filter(|p| matches.as_ref().map_or(true, |m| m.contains(&p.id)))
@@ -1286,10 +1338,13 @@ impl Workspace {
             c => c.to_uppercase(),
         };
         let now = now_millis();
-        let created_at = match &input.id {
-            Some(id) => self.items.get(id).ok_or_else(|| Error::NotFound(format!("item {id}")))?.created_at,
-            None => now,
+        let existing = match &input.id {
+            Some(id) => Some(self.items.get(id).ok_or_else(|| Error::NotFound(format!("item {id}")))?.clone()),
+            None => None,
         };
+        let created_at = existing.as_ref().map_or(now, |i| i.created_at);
+        let previous: Vec<MediaRef> = existing.map(|i| i.media).unwrap_or_default();
+        let media = self.resolve_media(&input.media_ids, &previous, MAX_MEDIA_PER_ITEM, "item")?;
         let item = Item {
             id: input.id.unwrap_or_else(|| Uuid::new_v4().to_string()),
             shop_id: input.shop_id,
@@ -1298,22 +1353,111 @@ impl Workspace {
             price_cents: input.price_cents,
             currency,
             status: input.status,
+            media,
             created_at,
             updated_at: now,
         };
+        // Same order as posts: blobs, then the record, then detached blobs.
+        self.seal_staged(&item.media)?;
         self.write_record(Kind::Item, &item.id, &item, json!({}))?;
+        self.commit_staged(&item.media);
         self.items.insert(item.id.clone(), item.clone());
+        self.reindex_media();
         self.index_item(&item.id);
+        for old in previous.iter().filter(|m| !item.media.iter().any(|n| n.id == m.id)) {
+            self.remove_media_file(&old.id)?;
+        }
         Ok(item)
     }
 
     pub fn delete_item(&mut self, id: &str) -> Result<()> {
         validate_record_id(id)?;
-        if self.items.remove(id).is_none() {
-            return Err(Error::NotFound(format!("item {id}")));
-        }
+        let item = self.items.remove(id).ok_or_else(|| Error::NotFound(format!("item {id}")))?;
         self.index.remove(&DocKey::new(DocKind::Item, id));
-        self.remove_record(Kind::Item, id)
+        self.remove_record(Kind::Item, id)?;
+        // Photos it was tagged in lose the tag.
+        let tagged: Vec<Post> = self
+            .posts
+            .values()
+            .filter(|p| p.media.iter().any(|m| m.tags.iter().any(|t| t.item_id == id)))
+            .cloned()
+            .collect();
+        for mut post in tagged {
+            for m in &mut post.media {
+                m.tags.retain(|t| t.item_id != id);
+            }
+            self.write_post(&post)?;
+            self.posts.insert(post.id.clone(), post);
+        }
+        self.reindex_media();
+        for m in &item.media {
+            self.remove_media_file(&m.id)?;
+        }
+        Ok(())
+    }
+
+    // ---- Series ----
+
+    pub fn save_series(&mut self, input: SeriesInput) -> Result<Series> {
+        let title = required(&input.title, "Series title")?;
+        let now = now_millis();
+        let created_at = match &input.id {
+            Some(id) => self.series.get(id).ok_or_else(|| Error::NotFound(format!("series {id}")))?.created_at,
+            None => now,
+        };
+        let series = Series {
+            id: input.id.unwrap_or_else(|| Uuid::new_v4().to_string()),
+            title: title.chars().take(200).collect(),
+            description: short(&input.description, 5000),
+            color: short(&input.color, 20),
+            created_at,
+            updated_at: now,
+        };
+        self.write_record(Kind::Series, &series.id, &series, json!({}))?;
+        self.series.insert(series.id.clone(), series.clone());
+        // Its title is searchable on its posts.
+        let posts: Vec<String> = self.posts.values().filter(|p| p.series_ids.contains(&series.id)).map(|p| p.id.clone()).collect();
+        for id in posts {
+            self.index_post(&id);
+        }
+        Ok(series)
+    }
+
+    /// Every series with its posts in date order (oldest first: part 1, part 2, …).
+    pub fn series_summaries(&self) -> Vec<SeriesSummary> {
+        let mut out: Vec<SeriesSummary> = self
+            .series
+            .values()
+            .map(|x| {
+                let mut members: Vec<&Post> = self.posts.values().filter(|p| p.series_ids.contains(&x.id)).collect();
+                members.sort_by_key(|p| (p.occurred_at, p.created_at));
+                SeriesSummary {
+                    series: x.clone(),
+                    from: members.first().map(|p| p.occurred_at),
+                    to: members.last().map(|p| p.occurred_at),
+                    post_ids: members.iter().map(|p| p.id.clone()).collect(),
+                }
+            })
+            .collect();
+        out.sort_by_key(|x| (x.from.unwrap_or(i64::MAX), x.series.title.to_lowercase()));
+        out
+    }
+
+    /// Deletes a series; its posts stay, just no longer part of it.
+    pub fn delete_series(&mut self, id: &str) -> Result<()> {
+        validate_record_id(id)?;
+        if self.series.remove(id).is_none() {
+            return Err(Error::NotFound(format!("series {id}")));
+        }
+        self.remove_record(Kind::Series, id)?;
+        let members: Vec<Post> = self.posts.values().filter(|p| p.series_ids.iter().any(|s| s == id)).cloned().collect();
+        for mut post in members {
+            post.series_ids.retain(|s| s != id);
+            self.write_post(&post)?;
+            self.posts.insert(post.id.clone(), post.clone());
+            self.index_post(&post.id);
+        }
+        Ok(())
     }
 
     // ---- Search ----
@@ -1347,12 +1491,23 @@ impl Workspace {
             .map(|a| format!("{} {} {} {} {}", a.verb, a.adjectives, a.object, a.adverb, a.detail))
             .collect::<Vec<_>>()
             .join(" ");
+        // Series titles and products tagged on its photos find a post too.
+        let series = post.series_ids.iter().filter_map(|id| self.series.get(id).map(|x| x.title.as_str())).collect::<Vec<_>>().join(" ");
+        let products = post
+            .media
+            .iter()
+            .flat_map(|m| m.tags.iter())
+            .filter_map(|t| self.items.get(&t.item_id).map(|i| i.name.as_str()))
+            .collect::<Vec<_>>()
+            .join(" ");
         let extra = format!(
-            "{} {} {} {}",
+            "{} {} {} {} {} {}",
             post.feeling.as_ref().map_or("", |f| f.text.as_str()),
             activities,
             post.event_type,
-            post.also_event_types.join(" ")
+            post.also_event_types.join(" "),
+            series,
+            products
         );
         let fields = [
             Field { text: &post.title, weight: 2.5 },
@@ -1498,6 +1653,7 @@ impl Workspace {
             },
             profiles,
             items,
+            series: self.series_summaries(),
             stats,
             post_dates: self.posts.values().map(|p| p.occurred_at).collect(),
             migration: self.migration_status(),
@@ -1636,6 +1792,7 @@ mod tests {
         ws.save_post(PostInput { kind: Default::default(), title: String::new(), captions: Default::default(), id: None, author_id: sarah.id.clone(), content: "Hi from Sarah".into(), occurred_at: Some(2_000), media_ids: vec![], ..Default::default() })
             .unwrap();
         ws.save_item(ItemInput {
+            media_ids: Vec::new(),
             id: None,
             shop_id: shop.id.clone(),
             name: "Pour-over".into(),
@@ -1689,6 +1846,7 @@ mod tests {
 
         let page = ws.save_profile(person("Book Club", ProfileKind::Page)).unwrap();
         let item = ItemInput {
+            media_ids: Vec::new(),
             id: None,
             shop_id: page.id.clone(),
             name: "Tote bag".into(),
@@ -1795,6 +1953,7 @@ mod tests {
             .save_post(post(&owner, &format!("Had a **latte** at @[profile:{}] with @[profile:{}] #Coffee", shop.id, sarah.id), vec![]))
             .unwrap();
         ws.save_item(ItemInput {
+            media_ids: Vec::new(),
             id: None,
             shop_id: shop.id.clone(),
             name: "Pour-over".into(),
@@ -2055,7 +2214,7 @@ mod tests {
         // Photo tags.
         let img = ws.stage_media("p.png", [&b"\x89PNG\r\n\x1a\n"[..], &[1u8; 50]].concat()).unwrap();
         let photo = ws.save_post(post(&owner, "", vec![img.id.clone()])).unwrap();
-        let tag = |id: &str, x: f32| PhotoTag { profile_id: id.into(), x, y: 0.5 };
+        let tag = |id: &str, x: f32| PhotoTag { profile_id: id.into(), x, y: 0.5, ..Default::default() };
         let tagged = ws.set_photo_tags(&photo.id, &img.id, vec![tag(&dev.id, 0.2), tag(&dev.id, 1.7)]).unwrap();
         assert_eq!(tagged.media[0].tags, vec![tag(&dev.id, 1.0)], "one tag per person, clamped");
         assert!(ws.set_photo_tags(&photo.id, &img.id, vec![tag("nobody", 0.1)]).is_err());
@@ -2268,5 +2427,99 @@ mod tests {
         assert_eq!(ws.profiles.len(), 2);
         assert_eq!(ws.posts[&post_id].occurred_at, 5);
         assert_eq!(ws.posts[&post_id].kind, PostKind::Status, "old posts load as statuses");
+    }
+
+    #[test]
+    fn product_photos_and_tags() {
+        let root = tempfile::tempdir().unwrap();
+        let mut ws = create_workspace(root.path(), "", "Personal", "Alex", "correct horse", FAST).unwrap();
+        let owner = ws.owner_id().to_string();
+        let shop = ws.save_profile(person("Saree House", ProfileKind::Shop)).unwrap();
+        let png = |n: u8| [&b"\x89PNG\r\n\x1a\n"[..], &[n; 64]].concat();
+        let media_dir = root.path().join("workspace_personal/media");
+        let count = |dir: &Path| fs::read_dir(dir).map(|d| d.count()).unwrap_or(0);
+
+        // A product with a gallery.
+        let front = ws.stage_media("front.png", png(1)).unwrap();
+        let back = ws.stage_media("back.png", png(2)).unwrap();
+        let input = |media_ids: Vec<String>, id: Option<String>| ItemInput {
+            media_ids,
+            id,
+            shop_id: shop.id.clone(),
+            name: "Kandyan silk saree".into(),
+            description: String::new(),
+            price_cents: Some(25_000),
+            currency: "LKR".into(),
+            status: ItemStatus::Available,
+        };
+        let item = ws.save_item(input(vec![front.id.clone(), back.id.clone()], None)).unwrap();
+        assert_eq!(item.media.len(), 2);
+        assert_eq!(count(&media_dir), 2, "sealed to disk");
+        assert!(matches!(ws.media_lookup(&front.id).unwrap().1, MediaSource::Ready(_)));
+        assert_no_plaintext(&media_dir, &["Kandyan", "front.png"]);
+
+        // Dropping a photo deletes its file.
+        let item = ws.save_item(input(vec![back.id.clone()], Some(item.id.clone()))).unwrap();
+        assert_eq!(item.media.len(), 1);
+        assert_eq!(count(&media_dir), 1);
+
+        // Tag it on a look.
+        let look = ws.stage_media("look.png", png(3)).unwrap();
+        let p = ws.save_post(PostInput { kind: PostKind::Album, title: "Avurudu look".into(), ..post(&owner, "", vec![look.id.clone()]) }).unwrap();
+        let product = PhotoTag { item_id: item.id.clone(), x: 0.4, y: 0.6, ..Default::default() };
+        let both = PhotoTag { profile_id: owner.clone(), ..product.clone() };
+        assert!(ws.set_photo_tags(&p.id, &look.id, vec![both]).is_err(), "a person or a product, not both");
+        assert!(ws.set_photo_tags(&p.id, &look.id, vec![PhotoTag { x: 0.1, y: 0.1, ..Default::default() }]).is_err());
+        let me = PhotoTag { profile_id: owner.clone(), x: 0.5, y: 0.2, ..Default::default() };
+        let tagged = ws.set_photo_tags(&p.id, &look.id, vec![product.clone(), me, product]).unwrap();
+        assert_eq!(tagged.media[0].tags.len(), 2, "one tag per product");
+        assert_eq!(ws.search("kandyan", 10).totals.posts, 1, "tagged products find the look");
+
+        // Deleting the product removes its tags and photos.
+        ws.delete_item(&item.id).unwrap();
+        assert_eq!(ws.posts[&p.id].media[0].tags.len(), 1);
+        assert_eq!(count(&media_dir), 1, "only the look's photo is left");
+        let ws = open_workspace(root.path(), "workspace_personal", "correct horse").unwrap();
+        assert!(ws.posts[&p.id].media[0].tags.iter().all(|t| t.item_id.is_empty()));
+    }
+
+    #[test]
+    fn series_overlap_and_cleanup() {
+        let root = tempfile::tempdir().unwrap();
+        let mut ws = create_workspace(root.path(), "", "Personal", "Alex", "correct horse", FAST).unwrap();
+        let owner = ws.owner_id().to_string();
+        let new = |title: &str| SeriesInput { id: None, title: title.into(), description: String::new(), color: "teal".into() };
+        assert!(ws.save_series(new("  ")).is_err(), "needs a title");
+        let trip = ws.save_series(new("Japan trip")).unwrap();
+        let wedding = ws.save_series(new("Wedding planning")).unwrap();
+
+        // One post in both: the series overlap.
+        let both = ws.save_post(PostInput { series_ids: vec![trip.id.clone(), wedding.id.clone(), trip.id.clone()], ..post(&owner, "Booked the venue from Kyoto", vec![]) }).unwrap();
+        assert_eq!(both.series_ids, vec![trip.id.clone(), wedding.id.clone()], "deduplicated");
+        assert!(ws.save_post(PostInput { series_ids: vec!["missing".into()], ..post(&owner, "x", vec![]) }).is_err());
+        assert_eq!(ws.search("japan", 10).totals.posts, 1, "series titles find their posts");
+
+        // Renaming reindexes; the series is encrypted and survives a reopen.
+        ws.save_series(SeriesInput { id: Some(trip.id.clone()), ..new("Kyoto trip") }).unwrap();
+        assert_eq!(ws.search("kyoto trip", 10).totals.posts, 1);
+        assert_no_plaintext(&root.path().join("workspace_personal/series"), &["Kyoto"]);
+        let mut ws = open_workspace(root.path(), "workspace_personal", "correct horse").unwrap();
+        assert_eq!(ws.series[&trip.id].title, "Kyoto trip");
+
+        // Deleting a series keeps its posts.
+        ws.delete_series(&wedding.id).unwrap();
+        assert_eq!(ws.posts[&both.id].series_ids, vec![trip.id.clone()]);
+        let later = ws.save_post(PostInput { series_ids: vec![trip.id.clone()], occurred_at: Some(both.occurred_at + 1000), ..post(&owner, "Back home", vec![]) }).unwrap();
+        let summary = ws.series_summaries().into_iter().find(|x| x.series.id == trip.id).unwrap();
+        assert_eq!(summary.post_ids, vec![both.id.clone(), later.id.clone()], "parts in date order");
+        assert_eq!((summary.from, summary.to), (Some(both.occurred_at), Some(later.occurred_at)));
+        let filter = PostFilter { series_id: Some(trip.id.clone()), ..Default::default() };
+        assert_eq!(ws.query_posts(&filter).len(), 2);
+        assert!(ws.snapshot().series.iter().all(|s| s.series.id != wedding.id));
+
+        // Series are re-encrypted by a key rotation.
+        ws.change_password("correct horse", "battery staple", true, FAST).unwrap();
+        let ws = open_workspace(root.path(), "workspace_personal", "battery staple").unwrap();
+        assert_eq!(ws.series.len(), 1);
     }
 }

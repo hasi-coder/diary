@@ -92,6 +92,8 @@ export interface Post {
   eventType: string;
   /** More life events combined into this milestone; absent when none. */
   alsoEventTypes?: string[];
+  /** Series it belongs to; absent when none. */
+  seriesIds?: string[];
   media: MediaRef[];
   createdAt: number;
   updatedAt: number;
@@ -109,6 +111,7 @@ export interface PostInput {
   activities: Activity[];
   eventType: string;
   alsoEventTypes: string[];
+  seriesIds: string[];
   authorId: string;
   content: string;
   occurredAt?: number;
@@ -129,10 +132,31 @@ export interface MediaRef {
 }
 
 /** A profile tagged on a photo; x/y are 0..1 of the image size. */
+/** A person (`profileId`) or a product (`itemId`) tagged at a spot on a photo; x/y are 0..1. */
 export interface PhotoTag {
-  profileId: string;
+  profileId?: string;
+  itemId?: string;
   x: number;
   y: number;
+}
+
+/** A named collection of posts; a post can be in several, so series can overlap in time. */
+export interface Series {
+  id: string;
+  title: string;
+  description: string;
+  color: string;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export type SeriesInput = Pick<Series, "title" | "description" | "color"> & { id?: string };
+
+/** A series with its posts in date order (part 1 first) and the span they cover. */
+export interface SeriesSummary extends Series {
+  postIds: string[];
+  from: number | null;
+  to: number | null;
 }
 
 // Mirrors src-tauri/src/media.rs.
@@ -158,15 +182,18 @@ export interface Item {
   priceCents: number | null;
   currency: string;
   status: ItemStatus;
+  /** Product photos and videos; the first is the main one. */
+  media: MediaRef[];
   createdAt: number;
   updatedAt: number;
 }
 
-export type ItemInput = Omit<Item, "id" | "createdAt" | "updatedAt"> & { id?: string };
+export type ItemInput = Omit<Item, "id" | "createdAt" | "updatedAt" | "media"> & { id?: string; mediaIds: string[] };
 
 export interface PostFilter {
   profileId?: string;
   kind?: PostKind;
+  seriesId?: string;
   from?: number;
   to?: number;
   search?: string;
@@ -205,6 +232,7 @@ export interface Snapshot {
   workspace: { id: string; label: string; name: string; ownerProfileId: string };
   profiles: Profile[];
   items: Item[];
+  series: SeriesSummary[];
   stats: Record<string, ProfileStats>;
   postDates: number[];
   migration: MigrationStatus;
@@ -241,6 +269,8 @@ export const api = {
   deletePost: (id: string) => invoke<void>("delete_post", { id }),
   saveItem: (input: ItemInput) => invoke<Item>("save_item", { input }),
   deleteItem: (id: string) => invoke<void>("delete_item", { id }),
+  saveSeries: (input: SeriesInput) => invoke<Series>("save_series", { input }),
+  deleteSeries: (id: string) => invoke<void>("delete_series", { id }),
   runMigration: () => invoke<Snapshot>("run_migration"),
   /** Uploads a file as a raw binary body; it stays in memory until a post references it. */
   stageMedia: async (file: File) =>

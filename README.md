@@ -256,6 +256,40 @@ Old ids keep working:
   `alsoEventTypes`) display as stories: their title becomes the first clause. Editing one saves it
   as an ordinary post with event clauses.
 
+### Looks: tagging products
+
+Shop items can have **up to 20 photos or videos** each (encrypted like everything else; the
+first is the main one). Clicking an item opens a product view with its gallery.
+
+**Tag products on photos**, as well as people. In the photo viewer, choose **Tag people &
+products**, click the spot and pick from the **Products** tab. A photo with products is a
+*look*, shown in one of two layouts without leaving the photo:
+
+| Layout | What you see |
+| --- | --- |
+| **Side by side** (dressing room) | The photo, with a panel of its products next to it: price, shop and a gallery you flip through in place |
+| **Overlay** | Shopping-bag dots on the photo; a dot opens that product's card over the picture |
+
+Albums get a **Lookbook** layout, one row per photo: the photo with its dots, and the products
+tagged on it beside it. It's the default for albums with tagged products; **Grid** is the
+usual tiles. Tagged product names make looks searchable, and deleting a product removes its tags.
+
+### Series
+
+Posts, articles and albums can belong to **series** ("Moving to Minneapolis", "A year of firsts",
+"Avurudu looks"):
+
+- **Add a post to a series** with 📚 in the composer: pick a series, or type a name to start one.
+  A post can be in up to 10 series.
+- **Badges and navigation:** the post shows each series with its part number ("Part 2 of 5",
+  ordered by date), and its page has **Previous / Next** links within each series.
+- **Series page** (sidebar): every series on one timeline, each bar running from its first post to
+  its last, so overlaps are easy to see. Each series also has its own page with its parts in
+  order and the other series that ran **at the same time**.
+- **Deleting a series** keeps its posts. Series titles are searchable on their posts.
+
+Series are their own encrypted records (`series/<uuid>.enc`).
+
 ### Photos and videos
 
 - **Formats:** images up to **5 MB** (JPEG, PNG, GIF, WebP, HEIC, AVIF) and videos up to
@@ -392,6 +426,7 @@ data_sources/workspace_<label>/
 ├── entities/<uuid>.enc   profiles
 ├── posts/<uuid>.enc      posts, articles and albums
 ├── items/<uuid>.enc      shop listings
+├── series/<uuid>.enc     series of posts
 └── media/<uuid>.enc      photo and video bytes (Git LFS)
 ```
 
@@ -430,8 +465,9 @@ Defined in `src-tauri/src/model.rs` and mirrored in `src/lib/api.ts`.
 | **Profile** | `kind` (me/person/page/shop/place), `name`, `tagline`, `bio`, `relationship`, `category`, `location`, `color`, `hasShop`, `genders[]`, `pronouns`, `terms` (neutral/feminine/masculine), `relationshipStatus`, `avatar`/`cover` (MediaRef), `coverPosition`, `relations[]` |
 | **Relation** (inside a profile) | `toId`, `kind` ("`toId` is my `kind`"), `label`/`inverseLabel` (custom), `since` |
 | **Post** | `kind` (status/article/album/milestone), `title`, `authorId`, `content` (Markdown), `occurredAt`, `withIds[]`, `placeId`, `feeling` {emoji, text}, `activities[]` (the story: ordered clauses {emoji, verb, object, thing, withIds[], detail, tense}; see [Stories](#stories-life-events-and-shared-vocabularies)), `media[]`. Read-only from older versions: `kind: milestone`, `eventType`, `alsoEventTypes[]` |
-| **MediaRef** (inside a post or profile) | `id`, `kind` (image/video), `mime`, `name`, `size`, `caption`, `tags[]` ({profileId, x, y} in 0..1) |
-| **Item** | `shopId`, `name`, `description`, `priceCents`, `currency`, `status` (available/reserved/sold) |
+| **MediaRef** (inside a post, profile or item) | `id`, `kind` (image/video), `mime`, `name`, `size`, `caption`, `tags[]` ({profileId or itemId, x, y} in 0..1) |
+| **Item** | `shopId`, `name`, `description`, `priceCents`, `currency`, `status` (available/reserved/sold), `media[]` (product photos) |
+| **Series** | `title`, `description`, `color`. Posts point at it via `seriesIds[]`; the UI receives each series with `postIds` (by date), `from` and `to` |
 | **Manifest** | workspace `name`, `ownerProfileId`, `createdAt` |
 
 - **Markdown is the storage format** for post content. The editor reads and writes Markdown, so
@@ -608,7 +644,8 @@ Where the build deliberately differs from `system_architecture_proposal.md`:
 | `54c8325` | **Password change:** re-wrap or full key rotation with crash-safe staging |
 | `1ef207d` | **Articles and albums:** post kinds, per-photo captions, album editor, the photo viewer, article reader, album pages |
 | `2d2a6c1` | **Facebook social features:** tag people, check-ins, feelings/activities, life events, photo tagging, relationships, profile pictures and cover photos |
-| *latest* | **Life for everyone:** stories: every post tells an ordered sentence of clauses (feelings, doing, ~5,400 life events, *as* roles), each with is/was, its own people and words, replacing the separate life-event post; shared vocabularies; life events by category, sub-group, life stage and tone (spicy, hard); ~100 modern relationship kinds with gendered labels; non-binary gender identities, pronouns and relationship status |
+| *latest* | **Looks and series:** product photos; product tags on photos with side-by-side (dressing room) and overlay views and an album Lookbook; series of posts with overlapping timelines |
+| `f3ec012` | **Life for everyone:** stories: every post tells an ordered sentence of clauses (feelings, doing, ~5,400 life events, *as* roles), each with is/was, its own people and words, replacing the separate life-event post; shared vocabularies; life events by category, sub-group, life stage and tone (spicy, hard); ~100 modern relationship kinds with gendered labels; non-binary gender identities, pronouns and relationship status |
 
 ---
 

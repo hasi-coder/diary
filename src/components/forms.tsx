@@ -1,10 +1,11 @@
 // Create/edit dialogs for profiles and shop items.
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { api, errorMessage, type Item, type ItemStatus, type Profile, type ProfileInput, type ProfileKind } from "../lib/api";
 import { useJournal } from "../lib/journal";
 import { COLORS, KINDS, STATUS } from "../lib/format";
 import { GENDER_SUGGESTIONS, PRONOUNS, RELATIONSHIP_STATUSES, TERMS, termsForPronouns } from "../lib/catalog";
-import { XIcon } from "@phosphor-icons/react";
+import { ImageIcon, XIcon } from "@phosphor-icons/react";
+import { AttachmentStrip, useAttachments } from "./Attachments";
 import { Button, ErrorText, Field, inputClass, Modal } from "./ui";
 
 const NEW_KINDS: ProfileKind[] = ["person", "page", "shop", "place"];
@@ -154,6 +155,9 @@ export function ItemForm(props: { shopId: string; item?: Item; onClose: () => vo
   const [price, setPrice] = useState(item?.priceCents != null ? (item.priceCents / 100).toFixed(2) : "");
   const [currency, setCurrency] = useState(item?.currency ?? lastCurrency);
   const [status, setStatus] = useState<ItemStatus>(item?.status ?? "available");
+  // Product photos: uploaded encrypted like post attachments; the first is the main one.
+  const photos = useAttachments(item?.media ?? []);
+  const fileInput = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -175,7 +179,9 @@ export function ItemForm(props: { shopId: string; item?: Item; onClose: () => vo
         priceCents: amount === null ? null : Math.round(amount * 100),
         currency,
         status,
+        mediaIds: photos.mediaIds,
       });
+      photos.committed();
       await refresh();
       props.onClose();
     } catch (err) {
@@ -201,6 +207,32 @@ export function ItemForm(props: { shopId: string; item?: Item; onClose: () => vo
             <input className={`${inputClass} uppercase`} maxLength={3} value={currency} onChange={(e) => setCurrency(e.target.value)} />
           </Field>
         </div>
+        <Field label="Photos" hint="The first is the main photo. Drag & drop works too.">
+          <div
+            onDragOver={(e) => e.dataTransfer.types.includes("Files") && e.preventDefault()}
+            onDrop={(e) => {
+              if (e.dataTransfer.files.length === 0) return;
+              e.preventDefault();
+              photos.add(e.dataTransfer.files);
+            }}
+          >
+            <Button type="button" variant="outline" onClick={() => fileInput.current?.click()}>
+              <ImageIcon /> Add photos
+            </Button>
+            <input
+              ref={fileInput}
+              type="file"
+              accept="image/*,video/*"
+              multiple
+              hidden
+              onChange={(e) => {
+                if (e.target.files) photos.add(e.target.files);
+                e.target.value = "";
+              }}
+            />
+            <AttachmentStrip items={photos.items} onRemove={photos.remove} />
+          </div>
+        </Field>
         <Field label="Status">
           <div className="flex gap-2">
             {(Object.keys(STATUS) as ItemStatus[]).map((s) => (
@@ -222,7 +254,7 @@ export function ItemForm(props: { shopId: string; item?: Item; onClose: () => vo
           <Button type="button" variant="ghost" onClick={props.onClose}>
             Cancel
           </Button>
-          <Button type="submit" disabled={busy || !name.trim()}>
+          <Button type="submit" disabled={busy || !name.trim() || photos.uploading || photos.failed}>
             {item ? "Save" : "List item"}
           </Button>
         </div>

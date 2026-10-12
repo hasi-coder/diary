@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import {
   ArticleIcon,
   AtIcon,
+  BooksIcon,
   CalendarBlankIcon,
   ImageIcon,
   MapPinIcon,
@@ -24,6 +25,7 @@ import { AlbumEditor, AttachmentStrip, useAttachments } from "./Attachments";
 import { CheckInPicker, ExtrasChips, TagPeoplePicker } from "./PostExtras";
 import { StoryEditor } from "./StoryEditor";
 import { StoryPicker } from "./StoryPicker";
+import { SeriesBadges, SeriesPicker } from "./SeriesParts";
 import { RichEditor, type RichEditorHandle } from "./RichEditor";
 import { Avatar, Button, ErrorText } from "./ui";
 
@@ -60,7 +62,8 @@ export function Composer(props: { defaultAuthorId?: string; editing?: Post; onDo
   const [tense, setTense] = useState<"is" | "was">(() => (editing && storyOf(editing).some((c) => c.tense === "was") ? "was" : "is"));
   const addClause = (c: Activity) =>
     setActivities((list) => [...list, kindOf(c) === "state" && tense === "was" ? { ...c, tense: "was" as const } : c].slice(0, 12));
-  const [picker, setPicker] = useState<"with" | "place" | "story" | null>(null);
+  const [picker, setPicker] = useState<"with" | "place" | "story" | "series" | null>(null);
+  const [seriesIds, setSeriesIds] = useState<string[]>(editing?.seriesIds ?? []);
 
   const fullScreen = expanded || kind !== "status";
 
@@ -112,6 +115,7 @@ export function Composer(props: { defaultAuthorId?: string; editing?: Post; onDo
         activities,
         eventType: "",
         alsoEventTypes: [],
+        seriesIds,
       });
       attachments.committed();
       if (!editing) {
@@ -126,6 +130,7 @@ export function Composer(props: { defaultAuthorId?: string; editing?: Post; onDo
         setPlaceId(null);
         setActivities([]);
         setTense("is");
+        setSeriesIds([]);
       }
       await refresh();
       onDone?.();
@@ -270,6 +275,7 @@ export function Composer(props: { defaultAuthorId?: string; editing?: Post; onDo
                 <AttachmentStrip items={attachments.items} onRemove={attachments.remove} />
               </>
             )}
+            <SeriesBadges post={{ id: editing?.id ?? "", seriesIds }} />
             <StoryEditor
               clauses={activities}
               onChange={setActivities}
@@ -341,6 +347,12 @@ export function Composer(props: { defaultAuthorId?: string; editing?: Post; onDo
               <UserPlusIcon size={20} />
             </ToolButton>
             {picker === "with" && <TagPeoplePicker selected={withIds} exclude={authorId} onChange={setWithIds} onClose={() => setPicker(null)} />}
+          </div>
+          <div className="relative">
+            <ToolButton title="Part of a series" active={seriesIds.length > 0} onClick={() => setPicker(picker === "series" ? null : "series")}>
+              <BooksIcon size={20} />
+            </ToolButton>
+            {picker === "series" && <SeriesPicker selected={seriesIds} onChange={setSeriesIds} onClose={() => setPicker(null)} />}
           </div>
           <div className="relative">
             <ToolButton title="Check in" active={!!placeId} onClick={() => setPicker(picker === "place" ? null : "place")}>

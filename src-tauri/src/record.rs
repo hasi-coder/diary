@@ -42,10 +42,11 @@ pub enum Kind {
     Item,
     /// Raw attachment bytes (no JSON envelope).
     Media,
+    Series,
 }
 
 impl Kind {
-    pub const RECORDS: [Kind; 3] = [Kind::Profile, Kind::Post, Kind::Item];
+    pub const RECORDS: [Kind; 4] = [Kind::Profile, Kind::Post, Kind::Item, Kind::Series];
 
     fn code(self) -> u8 {
         match self {
@@ -54,6 +55,7 @@ impl Kind {
             Kind::Post => 3,
             Kind::Item => 4,
             Kind::Media => 5,
+            Kind::Series => 6,
         }
     }
 
@@ -64,6 +66,7 @@ impl Kind {
             Kind::Post => "post",
             Kind::Item => "item",
             Kind::Media => "media",
+            Kind::Series => "series",
         }
     }
 
@@ -75,6 +78,7 @@ impl Kind {
             Kind::Post => "posts",
             Kind::Item => "items",
             Kind::Media => "media",
+            Kind::Series => "series",
         }
     }
 

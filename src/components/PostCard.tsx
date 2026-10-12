@@ -12,6 +12,7 @@ import { PostContent } from "./PostContent";
 import { PostHeadline } from "./PostExtras";
 import { categoryOf } from "../lib/lifeEvents";
 import { lifeEventsIn, storyOf } from "../lib/story";
+import { SeriesBadges } from "./SeriesParts";
 import { Avatar, ConfirmDialog } from "./ui";
 
 export function PostCard({ post, onTag }: { post: Post; onTag?: (tag: string) => void }) {
@@ -50,6 +51,7 @@ export function PostCard({ post, onTag }: { post: Post; onTag?: (tag: string) =>
         </div>
         <PostMenu post={post} onEdit={() => setEditing(true)} />
       </div>
+      <SeriesBadges post={post} />
 
       {editing && (post.kind === "status" || post.kind === "milestone") ? (
         <Composer editing={post} onDone={() => setEditing(false)} />

@@ -2,6 +2,7 @@
 import type { ReactNode } from "react";
 import {
   BookOpenIcon,
+  BooksIcon,
   GearIcon,
   ImagesIcon,
   MagnifyingGlassIcon,
@@ -47,6 +48,7 @@ export function Sidebar({ onSearch }: { onSearch: () => void }) {
         <NavLink icon={TimerIcon} label="Timeline" target={{ view: "timeline" }} active={route.view === "timeline"} />
         <NavLink icon={UsersThreeIcon} label="Profiles" target={{ view: "profiles" }} active={route.view === "profiles"} />
         <NavLink icon={ImagesIcon} label="Media Gallery" target={{ view: "gallery" }} active={route.view === "gallery"} />
+        <NavLink icon={BooksIcon} label="Series" target={{ view: "series" }} active={route.view === "series"} />
         <NavLink icon={ShoppingBagIcon} label="Marketplace" target={{ view: "marketplace" }} active={route.view === "marketplace"} />
 
         <div className="pt-5">

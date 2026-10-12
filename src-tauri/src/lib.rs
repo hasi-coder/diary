@@ -26,6 +26,8 @@ pub fn run() {
             commands::delete_post,
             commands::save_item,
             commands::delete_item,
+            commands::save_series,
+            commands::delete_series,
             commands::run_migration,
             commands::stage_media,
             commands::discard_media,

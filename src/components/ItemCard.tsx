@@ -5,6 +5,8 @@ import { useJournal } from "../lib/journal";
 import { colorOf, formatPrice, STATUS } from "../lib/format";
 import { ItemForm } from "./forms";
 import { MenuItem } from "./PostCard";
+import { MediaPreview } from "./Media";
+import { ProductViewer } from "./Products";
 import { Avatar, ConfirmDialog } from "./ui";
 
 export function ItemCard({ item, showShop }: { item: Item; showShop?: boolean }) {
@@ -13,12 +15,18 @@ export function ItemCard({ item, showShop }: { item: Item; showShop?: boolean })
   const [menuOpen, setMenuOpen] = useState(false);
   const [editing, setEditing] = useState(false);
   const [confirming, setConfirming] = useState(false);
+  const [viewing, setViewing] = useState(false);
   const status = STATUS[item.status];
 
   return (
     <div className={`flex flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm ${item.status === "sold" ? "opacity-70" : ""}`}>
-      <div className={`relative flex h-28 items-center justify-center bg-gradient-to-br ${colorOf(shop).cover}`}>
-        <ShoppingBagIcon size={40} weight="duotone" className="text-white/90" />
+      <div className={`relative flex h-40 items-center justify-center bg-gradient-to-br ${colorOf(shop).cover}`}>
+        <button type="button" onClick={() => setViewing(true)} className="absolute inset-0 flex items-center justify-center" aria-label={`View ${item.name}`}>
+          {item.media[0] ? <MediaPreview media={item.media[0]} /> : <ShoppingBagIcon size={40} weight="duotone" className="text-white/90" />}
+        </button>
+        {item.media.length > 1 && (
+          <span className="absolute bottom-2 right-2 rounded-full bg-black/50 px-2 py-0.5 text-[11px] font-medium text-white">{item.media.length} photos</span>
+        )}
         <span className={`absolute left-3 top-3 rounded-full px-2 py-0.5 text-[11px] font-semibold ring-1 ${status.className}`}>{status.label}</span>
         <div className="absolute right-2 top-2">
           <button className="rounded-full bg-white/70 p-1 text-slate-600 hover:bg-white" onClick={() => setMenuOpen((o) => !o)} aria-label="Item options">
@@ -41,7 +49,9 @@ export function ItemCard({ item, showShop }: { item: Item; showShop?: boolean })
       </div>
       <div className="flex flex-1 flex-col p-4">
         <div className="text-base font-bold text-slate-800">{formatPrice(item.priceCents, item.currency)}</div>
-        <div className="font-medium text-slate-700">{item.name}</div>
+        <button type="button" onClick={() => setViewing(true)} className="text-left font-medium text-slate-700 hover:underline">
+          {item.name}
+        </button>
         {item.description && <p className="mt-1 line-clamp-2 text-sm text-slate-500">{item.description}</p>}
         {showShop && shop && (
           <button className="mt-auto flex items-center gap-2 pt-3 text-left text-xs text-slate-500 hover:text-slate-800" onClick={() => navigate({ view: "profile", id: shop.id, tab: "shop" })}>
@@ -51,6 +61,7 @@ export function ItemCard({ item, showShop }: { item: Item; showShop?: boolean })
       </div>
 
       {editing && <ItemForm shopId={item.shopId} item={item} onClose={() => setEditing(false)} />}
+      {viewing && <ProductViewer item={item} onClose={() => setViewing(false)} />}
       {confirming && (
         <ConfirmDialog
           title="Delete item?"

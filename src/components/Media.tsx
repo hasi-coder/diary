@@ -9,12 +9,14 @@ import {
   MagnifyingGlassMinusIcon,
   MagnifyingGlassPlusIcon,
   PlayIcon,
+  ShoppingBagIcon,
   TagIcon,
   XIcon,
 } from "@phosphor-icons/react";
 import { api, errorMessage, mediaUrl, type MediaRef, type PhotoTag, type Post } from "../lib/api";
 import { useJournal, usePosts } from "../lib/journal";
 import { formatBytes, formatPostDate } from "../lib/format";
+import { LookProducts, ProductCard } from "./Products";
 import { Avatar, EmptyState } from "./ui";
 
 /** The image, or a video's first frame with a play badge. Not interactive. */
@@ -108,13 +110,14 @@ const KIND_LABEL: Record<Post["kind"], string> = { status: "Post", article: "Art
 
 /**
  * Full-screen photo/video viewer: the photo on the left with arrows and a
- * filmstrip; author, album, caption and tagged people in a side panel.
+ * filmstrip; author, album, caption and tagged people in a side panel. Tagged
+ * products make it a look: shown side by side with the photo, or over it.
  * Keys: ← → Home End, Esc (cancel tag / unzoom / close). Click a photo to
  * zoom, or in tag mode to tag someone at that spot.
  */
 export function Theater(props: { items: TheaterItem[]; index: number; onClose: () => void }) {
   const { items, onClose } = props;
-  const { profiles, navigate, refresh } = useJournal();
+  const { snapshot, profiles, navigate, refresh } = useJournal();
   const [index, setIndex] = useState(Math.min(props.index, items.length - 1));
   const [zoom, setZoom] = useState(false);
   const [tagging, setTagging] = useState(false);
@@ -131,11 +134,18 @@ export function Theater(props: { items: TheaterItem[]; index: number; onClose: (
   const media = current?.media;
   const post = current?.post;
   const tags = media ? (tagOverrides[media.id] ?? media.tags) : [];
+  const people = tags.filter((t) => t.profileId);
+  const products = tags.filter((t) => t.itemId);
+  // A look: tagged products beside the photo (a dressing room), or as dots over it.
+  const [layout, setLayout] = useState<"side" | "overlay">("side");
+  const [openProduct, setOpenProduct] = useState<string | null>(null);
+  const sideBySide = products.length > 0 && layout === "side" && !zoom;
   const canTag = !!post && media?.kind === "image" && !zoom;
 
   const go = (to: number) => {
     setZoom(false);
     setPending(null);
+    setOpenProduct(null);
     setIndex(((to % count) + count) % count);
   };
 
@@ -155,7 +165,7 @@ export function Theater(props: { items: TheaterItem[]; index: number; onClose: (
     observer.observe(host);
     return () => observer.disconnect();
   }, []);
-  useEffect(measure, [index, zoom]);
+  useEffect(measure, [index, zoom, sideBySide]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -218,11 +228,24 @@ export function Theater(props: { items: TheaterItem[]; index: number; onClose: (
           <div className="flex items-center gap-1">
             {canTag && (
               <button
-                onClick={() => (setTagging((t) => !t), setPending(null))}
+                onClick={() => (setTagging((t) => !t), setPending(null), setOpenProduct(null))}
                 className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm ${tagging ? "bg-white text-slate-900" : "hover:bg-white/10"}`}
               >
-                <TagIcon size={18} /> {tagging ? "Done tagging" : "Tag people"}
+                <TagIcon size={18} /> {tagging ? "Done tagging" : "Tag people & products"}
               </button>
+            )}
+            {products.length > 0 && !zoom && (
+              <div className="ml-1 flex rounded-full bg-white/10 p-0.5" role="group" aria-label="Look layout">
+                {(["side", "overlay"] as const).map((l) => (
+                  <button
+                    key={l}
+                    onClick={() => (setLayout(l), setOpenProduct(null))}
+                    className={`rounded-full px-3 py-1 text-xs ${layout === l ? "bg-white text-slate-900" : "text-white/70 hover:text-white"}`}
+                  >
+                    {l === "side" ? "Side by side" : "Overlay"}
+                  </button>
+                ))}
+              </div>
             )}
             {media.kind === "image" && !tagging && (
               <button onClick={() => setZoom((z) => !z)} className="rounded-full p-2 hover:bg-white/10" aria-label={zoom ? "Fit to screen" : "Actual size"}>
@@ -235,7 +258,8 @@ export function Theater(props: { items: TheaterItem[]; index: number; onClose: (
           </div>
         </div>
 
-        <div ref={stage} className="group relative min-h-0 flex-1">
+        <div className="flex min-h-0 flex-1">
+        <div ref={stage} className="group relative min-h-0 min-w-0 flex-1">
           <div
             className={`absolute inset-0 flex px-16 pb-2 ${zoom ? "thin-scroll overflow-auto" : "items-center justify-center"}`}
             onClick={(e) => e.target === e.currentTarget && !zoom && !tagging && onClose()}
@@ -262,8 +286,8 @@ export function Theater(props: { items: TheaterItem[]; index: number; onClose: (
           {/* Tag labels over the photo: on hover, always while tagging. */}
           {box && media.kind === "image" && !zoom && (
             <div className="pointer-events-none absolute" style={box}>
-              {tags.map((t) => {
-                const p = profiles.get(t.profileId);
+              {people.map((t) => {
+                const p = profiles.get(t.profileId!);
                 if (!p) return null;
                 return (
                   <span
@@ -277,13 +301,42 @@ export function Theater(props: { items: TheaterItem[]; index: number; onClose: (
                   </span>
                 );
               })}
+              {/* Products: always-visible dots; in the overlay layout a dot opens the product over the photo. */}
+              {products.map((t) => {
+                const item = snapshot.items.find((i) => i.id === t.itemId);
+                if (!item) return null;
+                return (
+                  <button
+                    key={t.itemId}
+                    title={item.name}
+                    onClick={() => layout === "overlay" && setOpenProduct(openProduct === item.id ? null : item.id)}
+                    className="pointer-events-auto absolute flex h-8 w-8 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-white text-slate-800 shadow-lg ring-2 ring-brand-500 transition hover:scale-110"
+                    style={{ left: `${t.x * 100}%`, top: `${t.y * 100}%` }}
+                  >
+                    <ShoppingBagIcon size={16} weight="fill" />
+                  </button>
+                );
+              })}
+              {openProduct && layout === "overlay" && (() => {
+                const t = products.find((x) => x.itemId === openProduct);
+                const item = snapshot.items.find((i) => i.id === openProduct);
+                if (!t || !item) return null;
+                return (
+                  <div
+                    className="pointer-events-auto absolute z-10 w-80 rounded-2xl bg-white p-3 shadow-2xl"
+                    style={{ left: `clamp(0px, calc(${t.x * 100}% - 10rem), calc(100% - 20rem))`, top: `calc(${t.y * 100}% + 1.25rem)` }}
+                  >
+                    <ProductCard item={item} row onOpenShop={onClose} />
+                  </div>
+                );
+              })()}
               {pending && (
                 <div className="pointer-events-auto absolute" style={{ left: `${pending.x * 100}%`, top: `${pending.y * 100}%` }}>
                   <span className="absolute h-16 w-16 -translate-x-1/2 -translate-y-1/2 rounded-md border-2 border-white shadow-[0_0_0_9999px_rgba(0,0,0,0.25)]" />
                   <TagChooser
-                    exclude={tags.map((t) => t.profileId)}
-                    onPick={(id) => {
-                      void saveTags([...tags, { profileId: id, x: pending.x, y: pending.y }]);
+                    exclude={tags.map((t) => (t.profileId ?? t.itemId)!)}
+                    onPick={(who) => {
+                      void saveTags([...tags, { ...who, x: pending.x, y: pending.y }]);
                       setPending(null);
                     }}
                     onCancel={() => setPending(null)}
@@ -293,7 +346,7 @@ export function Theater(props: { items: TheaterItem[]; index: number; onClose: (
             </div>
           )}
           {tagging && !pending && (
-            <div className="pointer-events-none absolute inset-x-0 top-2 text-center text-sm text-white/80">Click anywhere on the photo to tag someone</div>
+            <div className="pointer-events-none absolute inset-x-0 top-2 text-center text-sm text-white/80">Click anywhere on the photo to tag someone or a product</div>
           )}
 
           {count > 1 && (
@@ -306,6 +359,16 @@ export function Theater(props: { items: TheaterItem[]; index: number; onClose: (
               </button>
             </>
           )}
+        </div>
+        {/* Side by side: the look's products next to the photo, flipped through in place. */}
+        {sideBySide && (
+          <section className="thin-scroll w-96 shrink-0 overflow-y-auto rounded-tl-2xl bg-white p-4" aria-label="Products in this look">
+            <h4 className="mb-3 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-slate-400">
+              <ShoppingBagIcon /> In this look · {products.length}
+            </h4>
+            <LookProducts tags={products} onOpenShop={onClose} />
+          </section>
+        )}
         </div>
 
         {count > 1 && (
@@ -360,8 +423,27 @@ export function Theater(props: { items: TheaterItem[]; index: number; onClose: (
               <h4 className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-400">In this photo</h4>
               {tags.length === 0 && <p className="text-sm text-slate-400">Nobody tagged yet.</p>}
               <ul className="space-y-1.5">
-                {tags.map((t) => {
-                  const p = profiles.get(t.profileId);
+                {products.map((t) => {
+                  const item = snapshot.items.find((i) => i.id === t.itemId);
+                  if (!item) return null;
+                  return (
+                    <li key={t.itemId} className="flex items-center gap-2">
+                      <span className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-md bg-slate-100 text-slate-400">
+                        {item.media[0] ? <MediaPreview media={item.media[0]} /> : <ShoppingBagIcon />}
+                      </span>
+                      <span className="min-w-0 flex-1 truncate text-sm font-medium text-slate-700">{item.name}</span>
+                      <button
+                        onClick={() => void saveTags(tags.filter((x) => x.itemId !== t.itemId))}
+                        className="rounded-full p-1 text-slate-400 hover:bg-slate-100 hover:text-rose-600"
+                        aria-label={`Remove tag ${item.name}`}
+                      >
+                        <XIcon size={14} />
+                      </button>
+                    </li>
+                  );
+                })}
+                {people.map((t) => {
+                  const p = profiles.get(t.profileId!);
                   if (!p) return null;
                   return (
                     <li key={t.profileId} className="flex items-center gap-2">
@@ -371,6 +453,7 @@ export function Theater(props: { items: TheaterItem[]; index: number; onClose: (
                       </button>
                       <button
                         onClick={() => void saveTags(tags.filter((x) => x.profileId !== t.profileId))}
+
                         className="rounded-full p-1 text-slate-400 hover:bg-slate-100 hover:text-rose-600"
                         aria-label={`Remove tag ${p.name}`}
                       >
@@ -402,37 +485,70 @@ export function Theater(props: { items: TheaterItem[]; index: number; onClose: (
   );
 }
 
-/** Search-and-pick list shown under a new tag on a photo. */
-function TagChooser(props: { exclude: string[]; onPick: (id: string) => void; onCancel: () => void }) {
-  const { snapshot } = useJournal();
+/** Search-and-pick list shown under a new tag on a photo: a person, or a product from a shop. */
+function TagChooser(props: { exclude: string[]; onPick: (who: { profileId: string } | { itemId: string }) => void; onCancel: () => void }) {
+  const { snapshot, profiles } = useJournal();
   const [query, setQuery] = useState("");
+  const [tab, setTab] = useState<"people" | "products">("people");
   const q = query.trim().toLowerCase();
-  const shown = snapshot.profiles
+  const people = snapshot.profiles
     .filter((p) => (p.kind === "me" || p.kind === "person" || p.kind === "page") && !props.exclude.includes(p.id))
     .filter((p) => !q || p.name.toLowerCase().includes(q))
     .slice(0, 8);
+  const products = snapshot.items
+    .filter((i) => !props.exclude.includes(i.id))
+    .filter((i) => !q || `${i.name} ${profiles.get(i.shopId)?.name ?? ""}`.toLowerCase().includes(q))
+    .slice(0, 8);
+  const first = tab === "people" ? people[0] && { profileId: people[0].id } : products[0] && { itemId: products[0].id };
   return (
-    <div className="absolute left-1/2 top-10 w-60 -translate-x-1/2 overflow-hidden rounded-xl bg-white shadow-2xl">
+    <div className="absolute left-1/2 top-10 w-64 -translate-x-1/2 overflow-hidden rounded-xl bg-white shadow-2xl">
+      <div className="flex gap-1 border-b border-slate-100 p-1.5">
+        {(["people", "products"] as const).map((t) => (
+          <button
+            key={t}
+            onClick={() => setTab(t)}
+            className={`flex-1 rounded-lg py-1 text-xs font-semibold capitalize ${tab === t ? "bg-brand-50 text-brand-700" : "text-slate-500 hover:bg-slate-50"}`}
+          >
+            {t}
+          </button>
+        ))}
+      </div>
       <input
         autoFocus
         value={query}
         onChange={(e) => setQuery(e.target.value)}
         onKeyDown={(e) => {
           if (e.key === "Escape") props.onCancel();
-          if (e.key === "Enter" && shown[0]) props.onPick(shown[0].id);
+          if (e.key === "Enter" && first) props.onPick(first);
         }}
-        placeholder="Who is this?"
+        placeholder={tab === "people" ? "Who is this?" : "Which product?"}
         className="w-full border-b border-slate-100 px-3 py-2 text-sm text-slate-800 outline-none"
       />
       <ul className="max-h-60 overflow-y-auto py-1">
-        {shown.map((p) => (
-          <li key={p.id}>
-            <button onClick={() => props.onPick(p.id)} className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm text-slate-700 hover:bg-slate-50">
-              <Avatar profile={p} size="sm" /> {p.name}
-            </button>
-          </li>
-        ))}
-        {shown.length === 0 && <li className="px-3 py-2 text-sm text-slate-400">No matches.</li>}
+        {tab === "people"
+          ? people.map((p) => (
+              <li key={p.id}>
+                <button onClick={() => props.onPick({ profileId: p.id })} className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm text-slate-700 hover:bg-slate-50">
+                  <Avatar profile={p} size="sm" /> {p.name}
+                </button>
+              </li>
+            ))
+          : products.map((i) => (
+              <li key={i.id}>
+                <button onClick={() => props.onPick({ itemId: i.id })} className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm text-slate-700 hover:bg-slate-50">
+                  <span className="flex h-7 w-7 shrink-0 items-center justify-center overflow-hidden rounded-md bg-slate-100 text-slate-400">
+                    {i.media[0] ? <MediaPreview media={i.media[0]} /> : <ShoppingBagIcon />}
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block truncate">{i.name}</span>
+                    <span className="block truncate text-[11px] text-slate-400">{profiles.get(i.shopId)?.name}</span>
+                  </span>
+                </button>
+              </li>
+            ))}
+        {(tab === "people" ? people : products).length === 0 && (
+          <li className="px-3 py-2 text-sm text-slate-400">{tab === "products" && snapshot.items.length === 0 ? "No products yet. List items in a shop first." : "No matches."}</li>
+        )}
       </ul>
     </div>
   );
