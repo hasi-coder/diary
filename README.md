@@ -146,7 +146,11 @@ Every type can also carry a story and Facebook-style extras, shown in the headli
   In the story editor under the post, you can:
   - drag clauses (or use ↑ ↓) into any order;
   - switch each one between **is** (now) and **was** (then), or tell the whole story one way;
-  - reword it;
+  - reword it, verb included;
+  - **describe it** (✨): adjectives go before the noun and an adverb after the action, for
+    example "wearing a **gorgeous red** saree **proudly**", "making out **passionately**",
+    "attending **a wild** office party" (a/an is fixed for you). There are suggestions, and
+    anything can be typed;
   - tag people on just that clause (*attending the ward party **with Dev***);
   - add your own words (*wearing a saree **for the first time at work***).
 
@@ -158,7 +162,9 @@ Every type can also carry a story and Facebook-style extras, shown in the headli
   > Alex Morgan is 😊 feeling happy, 🏢 attending an office party 🧑‍⚕️ as a nurse, and 📈 got
   > promoted and 🇱🇰 visited Sri Lanka.
 
-  A story on its own, with no text or photos, is a post.
+  A story on its own, with no text or photos, is a post. **Doing › Write your own…** takes any
+  clause at all. It's a private journal, so the lists are there to help, never to limit what can be
+  said.
 - **Tag people** (👤+): people and pages you were with.
 - **Check in** (📍): a place, shop or page.
 
@@ -184,6 +190,7 @@ A post's story is a list of **clauses** (`activities[]`), up to 12, in the autho
 - an emoji, a verb and an object;
 - the `thing` it names (`role:nurse`, `occasion:office_party`, `event:travel.visited@jp`);
 - its own tagged people (`withIds`) and extra words (`detail`);
+- `adjectives` (placed after the object's first determiner, or before it) and an `adverb`;
 - a `tense` (`was`, or none for *is*).
 
 | Clause | How it's recognised | How it joins |

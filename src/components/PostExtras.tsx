@@ -4,7 +4,7 @@ import { Fragment, useMemo, useState, type ReactNode } from "react";
 import { CheckIcon, XIcon } from "@phosphor-icons/react";
 import type { Post, Profile } from "../lib/api";
 import { useJournal } from "../lib/journal";
-import { arrange, storyOf } from "../lib/story";
+import { arrange, clauseText, storyOf } from "../lib/story";
 import { subtitle } from "../lib/format";
 import { Avatar } from "./ui";
 
@@ -172,8 +172,7 @@ export function PostHeadline({ post, action, preview }: { post: Story; action?: 
       {i === 0 && action && before === " " ? " — " : before}
       {aux}
       <span className="text-slate-600">
-        {c.emoji} {c.verb && `${c.verb} `}
-        {c.object}
+        {c.emoji} {clauseText(c)}
       </span>
       {people(c.withIds ?? [], `c${i}`)}
       {c.detail && ` ${c.detail}`}

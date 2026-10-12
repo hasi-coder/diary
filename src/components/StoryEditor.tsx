@@ -1,9 +1,10 @@
 // The story of a post, clause by clause: feelings, activities, life events and
-// roles in the order the author wants. Each clause can be reworded, told as
-// "is" or "was", tag its own people and carry extra words; a preview shows the
-// sentence as the feed will.
+// roles in the order the author wants. Each clause can be reworded (verb too),
+// described (adjectives, an adverb), told as "is" or "was", tag its own people
+// and carry extra words; a preview shows the sentence as the feed will.
 import { useState } from "react";
-import { ArrowDownIcon, ArrowUpIcon, DotsSixVerticalIcon, PlusIcon, UserPlusIcon, XIcon } from "@phosphor-icons/react";
+import { ArrowDownIcon, ArrowUpIcon, DotsSixVerticalIcon, PlusIcon, SparkleIcon, UserPlusIcon, XIcon } from "@phosphor-icons/react";
+import { ADJECTIVES, ADVERBS } from "../lib/catalog";
 import type { Activity } from "../lib/api";
 import { useJournal } from "../lib/journal";
 import { kindOf } from "../lib/story";
@@ -23,6 +24,7 @@ export function StoryEditor(props: {
   const { profiles } = useJournal();
   const { clauses, onChange } = props;
   const [tagging, setTagging] = useState<number | null>(null);
+  const [describing, setDescribing] = useState<number | null>(null);
   const [dragging, setDragging] = useState<number | null>(null);
   if (clauses.length === 0) return null;
 
@@ -46,8 +48,9 @@ export function StoryEditor(props: {
             onDragEnd={() => setDragging(null)}
             onDragOver={(e) => e.preventDefault()}
             onDrop={(e) => (e.preventDefault(), dragging !== null && move(dragging, i), setDragging(null))}
-            className={`group flex items-center gap-1.5 rounded-lg bg-white px-1.5 py-1 text-sm shadow-sm ring-1 ring-slate-200 ${dragging === i ? "opacity-50" : ""}`}
+            className={`group rounded-lg bg-white px-1.5 py-1 text-sm shadow-sm ring-1 ring-slate-200 ${dragging === i ? "opacity-50" : ""}`}
           >
+            <div className="flex items-center gap-1.5">
             <DotsSixVerticalIcon className="shrink-0 cursor-grab text-slate-300" aria-hidden />
             {kindOf(c) === "state" ? (
               <button
@@ -63,6 +66,7 @@ export function StoryEditor(props: {
             )}
             <span className="w-6 shrink-0 text-center">{c.emoji}</span>
             {c.verb && c.verb !== "as" && <span className="shrink-0 font-medium text-slate-700">{c.verb}</span>}
+            {c.adjectives && <span className="shrink-0 italic text-brand-700">{c.adjectives}</span>}
             <input
               value={c.object}
               onChange={(e) => update(i, { object: e.target.value })}
@@ -86,6 +90,9 @@ export function StoryEditor(props: {
               className="shrink rounded px-1 py-0.5 text-slate-600 placeholder-slate-300 outline-none hover:bg-slate-50 focus:bg-slate-50"
             />
             <div className="relative flex shrink-0 items-center">
+              <IconButton title="Describe it: adjectives, how, wording" onClick={() => setDescribing(describing === i ? null : i)}>
+                <SparkleIcon />
+              </IconButton>
               <IconButton title="Tag people in this part" onClick={() => setTagging(tagging === i ? null : i)}>
                 <UserPlusIcon />
               </IconButton>
@@ -102,9 +109,51 @@ export function StoryEditor(props: {
                 <XIcon />
               </IconButton>
             </div>
+            </div>
+            {(describing === i || c.adjectives || c.adverb) && (
+              // Any words go: it's their journal. Suggestions are only a start.
+              <div className="mt-1 flex flex-wrap items-center gap-2 pl-[4.75rem] text-xs text-slate-500">
+                <label className="flex items-center gap-1">
+                  verb
+                  <input value={c.verb} onChange={(e) => update(i, { verb: e.target.value })} placeholder="(none)" className={smallInput} style={{ width: "9ch" }} />
+                </label>
+                <label className="flex items-center gap-1">
+                  describe it
+                  <input
+                    list="story-adjectives"
+                    value={c.adjectives ?? ""}
+                    onChange={(e) => update(i, { adjectives: e.target.value })}
+                    placeholder="gorgeous red, wild…"
+                    className={smallInput}
+                    style={{ width: "16ch" }}
+                  />
+                </label>
+                <label className="flex items-center gap-1">
+                  how
+                  <input
+                    list="story-adverbs"
+                    value={c.adverb ?? ""}
+                    onChange={(e) => update(i, { adverb: e.target.value })}
+                    placeholder="quietly, passionately…"
+                    className={smallInput}
+                    style={{ width: "16ch" }}
+                  />
+                </label>
+              </div>
+            )}
           </li>
         ))}
       </ol>
+      <datalist id="story-adjectives">
+        {ADJECTIVES.map((a) => (
+          <option key={a} value={a} />
+        ))}
+      </datalist>
+      <datalist id="story-adverbs">
+        {ADVERBS.map((a) => (
+          <option key={a} value={a} />
+        ))}
+      </datalist>
       <div className="mt-2 flex flex-wrap items-center gap-2 px-1">
         <button type="button" onClick={props.onAdd} className="flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium text-brand-700 hover:bg-brand-50">
           <PlusIcon /> Add to the story
@@ -131,6 +180,8 @@ export function StoryEditor(props: {
     </div>
   );
 }
+
+const smallInput = "rounded border border-slate-200 bg-white px-1.5 py-0.5 text-xs text-slate-700 outline-none focus:border-brand-500";
 
 function IconButton(props: { title: string; onClick: () => void; disabled?: boolean; children: React.ReactNode }) {
   return (

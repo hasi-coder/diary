@@ -228,6 +228,12 @@ pub struct Activity {
     /// Free text after the clause: "for the first time", "after a 12-hour shift".
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub detail: String,
+    /// Words describing the object, placed before its noun: "gorgeous red" → "a gorgeous red saree".
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub adjectives: String,
+    /// How it was done, after the clause: "quietly", "passionately".
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub adverb: String,
     /// "was" for something that was going on ("was feeling festive"); empty for "is".
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub tense: String,

@@ -36,6 +36,7 @@ export const ACTIVITY_VERBS: ActivityVerb[] = [
   { emoji: "👗", verb: "wearing", kinds: ["clothing"], prompt: "What are you wearing?" },
   { emoji: "✨", verb: "having", kinds: ["moment"], prompt: "What kind of moment?" },
   { emoji: "🧭", verb: "on", kinds: ["occasion"], prompt: "On what? A road trip, a holiday, a date…" },
+  { emoji: "✍️", verb: "", label: "Write your own…", kinds: [], prompt: "Anything at all: dancing on the table, sneaking a cigarette…" },
   { emoji: "🧍", verb: "", label: "Daily life…", kinds: ["daily"], prompt: "Sitting, sleeping, getting ready, driving…" },
   { emoji: "📸", verb: "", label: "Posing…", kinds: ["pose"], prompt: "Posing for a photo, a selfie, a peace sign…" },
   { emoji: "🌶️", verb: "", label: "Spicy & naughty…", kinds: ["spicy"], prompt: "Flirting, making out, a one-night stand…" },
@@ -57,6 +58,21 @@ export const ACTIVITY_VERBS: ActivityVerb[] = [
   { emoji: "🎧", verb: "listening to", kinds: [], prompt: "What are you listening to?" },
   { emoji: "🛍️", verb: "shopping for", kinds: [], prompt: "What are you shopping for?" },
   { emoji: "💭", verb: "thinking about", kinds: [], prompt: "What's on your mind?" },
+];
+
+/** Suggestions for describing a clause. Free text always works too. */
+export const ADJECTIVES = [
+  "very", "so", "really", "a little", "totally", "slightly",
+  "beautiful", "gorgeous", "stunning", "elegant", "cute", "lovely", "pretty", "handsome", "fancy", "simple", "classic", "traditional", "modern", "vintage", "new", "old", "favourite", "brand-new", "borrowed", "hand-made",
+  "red", "white", "black", "blue", "green", "yellow", "pink", "purple", "gold", "silver", "silk", "cotton", "lace", "sheer", "tight", "short", "long", "little",
+  "huge", "tiny", "big", "small", "quiet", "loud", "crowded", "empty", "long-awaited", "last-minute", "surprise", "secret", "unforgettable", "boring", "chaotic", "perfect", "awful", "amazing", "epic", "lazy", "busy", "rainy", "sunny", "cold", "hot",
+  "romantic", "cosy", "intimate", "flirty", "sexy", "steamy", "spicy", "naughty", "wild", "dirty", "kinky", "forbidden", "risky", "scandalous", "shameless", "tipsy", "drunken", "messy", "unexpected", "awkward", "embarrassing", "first", "last",
+];
+
+export const ADVERBS = [
+  "quietly", "happily", "proudly", "nervously", "shyly", "slowly", "quickly", "finally", "secretly", "openly", "together", "alone", "again", "all day", "all night", "for hours", "for the first time", "for the last time", "at last",
+  "carefully", "lazily", "peacefully", "patiently", "awkwardly", "badly", "beautifully", "gracefully", "confidently", "bravely", "anxiously", "sadly", "tearfully", "angrily", "madly",
+  "passionately", "tenderly", "gently", "hungrily", "playfully", "shamelessly", "wildly", "naughtily", "recklessly", "drunkenly", "breathlessly", "desperately", "sneakily",
 ];
 
 /** "with a, b and c" style list. */

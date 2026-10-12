@@ -64,6 +64,10 @@ export interface Activity {
   withIds?: string[];
   /** Free text after it: "for the first time". */
   detail?: string;
+  /** Words describing the object, put before its noun: "gorgeous red" → "a gorgeous red saree". */
+  adjectives?: string;
+  /** How it was done, after the clause: "quietly", "passionately". */
+  adverb?: string;
   /** "was" when it was going on rather than is; absent for "is". */
   tense?: "was";
 }

@@ -55,6 +55,28 @@ export function lifeEventsIn(clauses: Activity[]): { clause: Activity; template?
     .map((c) => ({ clause: c, template: c.thing?.startsWith("event:") ? lifeEvent(c.thing.slice(6)) : undefined }));
 }
 
+const aOrAn = (word: string) => (/^(?:[aeio]|u(?!ni|s[eu])|hour|honou?r)/i.test(word) ? "an" : "a");
+const DETERMINER = /\b(a|an|the|my|our|your|his|her|their|some)\s+/i;
+
+/**
+ * The object with the clause's adjectives in place: after its first determiner
+ * ("a saree" + "gorgeous red" → "a gorgeous red saree", fixing a/an), otherwise
+ * in front ("festive" + "very" → "very festive").
+ */
+export function describedObject(c: Activity): string {
+  const adjectives = c.adjectives?.trim();
+  if (!adjectives) return c.object;
+  const m = DETERMINER.exec(c.object);
+  if (!m) return `${adjectives} ${c.object}`;
+  const det = /^an?$/i.test(m[1]) ? aOrAn(adjectives) : m[1];
+  return `${c.object.slice(0, m.index)}${det} ${adjectives} ${c.object.slice(m.index + m[0].length)}`;
+}
+
+/** The clause as words: verb, described object and adverb ("wearing a gorgeous red saree proudly"). */
+export function clauseText(c: Activity): string {
+  return [c.verb, describedObject(c), c.adverb?.trim()].filter(Boolean).join(" ");
+}
+
 export interface Piece {
   clause: Activity;
   /** Text before the clause: ", ", " and ", ", and ", " " or "". */

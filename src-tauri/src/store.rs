@@ -1148,6 +1148,8 @@ impl Workspace {
                 thing: short(&a.thing, 120),
                 with_ids: clause_with,
                 detail: short(&a.detail, 120),
+                adjectives: short(&a.adjectives, 60),
+                adverb: short(&a.adverb, 60),
                 tense: if a.tense == "was" { "was".into() } else { String::new() },
             });
         }
@@ -1339,7 +1341,12 @@ impl Workspace {
             .filter_map(|id| self.profiles.get(id).map(|p| p.name.as_str()))
             .collect::<Vec<_>>()
             .join(" ");
-        let activities = post.activities.iter().map(|a| format!("{} {} {}", a.verb, a.object, a.detail)).collect::<Vec<_>>().join(" ");
+        let activities = post
+            .activities
+            .iter()
+            .map(|a| format!("{} {} {} {} {}", a.verb, a.adjectives, a.object, a.adverb, a.detail))
+            .collect::<Vec<_>>()
+            .join(" ");
         let extra = format!(
             "{} {} {} {}",
             post.feeling.as_ref().map_or("", |f| f.text.as_str()),
@@ -2033,6 +2040,11 @@ mod tests {
         let story = ws.save_post(PostInput { activities: vec![party.clone(), graduated], ..base() }).unwrap();
         assert_eq!(story.activities[0].with_ids, vec![sarah.id.clone()]);
         assert_eq!(story.activities[0].detail, "for the first time");
+        let styled = ws
+            .save_post(PostInput { activities: vec![Activity { adjectives: " gorgeous red ".into(), adverb: "proudly".into(), ..act("wearing", "a saree") }], ..base() })
+            .unwrap();
+        assert_eq!((styled.activities[0].adjectives.as_str(), styled.activities[0].adverb.as_str()), ("gorgeous red", "proudly"));
+        assert_eq!(ws.search("gorgeous", 10).totals.posts, 1, "descriptions are searchable");
         assert_eq!(story.activities[1].verb, "");
         let was = ws.save_post(PostInput { activities: vec![Activity { tense: "was".into(), ..act("feeling", "festive") }, Activity { tense: "will be".into(), ..act("feeling", "tired") }], ..base() }).unwrap();
         assert_eq!((was.activities[0].tense.as_str(), was.activities[1].tense.as_str()), ("was", ""), "only is/was");
