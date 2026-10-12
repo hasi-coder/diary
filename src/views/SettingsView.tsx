@@ -1,6 +1,7 @@
 // Workspace details, what's visible in the repository, and storage migrations.
 import { useState, type ReactNode } from "react";
-import { ArrowsClockwiseIcon, CheckCircleIcon, EyeIcon, EyeSlashIcon, GearIcon, KeyIcon, ShieldCheckIcon, WarningIcon } from "@phosphor-icons/react";
+import { ArrowsClockwiseIcon, CheckCircleIcon, EyeIcon, EyeSlashIcon, GearIcon, ImageIcon, KeyIcon, ShieldCheckIcon, WarningIcon } from "@phosphor-icons/react";
+import { loadPrefs, savePrefs, type UploadFormat, type UploadPrefs } from "../lib/uploads";
 import { api, errorMessage } from "../lib/api";
 import { useJournal } from "../lib/journal";
 import { ChangePasswordDialog } from "../components/ChangePassword";
@@ -22,6 +23,8 @@ export function SettingsView() {
     >
       <div className="space-y-6">
         <MigrationCard />
+
+        <UploadsCard />
 
         <Card title="Workspace">
           <Rows
@@ -161,6 +164,73 @@ export function MigrationBanner() {
         Review migration
       </Button>
     </div>
+  );
+}
+
+/** How photos are stored when uploaded or pasted: converted, resized, or kept as they are. */
+function UploadsCard() {
+  const [prefs, setPrefs] = useState<UploadPrefs>(loadPrefs);
+  const set = (patch: Partial<UploadPrefs>) => {
+    const next = { ...prefs, ...patch };
+    setPrefs(next);
+    savePrefs(next);
+  };
+  const formats: { value: UploadFormat; label: string; detail: string }[] = [
+    { value: "jpeg", label: "JPEG", detail: "Smallest files. Screenshots and PNGs become JPEGs." },
+    { value: "png", label: "PNG", detail: "Lossless, larger files. Keeps transparency." },
+    { value: "original", label: "Keep original", detail: "Stored exactly as uploaded." },
+  ];
+  return (
+    <Card title="Photo uploads" icon={<ImageIcon className="text-brand-500" />}>
+      <p className="mb-4 text-sm text-slate-500">
+        Applies to photos you upload, drop or paste (⌘V / Ctrl+V) anywhere: posts, albums, products and profile photos. Conversion happens on this
+        device before encryption. Converting also removes hidden photo data such as GPS location. Videos and GIFs are never converted.
+      </p>
+      <div className="grid gap-2 sm:grid-cols-3">
+        {formats.map((f) => (
+          <button
+            key={f.value}
+            type="button"
+            onClick={() => set({ format: f.value })}
+            className={`rounded-xl border px-3 py-2.5 text-left ${prefs.format === f.value ? "border-brand-500 bg-brand-50" : "border-slate-200 hover:bg-slate-50"}`}
+          >
+            <span className={`block text-sm font-semibold ${prefs.format === f.value ? "text-brand-700" : "text-slate-700"}`}>{f.label}</span>
+            <span className="block text-xs text-slate-500">{f.detail}</span>
+          </button>
+        ))}
+      </div>
+      <div className="mt-4 grid gap-4 sm:grid-cols-2">
+        <label className={`block text-sm ${prefs.format === "jpeg" ? "" : "opacity-40"}`}>
+          <span className="mb-1 flex justify-between font-medium text-slate-700">
+            JPEG quality <span className="text-slate-500">{Math.round(prefs.quality * 100)}%</span>
+          </span>
+          <input
+            type="range"
+            min={50}
+            max={100}
+            value={Math.round(prefs.quality * 100)}
+            disabled={prefs.format !== "jpeg"}
+            onChange={(e) => set({ quality: Number(e.target.value) / 100 })}
+            className="w-full accent-brand-600"
+          />
+        </label>
+        <label className="block text-sm">
+          <span className="mb-1 block font-medium text-slate-700">Resize to</span>
+          <select value={prefs.maxDimension} onChange={(e) => set({ maxDimension: Number(e.target.value) })} className="w-full rounded-lg border border-slate-200 px-2 py-1.5 text-sm">
+            <option value={0}>Original size</option>
+            <option value={4096}>4096 px (4K)</option>
+            <option value={2560}>2560 px</option>
+            <option value={1920}>1920 px (Full HD)</option>
+            <option value={1280}>1280 px</option>
+          </select>
+        </label>
+      </div>
+      <label className="mt-4 flex items-center gap-2 text-sm text-slate-700">
+        <input type="checkbox" checked={prefs.keepSmaller} onChange={(e) => set({ keepSmaller: e.target.checked })} className="h-4 w-4 accent-brand-600" />
+        Keep the original when converting would make it bigger (flat-colour screenshots are often smaller as PNG)
+      </label>
+      <p className="mt-3 text-xs text-slate-400">Saved on this device. Photos already in the journal are not changed.</p>
+    </Card>
   );
 }
 

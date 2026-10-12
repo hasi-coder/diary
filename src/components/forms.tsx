@@ -6,6 +6,8 @@ import { COLORS, KINDS, STATUS } from "../lib/format";
 import { GENDER_SUGGESTIONS, PRONOUNS, RELATIONSHIP_STATUSES, TERMS, termsForPronouns } from "../lib/catalog";
 import { ImageIcon, XIcon } from "@phosphor-icons/react";
 import { AttachmentStrip, useAttachments } from "./Attachments";
+import { PasteButton } from "./PasteButton";
+import { usePasteImages } from "../lib/uploads";
 import { Button, ErrorText, Field, inputClass, Modal } from "./ui";
 
 const NEW_KINDS: ProfileKind[] = ["person", "page", "shop", "place"];
@@ -157,6 +159,7 @@ export function ItemForm(props: { shopId: string; item?: Item; onClose: () => vo
   const [status, setStatus] = useState<ItemStatus>(item?.status ?? "available");
   // Product photos: uploaded encrypted like post attachments; the first is the main one.
   const photos = useAttachments(item?.media ?? []);
+  usePasteImages(photos.add);
   const fileInput = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -207,7 +210,7 @@ export function ItemForm(props: { shopId: string; item?: Item; onClose: () => vo
             <input className={`${inputClass} uppercase`} maxLength={3} value={currency} onChange={(e) => setCurrency(e.target.value)} />
           </Field>
         </div>
-        <Field label="Photos" hint="The first is the main photo. Drag & drop works too.">
+        <Field label="Photos" hint="The first is the main photo. Drag & drop or ⌘V works too.">
           <div
             onDragOver={(e) => e.dataTransfer.types.includes("Files") && e.preventDefault()}
             onDrop={(e) => {
@@ -216,9 +219,12 @@ export function ItemForm(props: { shopId: string; item?: Item; onClose: () => vo
               photos.add(e.dataTransfer.files);
             }}
           >
-            <Button type="button" variant="outline" onClick={() => fileInput.current?.click()}>
-              <ImageIcon /> Add photos
-            </Button>
+            <div className="flex gap-2">
+              <Button type="button" variant="outline" onClick={() => fileInput.current?.click()}>
+                <ImageIcon /> Add photos
+              </Button>
+              <PasteButton onFiles={photos.add} label="Paste" />
+            </div>
             <input
               ref={fileInput}
               type="file"

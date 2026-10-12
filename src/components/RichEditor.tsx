@@ -5,6 +5,7 @@ import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "re
 import { EditorContent, useEditor, useEditorState, type Editor } from "@tiptap/react";
 import { Extension, mergeAttributes } from "@tiptap/core";
 import StarterKit from "@tiptap/starter-kit";
+import { filesFromPaste } from "../lib/uploads";
 import { Markdown } from "@tiptap/markdown";
 import Mention from "@tiptap/extension-mention";
 import { TaskItem, TaskList } from "@tiptap/extension-list";
@@ -56,7 +57,7 @@ interface Props {
   placeholder: string;
   onChange: (markdown: string) => void;
   onSubmit?: () => void;
-  onFiles?: (files: FileList) => void;
+  onFiles?: (files: File[]) => void;
   autoFocus?: boolean;
   expanded?: boolean;
   onToggleExpand?: () => void;
@@ -150,8 +151,9 @@ export const RichEditor = forwardRef<RichEditorHandle, Props>(function RichEdito
     editorProps: {
       attributes: { class: "rich-editor post-md text-sm leading-relaxed text-slate-700 outline-none" },
       handlePaste: (_view, event) => {
-        const files = event.clipboardData?.files;
-        if (files && files.length > 0) {
+        const files = filesFromPaste(event);
+        if (files.length > 0) {
+          event.preventDefault();
           latest.current.onFiles?.(files);
           return true;
         }

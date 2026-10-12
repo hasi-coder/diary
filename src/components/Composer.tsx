@@ -25,6 +25,8 @@ import { AlbumEditor, AttachmentStrip, useAttachments } from "./Attachments";
 import { CheckInPicker, ExtrasChips, TagPeoplePicker } from "./PostExtras";
 import { StoryEditor } from "./StoryEditor";
 import { StoryPicker } from "./StoryPicker";
+import { PasteButton } from "./PasteButton";
+import { usePasteImages } from "../lib/uploads";
 import { SeriesBadges, SeriesPicker } from "./SeriesParts";
 import { RichEditor, type RichEditorHandle } from "./RichEditor";
 import { Avatar, Button, ErrorText } from "./ui";
@@ -66,6 +68,8 @@ export function Composer(props: { defaultAuthorId?: string; editing?: Post; onDo
   const [seriesIds, setSeriesIds] = useState<string[]>(editing?.seriesIds ?? []);
 
   const fullScreen = expanded || kind !== "status";
+  // ⌘V anywhere in a full-screen composer attaches images (the editor handles its own pastes).
+  usePasteImages(attachments.add, fullScreen);
 
   // Follow the page we're on (e.g. composing on a shop's profile posts as that shop).
   useEffect(() => {
@@ -338,6 +342,11 @@ export function Composer(props: { defaultAuthorId?: string; editing?: Post; onDo
               if (e.target.files) attachments.add(e.target.files);
               e.target.value = "";
             }}
+          />
+          <PasteButton
+            onFiles={attachments.add}
+            iconSize={20}
+            className="rounded-lg p-2 text-slate-400 transition-colors hover:bg-brand-50 hover:text-brand-500"
           />
           <ToolButton title="Mention a profile" onClick={() => editor.current?.startMention()}>
             <AtIcon size={20} />

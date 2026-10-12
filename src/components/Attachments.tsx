@@ -2,6 +2,7 @@
 // discard anything left unsaved when the draft goes away.
 import { useEffect, useRef, useState } from "react";
 import { CircleNotchIcon, PlusIcon, WarningIcon, XIcon } from "@phosphor-icons/react";
+import { prepareImage } from "../lib/uploads";
 import { api, errorMessage, MAX_IMAGE_BYTES, MAX_VIDEO_BYTES, type MediaRef } from "../lib/api";
 import { MediaTile } from "./Media";
 
@@ -47,13 +48,17 @@ export function useAttachments(initial: MediaRef[]) {
     setItems((xs) => xs.map((x) => (x.key === key ? { ...x, ...patch } : x)));
 
   const add = (files: Iterable<File>) => {
-    for (const file of files) {
+    for (const original of files) {
       const key = crypto.randomUUID();
-      const problem = precheck(file);
-      setItems((xs) => [...xs, { key, name: file.name, caption: "", status: problem ? "error" : "uploading", error: problem ?? undefined }]);
-      if (problem) continue;
-      api
-        .stageMedia(file)
+      setItems((xs) => [...xs, { key, name: original.name, caption: "", status: "uploading" }]);
+      // Convert/resize first (Settings › Photo uploads), then check the size of what will be stored.
+      prepareImage(original)
+        .then((file) => {
+          const problem = precheck(file);
+          if (problem) throw problem;
+          update(key, { name: file.name });
+          return api.stageMedia(file);
+        })
         .then((media) => {
           if (!mounted.current || removed.current.has(key)) {
             void api.discardMedia([media.id]);

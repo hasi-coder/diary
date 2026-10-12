@@ -8,6 +8,8 @@ import { RELATION_GROUPS, RELATION_KINDS, relationLabel, relationsOf } from "../
 import { categoryOf } from "../lib/lifeEvents";
 import { lifeEventsIn, storyOf } from "../lib/story";
 import { MediaPreview } from "./Media";
+import { PasteButton } from "./PasteButton";
+import { prepareImage, usePasteImages } from "../lib/uploads";
 import { Avatar, Button, ErrorText, Field, inputClass, Modal } from "./ui";
 
 // ---- Profile and cover photos ----
@@ -40,6 +42,10 @@ export function PhotoDialog({ profile, slot, onClose }: { profile: Profile; slot
     }
   };
 
+  // Converted like any upload (Settings › Photo uploads); a pasted image works too.
+  const upload = (f: File | undefined) => f && !busy && void apply(async () => (await api.stageMedia(await prepareImage(f))).id);
+  usePasteImages((files) => upload(files.find((x) => x.type.startsWith("image/"))));
+
   return (
     <Modal title={`Update ${noun}`} onClose={busy ? () => {} : onClose} wide>
       <div className="flex flex-wrap gap-2">
@@ -52,6 +58,7 @@ export function PhotoDialog({ profile, slot, onClose }: { profile: Profile; slot
           </Button>
         )}
         {busy && <CircleNotchIcon className="animate-spin self-center text-brand-500" size={20} />}
+        <PasteButton onFiles={(files) => upload(files[0])} label="Paste" />
         <input
           ref={file}
           type="file"
@@ -60,7 +67,7 @@ export function PhotoDialog({ profile, slot, onClose }: { profile: Profile; slot
           onChange={(e) => {
             const f = e.target.files?.[0];
             e.target.value = "";
-            if (f) void apply(async () => (await api.stageMedia(f)).id);
+            if (f) upload(f);
           }}
         />
       </div>

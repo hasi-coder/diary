@@ -256,6 +256,24 @@ Old ids keep working:
   `alsoEventTypes`) display as stories: their title becomes the first clause. Editing one saves it
   as an ordinary post with event clauses.
 
+### Photo uploads and pasting
+
+- **Paste images** with ⌘V / Ctrl+V, or the clipboard (📋) button, anywhere photos are added:
+  - the composer (into the editor or anywhere in a full-screen composer);
+  - a product's photos;
+  - profile and cover photos.
+
+  Screenshots and copied photos are named `pasted-<date-time>`.
+- **Convert on upload** (Settings › Photo uploads, saved per device):
+  - store photos as **JPEG** (default, smallest), **PNG** (lossless) or **keep the original**;
+  - set the JPEG quality, and optionally resize to a maximum side (4096 down to 1280 px).
+- Conversion runs in the app before encryption, so only the converted file is stored. It also
+  removes hidden photo data such as GPS location.
+- "Keep the original when converting would make it bigger" is on by default: flat-colour PNG
+  screenshots are often smaller than a JPEG would be.
+- Videos and GIFs are never converted. HEIC and other formats the webview can decode become JPEG
+  when converted.
+
 ### Looks: tagging products
 
 Shop items can have **up to 20 photos or videos** each (encrypted like everything else; the
@@ -644,7 +662,8 @@ Where the build deliberately differs from `system_architecture_proposal.md`:
 | `54c8325` | **Password change:** re-wrap or full key rotation with crash-safe staging |
 | `1ef207d` | **Articles and albums:** post kinds, per-photo captions, album editor, the photo viewer, article reader, album pages |
 | `2d2a6c1` | **Facebook social features:** tag people, check-ins, feelings/activities, life events, photo tagging, relationships, profile pictures and cover photos |
-| *latest* | **Looks and series:** product photos; product tags on photos with side-by-side (dressing room) and overlay views and an album Lookbook; series of posts with overlapping timelines |
+| *latest* | **Uploads:** paste images from the clipboard everywhere; convert photos to JPEG/PNG and resize on upload |
+| `cd891d2` | **Looks and series:** product photos; product tags on photos with side-by-side (dressing room) and overlay views and an album Lookbook; series of posts with overlapping timelines |
 | `f3ec012` | **Life for everyone:** stories: every post tells an ordered sentence of clauses (feelings, doing, ~5,400 life events, *as* roles), each with is/was, its own people and words, replacing the separate life-event post; shared vocabularies; life events by category, sub-group, life stage and tone (spicy, hard); ~100 modern relationship kinds with gendered labels; non-binary gender identities, pronouns and relationship status |
 
 ---
