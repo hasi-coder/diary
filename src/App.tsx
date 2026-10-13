@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { SearchPalette } from "./components/Search";
 import { api, isTauri, type Snapshot } from "./lib/api";
 import { JournalProvider, useJournal } from "./lib/journal";
-import { Sidebar } from "./components/Shell";
+import { SideNav, TopBar } from "./components/Shell";
 import { UnlockScreen } from "./components/UnlockScreen";
 import { GalleryView } from "./views/GalleryView";
 import { MarketplaceView } from "./views/MarketplaceView";
@@ -56,19 +56,25 @@ function Workspace() {
   }, []);
 
   return (
-    <div className="flex h-full w-full bg-slate-50">
-      <Sidebar onSearch={() => setSearching(true)} />
+    <div className="flex h-full w-full flex-col bg-slate-50">
+      <TopBar onSearch={() => setSearching(true)} />
       {searching && <SearchPalette onClose={() => setSearching(false)} />}
-      {route.view === "timeline" && <TimelineView />}
-      {route.view === "profiles" && <ProfilesView />}
-      {route.view === "marketplace" && <MarketplaceView />}
-      {route.view === "settings" && <SettingsView />}
-      {route.view === "gallery" && <GalleryView />}
-      {route.view === "series" && <SeriesView key={route.id ?? "all"} id={route.id} />}
-      {route.view === "trash" && <TrashView />}
-      {route.view === "search" && <SearchView key={route.query} initial={route.query} />}
-      {route.view === "post" && <PostView key={route.id} id={route.id} />}
-      {route.view === "profile" && <ProfileView key={route.id} id={route.id} tab={route.tab} />}
+      <div className="flex min-h-0 flex-1">
+        {/* Like Facebook: the left menu on list pages; profiles and posts use the full width. */}
+        {route.view !== "profile" && route.view !== "post" && <SideNav />}
+        {route.view === "timeline" && <TimelineView />}
+        {route.view === "profiles" && <ProfilesView />}
+        {route.view === "marketplace" && <MarketplaceView />}
+        {route.view === "settings" && <SettingsView />}
+        {route.view === "gallery" && <GalleryView />}
+        {route.view === "series" && <SeriesView key={route.id ?? "all"} id={route.id} />}
+        {route.view === "trash" && <TrashView />}
+        {route.view === "search" && <SearchView key={route.query} initial={route.query} />}
+        {route.view === "post" && <PostView key={route.id} id={route.id} />}
+        {route.view === "profile" && (
+          <ProfileView key={route.id} id={route.id} tab={route.tab} />
+        )}
+      </div>
     </div>
   );
 }

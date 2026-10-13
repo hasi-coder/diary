@@ -21,7 +21,7 @@ function summary(r: SyncReport) {
 }
 
 /** The sidebar button: back up and push now. */
-export function SyncButton() {
+export function SyncButton({ round = false }: { round?: boolean }) {
   const { navigate, version } = useJournal();
   const [view, setView] = useState<SyncView | null>(null);
   const [busy, setBusy] = useState(false);
@@ -52,6 +52,38 @@ export function SyncButton() {
   const last = Math.max(view?.settings.lastGitAt ?? 0, view?.settings.lastBackupAt ?? 0) || null;
   const failed = !!view?.settings.lastError;
 
+  const dialog = conflict && (
+    <ConfirmDialog
+      title="Overwrite the remote snapshot?"
+      message="The git remote has a snapshot this device didn't push, maybe from another computer. Overwriting replaces it with this device's journal (the remote keeps the latest version only)."
+      confirmLabel="Overwrite remote"
+      onConfirm={async () => {
+        setConflict(false);
+        await sync(true);
+      }}
+      onClose={() => setConflict(false)}
+    />
+  );
+  if (round) {
+    const status = configured ? (failed ? `failed: ${view?.settings.lastError}` : `saved ${ago(last)}`) : "not set up";
+    return (
+      <>
+        <button
+          onClick={() => void sync()}
+          disabled={busy}
+          title={`Save & Sync (${message ?? status})`}
+          className="relative flex h-10 w-10 items-center justify-center rounded-full bg-slate-100 text-slate-800 transition-colors hover:bg-slate-200 disabled:opacity-60"
+        >
+          {busy ? <CircleNotchIcon size={20} className="animate-spin text-brand-600" /> : <CloudArrowUpIcon size={20} weight="fill" />}
+          {(failed || !configured) && (
+            <span className={`absolute top-0 right-0 h-3 w-3 rounded-full border-2 border-white ${failed ? "bg-rose-600" : "bg-amber-500"}`} />
+          )}
+        </button>
+        {dialog}
+      </>
+    );
+  }
+
   return (
     <div>
       <button
@@ -65,18 +97,7 @@ export function SyncButton() {
         <span className={`text-[11px] ${failed ? "text-rose-500" : "text-slate-400"}`}>{configured ? (failed ? "failed" : ago(last)) : "set up"}</span>
       </button>
       {message && <p className="px-4 pb-1 text-[11px] leading-snug text-slate-500">{message}</p>}
-      {conflict && (
-        <ConfirmDialog
-          title="Overwrite the remote snapshot?"
-          message="The git remote has a snapshot this device didn't push, maybe from another computer. Overwriting replaces it with this device's journal (the remote keeps the latest version only)."
-          confirmLabel="Overwrite remote"
-          onConfirm={async () => {
-            setConflict(false);
-            await sync(true);
-          }}
-          onClose={() => setConflict(false)}
-        />
-      )}
+      {dialog}
     </div>
   );
 }
@@ -118,7 +139,7 @@ export function SyncCard() {
   };
 
   return (
-    <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+    <section className="rounded-2xl bg-white p-6 shadow-sm">
       <h2 className="mb-1 flex items-center gap-2 text-base font-bold text-slate-800">
         <CloudArrowUpIcon className="text-brand-500" /> Save &amp; Sync
       </h2>

@@ -8,13 +8,12 @@ const AVATAR_SIZES = {
   sm: "w-8 h-8 text-xs",
   md: "w-10 h-10 text-sm",
   lg: "w-14 h-14 text-lg",
-  xl: "w-36 h-36 text-4xl border-4 border-white shadow-md",
+  xl: "w-[168px] h-[168px] text-5xl border-4 border-white",
 };
 
 export function Avatar({ profile, size = "md" }: { profile?: Profile; size?: keyof typeof AVATAR_SIZES }) {
-  // People are round; pages, shops and places are rounded squares (like Facebook pages).
-  const round = !profile || profile.kind === "me" || profile.kind === "person";
-  const shape = `${AVATAR_SIZES[size]} ${round ? "rounded-full" : "rounded-2xl"} shrink-0`;
+  // Everyone and every page is a circle, as on Facebook.
+  const shape = `${AVATAR_SIZES[size]} rounded-full shrink-0`;
   if (profile?.avatar) {
     return <img src={mediaUrl(profile.avatar.id)} alt="" draggable={false} className={`${shape} bg-slate-100 object-cover`} />;
   }
@@ -61,18 +60,22 @@ export function Modal(props: { title: string; onClose: () => void; children: Rea
   }, [onClose]);
 
   return (
-    <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-900/40 p-4 backdrop-blur-sm" onMouseDown={onClose}>
+    <div className="fixed inset-0 z-40 flex items-center justify-center bg-white/80 p-4" onMouseDown={onClose}>
       <div
         role="dialog"
         aria-modal
         aria-label={props.title}
-        className={`max-h-full w-full ${props.huge ? "max-w-5xl" : props.wide ? "max-w-xl" : "max-w-md"} flex flex-col overflow-hidden rounded-2xl bg-white shadow-2xl`}
+        className={`max-h-full w-full ${props.huge ? "max-w-5xl" : props.wide ? "max-w-xl" : "max-w-md"} flex flex-col overflow-hidden rounded-lg bg-white shadow-[0_12px_28px_0_rgb(0_0_0/0.2),0_2px_4px_0_rgb(0_0_0/0.1)]`}
         onMouseDown={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
-          <h2 className="text-base font-semibold text-slate-800">{props.title}</h2>
-          <button onClick={onClose} className="rounded-full p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600" aria-label="Close">
-            <XIcon size={18} />
+        <div className="relative flex items-center justify-center border-b border-slate-200 px-14 py-4">
+          <h2 className="truncate text-xl font-bold text-slate-800">{props.title}</h2>
+          <button
+            onClick={onClose}
+            className="absolute right-4 flex h-9 w-9 items-center justify-center rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200"
+            aria-label="Close"
+          >
+            <XIcon size={20} weight="bold" />
           </button>
         </div>
         <div className="thin-scroll overflow-y-auto p-5">{props.children}</div>
@@ -119,10 +122,10 @@ export function ConfirmDialog(props: {
 }
 
 const BUTTON_VARIANTS = {
-  primary: "bg-brand-600 text-white hover:bg-brand-500 shadow-sm shadow-brand-500/30",
+  primary: "bg-brand-600 text-white hover:bg-brand-700",
   dark: "bg-slate-800 text-white hover:bg-slate-700",
-  ghost: "text-slate-600 hover:bg-slate-100",
-  outline: "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 shadow-sm",
+  ghost: "text-slate-500 hover:bg-slate-50",
+  outline: "bg-slate-100 text-slate-800 hover:bg-slate-200",
   danger: "bg-rose-600 text-white hover:bg-rose-500",
 };
 
@@ -134,7 +137,7 @@ export function Button({
   return (
     <button
       {...rest}
-      className={`inline-flex items-center justify-center gap-2 rounded-full px-4 py-1.5 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${BUTTON_VARIANTS[variant]} ${className}`}
+      className={`inline-flex items-center justify-center gap-2 rounded-md px-3 py-1.5 text-[15px] font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${BUTTON_VARIANTS[variant]} ${className}`}
     />
   );
 }
@@ -150,7 +153,7 @@ export function Field(props: { label: string; hint?: string; children: ReactNode
 }
 
 export const inputClass =
-  "w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 placeholder-slate-400 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 focus:outline-none";
+  "w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-[15px] text-slate-800 placeholder-slate-400 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 focus:outline-none";
 
 export function ErrorText({ children }: { children: ReactNode }) {
   return <p className="mt-3 rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700">{children}</p>;
@@ -158,7 +161,7 @@ export function ErrorText({ children }: { children: ReactNode }) {
 
 export function EmptyState(props: { icon: ReactNode; title: string; children?: ReactNode }) {
   return (
-    <div className="rounded-2xl border border-dashed border-slate-300 bg-white/60 px-6 py-12 text-center">
+    <div className="rounded-lg bg-white px-6 py-12 text-center shadow-sm">
       <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-100 text-2xl text-slate-400">
         {props.icon}
       </div>

@@ -195,6 +195,11 @@ export interface Item {
 export type ItemInput = Omit<Item, "id" | "createdAt" | "updatedAt" | "media" | "sourceUrl"> & { id?: string; mediaIds: string[] };
 
 /** Something in the Trash. */
+export interface StorageUsage {
+  parts: { key: "media" | "posts" | "entities" | "items" | "series" | "other"; files: number; bytes: number }[];
+  totalBytes: number;
+}
+
 export interface TrashEntry {
   kind: "post" | "profile" | "item";
   id: string;
@@ -342,6 +347,7 @@ export const api = {
   deleteItem: (id: string) => invoke<void>("delete_item", { id }),
   saveSeries: (input: SeriesInput) => invoke<Series>("save_series", { input }),
   listTrash: () => invoke<TrashEntry[]>("list_trash"),
+  storageUsage: () => invoke<StorageUsage>("storage_usage"),
   restoreFromTrash: (kind: TrashEntry["kind"], id: string) => invoke<void>("restore_from_trash", { kind, id }),
   purgeFromTrash: (kind: TrashEntry["kind"], id: string) => invoke<void>("purge_from_trash", { kind, id }),
   emptyTrash: () => invoke<number>("empty_trash"),

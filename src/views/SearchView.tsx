@@ -35,7 +35,7 @@ export function SearchView({ initial }: { initial: string }) {
       )}
       <div className="space-y-6">
         {groups.map((g) => (
-          <section key={g.group} className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+          <section key={g.group} className="overflow-hidden rounded-2xl bg-white shadow-sm">
             <h2 className="border-b border-slate-100 px-5 py-3 text-xs font-semibold uppercase tracking-wider text-slate-400">{g.group}</h2>
             <div className="divide-y divide-slate-100">
               {g.rows.map((row) => (

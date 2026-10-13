@@ -61,7 +61,7 @@ export function ProfilesView() {
               <button
                 key={p.id}
                 onClick={() => navigate({ view: "profile", id: p.id })}
-                className="overflow-hidden rounded-2xl border border-slate-200 bg-white text-left shadow-sm transition-shadow hover:shadow-md"
+                className="overflow-hidden rounded-2xl bg-white text-left shadow-sm transition-shadow hover:shadow-md"
               >
                 <CoverImage profile={p} className="h-16" />
                 <div className="px-4 pb-4">

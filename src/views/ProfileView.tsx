@@ -62,27 +62,28 @@ export function ProfileView({ id, tab }: { id: string; tab?: Tab }) {
   return (
     <Page
       wide
+      bare
       title={
         <>
           <KindIcon className="text-brand-500" /> {profile.name}
         </>
       }
     >
-      <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+      <section className="-mx-4 -mt-4 overflow-hidden rounded-b-lg bg-white shadow-sm md:-mx-8">
         <div className="relative">
-          <CoverImage profile={reposition === null ? profile : { ...profile, coverPosition: reposition }} className="h-56" />
+          <CoverImage profile={reposition === null ? profile : { ...profile, coverPosition: reposition }} className="h-64 md:h-[22rem]" />
           {reposition === null ? (
             <div className="absolute bottom-3 right-3">
               <button
                 onClick={() => setCoverMenu((o) => !o)}
-                className="flex items-center gap-2 rounded-lg bg-white/90 px-3 py-1.5 text-sm font-medium text-slate-700 shadow hover:bg-white"
+                className="flex items-center gap-2 rounded-md bg-white px-3 py-1.5 text-[15px] font-semibold text-slate-800 hover:bg-slate-50"
               >
                 <CameraIcon /> {profile.cover ? "Edit cover photo" : "Add cover photo"}
               </button>
               {coverMenu && (
                 <>
                   <div className="fixed inset-0 z-10" onClick={() => setCoverMenu(false)} />
-                  <div className="absolute right-0 z-20 mt-1 w-48 overflow-hidden rounded-xl border border-slate-200 bg-white py-1 text-sm shadow-lg">
+                  <div className="absolute right-0 z-20 mt-1 w-48 overflow-hidden rounded-xl bg-white py-1 text-sm shadow-md">
                     <button className="block w-full px-3 py-2 text-left hover:bg-slate-50" onClick={() => (setPhoto("cover"), setCoverMenu(false))}>
                       Choose or upload…
                     </button>
@@ -126,8 +127,8 @@ export function ProfileView({ id, tab }: { id: string; tab?: Tab }) {
             </div>
           )}
         </div>
-        <div className="flex flex-col gap-4 px-6 pb-4 sm:flex-row sm:items-end">
-          <div className="relative -mt-20">
+        <div className="mx-auto flex max-w-5xl flex-col gap-4 px-6 pb-4 sm:flex-row sm:items-end">
+          <div className="relative -mt-20 sm:-mt-24">
             <Avatar profile={profile} size="xl" />
             <button
               onClick={() => setPhoto("avatar")}
@@ -139,7 +140,7 @@ export function ProfileView({ id, tab }: { id: string; tab?: Tab }) {
             </button>
           </div>
           <div className="min-w-0 flex-1 pb-1">
-            <h1 className="truncate text-3xl font-bold text-slate-900">
+            <h1 className="truncate text-[32px] font-bold text-slate-900">
               {profile.name}
               {profile.pronouns && <span className="ml-2 text-base font-normal text-slate-400">({profile.pronouns})</span>}
             </h1>
@@ -163,16 +164,15 @@ export function ProfileView({ id, tab }: { id: string; tab?: Tab }) {
             )}
           </div>
         </div>
-        <nav className="flex gap-1 border-t border-slate-100 px-4">
+        <nav className="mx-auto flex max-w-5xl border-t border-slate-300 px-4">
           {tabs.map((t) => (
             <button
               key={t.key}
               onClick={() => navigate({ view: "profile", id, tab: t.key })}
-              className={`-mb-px border-b-2 px-4 py-3 text-sm font-semibold transition-colors ${
-                active === t.key ? "border-brand-600 text-brand-600" : "border-transparent text-slate-500 hover:text-slate-800"
-              }`}
+              className={`relative px-1 py-1 text-[15px] font-semibold ${active === t.key ? "text-brand-600" : "text-slate-500"}`}
             >
-              {t.label}
+              <span className={`block rounded-md px-3 py-3 ${active === t.key ? "" : "hover:bg-slate-50"}`}>{t.label}</span>
+              {active === t.key && <span className="absolute inset-x-0 bottom-0 h-[3px] rounded-t bg-brand-600" />}
             </button>
           ))}
         </nav>
@@ -185,7 +185,7 @@ export function ProfileView({ id, tab }: { id: string; tab?: Tab }) {
               <IntroCard profile={profile} />
               <LifeEventsCard profile={profile} />
               {sells && items.length > 0 && (
-                <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                <section className="rounded-2xl bg-white p-5 shadow-sm">
                   <div className="mb-2 flex items-center justify-between">
                     <h2 className="font-bold text-slate-800">Shop</h2>
                     <button className="text-sm font-medium text-brand-600 hover:underline" onClick={() => navigate({ view: "profile", id, tab: "shop" })}>
@@ -263,7 +263,7 @@ function ProfileFeed({ profile }: { profile: Profile }) {
 function IntroCard({ profile }: { profile: Profile }) {
   const rows = detailRows(profile);
   return (
-    <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+    <section className="rounded-2xl bg-white p-5 shadow-sm">
       <h2 className="mb-3 font-bold text-slate-800">Intro</h2>
       {profile.bio && <p className="mb-3 text-center text-sm text-slate-600">{profile.bio}</p>}
       <ul className="space-y-2 text-sm text-slate-600">
@@ -296,7 +296,7 @@ function AboutCard({ profile }: { profile: Profile }) {
     { label: "Added", value: new Date(profile.createdAt).toLocaleDateString(undefined, { dateStyle: "long" }) },
   ].filter((r) => r.value);
   return (
-    <section className="max-w-2xl rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+    <section className="max-w-2xl rounded-2xl bg-white p-6 shadow-sm">
       <h2 className="mb-4 text-lg font-bold text-slate-800">About</h2>
       <dl className="divide-y divide-slate-100">
         {rows.map((r) => (

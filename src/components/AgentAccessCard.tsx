@@ -85,7 +85,7 @@ export function AgentAccessCard() {
   const shown = snippet(client, access, token);
 
   return (
-    <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+    <section className="rounded-2xl bg-white p-6 shadow-sm">
       <div className="mb-3 flex items-start justify-between gap-4">
         <div>
           <h2 className="flex items-center gap-2 text-base font-bold text-slate-800">

@@ -73,7 +73,7 @@ function ArticleReader({ post }: { post: Post }) {
   const cover = post.media[0];
 
   return (
-    <article className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+    <article className="overflow-hidden rounded-2xl bg-white shadow-sm">
       {cover && (
         <button onClick={() => setViewing(true)} className="block h-[26rem] w-full overflow-hidden bg-slate-100" aria-label="View cover">
           <MediaPreview media={cover} />
@@ -110,7 +110,7 @@ function AlbumPage({ post }: { post: Post }) {
 
   return (
     <>
-      <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+      <section className="rounded-2xl bg-white p-6 shadow-sm">
         <div className="flex items-start justify-between gap-4">
           <div>
             <div className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-brand-600">
@@ -155,7 +155,7 @@ function AlbumPage({ post }: { post: Post }) {
       ) : (
         <ol className="space-y-8">
           {post.media.map((m, i) => (
-            <li key={m.id} className="grid gap-6 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm md:grid-cols-[minmax(0,1fr)_22rem]">
+            <li key={m.id} className="grid gap-6 rounded-2xl bg-white p-4 shadow-sm md:grid-cols-[minmax(0,1fr)_22rem]">
               <figure>
                 {m.kind === "image" ? <TaggedPhoto media={m} onOpen={() => setOpen(i)} /> : <MediaTile media={m} onClick={() => setOpen(i)} className="aspect-video w-full rounded-xl" />}
                 {m.caption && <figcaption className="mt-2 text-sm text-slate-600">{m.caption}</figcaption>}

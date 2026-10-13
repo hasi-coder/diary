@@ -53,7 +53,7 @@ function SeriesList() {
           Group posts, articles and albums into a series — a trip, a project, a year. A post can be in several, so series can overlap. Start one here or from the composer.
         </EmptyState>
       ) : (
-        <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+        <section className="rounded-2xl bg-white p-6 shadow-sm">
           <h2 className="mb-1 font-bold text-slate-800">Timeline</h2>
           <p className="mb-4 text-sm text-slate-500">Each bar runs from a series' first post to its last; bars that line up overlap in time.</p>
           {years.length > 0 && (
@@ -122,7 +122,7 @@ function SeriesPage({ series }: { series: SeriesSummary }) {
         </button>
       }
     >
-      <section className="mb-6 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+      <section className="mb-6 overflow-hidden rounded-2xl bg-white shadow-sm">
         <div className={`h-2 ${seriesSwatch(series)}`} />
         <div className="p-6">
           <div className="flex items-start justify-between gap-4">

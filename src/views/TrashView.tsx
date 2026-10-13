@@ -53,7 +53,7 @@ export function TrashView() {
       {entries && entries.length === 0 ? (
         <EmptyState icon={<TrashIcon />} title="The Trash is empty" />
       ) : (
-        <ul className="divide-y divide-slate-100 rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <ul className="divide-y divide-slate-100 rounded-2xl bg-white shadow-sm">
           {(entries ?? []).map((e) => {
             const Icon = ICON[e.kind];
             return (

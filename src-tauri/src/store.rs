@@ -635,6 +635,20 @@ impl Workspace {
 
     // ---- Media ----
 
+    /// Size of the workspace's files on disk, per folder. Reads no contents.
+    pub fn storage_usage(&self) -> Result<StorageUsage> {
+        let mut parts = Vec::new();
+        for kind in FOLDER_KINDS {
+            let files = record_files(&self.dir.join(kind.dir()))?;
+            let bytes = files.iter().filter_map(|(_, p)| fs::metadata(p).ok()).map(|m| m.len()).sum();
+            parts.push(StoragePart { key: kind.dir().into(), files: files.len(), bytes });
+        }
+        let other: Vec<u64> = [MANIFEST_FILE, CONFIG_FILE].iter().filter_map(|f| fs::metadata(self.dir.join(f)).ok()).map(|m| m.len()).collect();
+        parts.push(StoragePart { key: "other".into(), files: other.len(), bytes: other.iter().sum() });
+        let total_bytes = parts.iter().map(|p| p.bytes).sum();
+        Ok(StorageUsage { parts, total_bytes })
+    }
+
     fn reindex_media(&mut self) {
         let post_media = self.posts.values().flat_map(|p| p.media.iter());
         let profile_media = self.profiles.values().flat_map(|p| p.avatar.iter().chain(p.cover.iter()));
@@ -2699,6 +2713,19 @@ mod tests {
                        "occurredAt": 5, "createdAt": 5, "updatedAt": 5});
         fs::write(dir.join("posts").join(format!("{post}.enc")), seal(&format!("post:{post}"), p)).unwrap();
         (post, sarah)
+    }
+
+    #[test]
+    fn storage_usage_counts_every_file() {
+        let root = tempfile::tempdir().unwrap();
+        let (ws, _, _) = populated(root.path());
+        let usage = ws.storage_usage().unwrap();
+        let part = |k: &str| usage.parts.iter().find(|p| p.key == k).unwrap().clone();
+        assert_eq!(part("entities").files, ws.profiles.len());
+        assert_eq!(part("posts").files, ws.posts.len());
+        assert_eq!(part("other").files, 2);
+        let on_disk: u64 = walk(&root.path().join("workspace_personal")).iter().map(|p| fs::metadata(p).unwrap().len()).sum();
+        assert_eq!(usage.total_bytes, on_disk);
     }
 
     #[test]

@@ -1,16 +1,35 @@
-@import "@fontsource-variable/inter";
 @import "tailwindcss";
 
+/* Facebook's look: its blue, its greys, the system font, 8px corners, soft card shadows. */
 @theme {
-  --font-sans: "Inter Variable", ui-sans-serif, system-ui, sans-serif;
-  --color-brand-50: #f0fdfa;
-  --color-brand-100: #ccfbf1;
-  --color-brand-200: #99f6e4;
-  --color-brand-300: #5eead4;
-  --color-brand-500: #14b8a6;
-  --color-brand-600: #0d9488;
-  --color-brand-700: #0f766e;
-  --color-brand-900: #134e4a;
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI Historic", "Segoe UI", Helvetica, Arial, sans-serif;
+  --color-brand-50: #e7f3ff;
+  --color-brand-100: #dbeafe;
+  --color-brand-200: #b6d4fe;
+  --color-brand-300: #85b6fc;
+  --color-brand-400: #4599ff;
+  --color-brand-500: #1877f2;
+  --color-brand-600: #0866ff;
+  --color-brand-700: #0064d1;
+  --color-brand-900: #00347a;
+
+  /* Facebook greys: page #F0F2F5, buttons #E4E6EB, dividers #CED0D4, secondary text #65676B, text #050505. */
+  --color-slate-50: #f0f2f5;
+  --color-slate-100: #e4e6eb;
+  --color-slate-200: #dadde1;
+  --color-slate-300: #ced0d4;
+  --color-slate-400: #8a8d91;
+  --color-slate-500: #65676b;
+  --color-slate-600: #4b4f56;
+  --color-slate-700: #1c1e21;
+  --color-slate-800: #050505;
+  --color-slate-900: #050505;
+
+  --radius-lg: 0.5rem;
+  --radius-xl: 0.5rem;
+  --radius-2xl: 0.5rem;
+  --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.2);
+  --shadow-md: 0 2px 4px rgb(0 0 0 / 0.1), 0 8px 16px rgb(0 0 0 / 0.1);
 }
 
 html,
@@ -21,7 +40,7 @@ body,
 }
 
 body {
-  @apply bg-slate-50 text-slate-900 antialiased;
+  @apply bg-slate-50 text-[15px] text-slate-900 antialiased;
 }
 
 button:not(:disabled) {
@@ -46,8 +65,9 @@ button:not(:disabled) {
   border: 1px solid rgba(255, 255, 255, 0.5);
 }
 
+/* Mentions read as links, as on Facebook. */
 .entity-tag {
-  @apply rounded-md bg-brand-50 px-1.5 py-0.5 font-medium text-brand-600 transition-colors hover:bg-brand-100 hover:underline;
+  @apply font-semibold text-brand-700 hover:underline;
 }
 
 /* Minimal Markdown styling for post bodies. */

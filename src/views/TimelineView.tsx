@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { LockKeyOpenIcon, MagnifyingGlassIcon, NotebookIcon, XIcon } from "@phosphor-icons/react";
+import { HouseIcon, MagnifyingGlassIcon, NotebookIcon, XIcon } from "@phosphor-icons/react";
 import { useJournal, usePosts } from "../lib/journal";
 import { KINDS, MONTHS, periodRange } from "../lib/format";
 import { Composer } from "../components/Composer";
@@ -29,7 +29,7 @@ export function TimelineView() {
     <Page
       title={
         <>
-          <LockKeyOpenIcon className="text-brand-500" /> Decrypted Timeline
+          <HouseIcon className="text-brand-500" weight="fill" /> Home
         </>
       }
       actions={

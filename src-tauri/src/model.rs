@@ -588,6 +588,23 @@ pub struct PasswordChange {
     pub files_rewritten: usize,
 }
 
+/// Disk space a workspace uses, per folder (Settings › Storage).
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StorageUsage {
+    pub parts: Vec<StoragePart>,
+    pub total_bytes: u64,
+}
+
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StoragePart {
+    /// "media", "posts", "entities", "items", "series" or "other" (manifest and key file).
+    pub key: String,
+    pub files: usize,
+    pub bytes: u64,
+}
+
 /// Something in the Trash, as the Trash view lists it.
 #[derive(Clone, Debug, Serialize)]
 #[serde(rename_all = "camelCase")]

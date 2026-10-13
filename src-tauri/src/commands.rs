@@ -266,6 +266,11 @@ pub fn list_trash(state: State<'_, AppState>) -> Result<Vec<TrashEntry>> {
 }
 
 #[tauri::command]
+pub fn storage_usage(state: State<'_, AppState>) -> Result<StorageUsage> {
+    state.with_workspace(|ws| ws.storage_usage())
+}
+
+#[tauri::command]
 pub fn restore_from_trash(state: State<'_, AppState>, kind: String, id: String) -> Result<()> {
     state.with_workspace(|ws| ws.restore(&kind, &id))
 }

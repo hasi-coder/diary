@@ -30,7 +30,7 @@ export function PostCard({ post, onTag }: { post: Post; onTag?: (tag: string) =>
   const story = storyOf(post);
 
   return (
-    <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition-shadow hover:shadow-md">
+    <article className="rounded-lg bg-white px-4 pt-3 pb-3 shadow-sm">
       <div className="mb-3 flex items-start justify-between">
         <div className="flex items-center gap-3 text-left">
           <button onClick={() => author && navigate({ view: "profile", id: author.id })} aria-label={author?.name}>
@@ -40,10 +40,10 @@ export function PostCard({ post, onTag }: { post: Post; onTag?: (tag: string) =>
             <div>
               <PostHeadline post={post} action={action} />
               {!action && story.length === 0 && !post.withIds.length && !post.placeId && author && author.kind !== "me" && (
-                <span className="ml-1.5 text-sm text-slate-400">· {subtitle(author)}</span>
+                <span className="ml-1.5 text-[15px] text-slate-500">· {subtitle(author)}</span>
               )}
             </div>
-            <div className="text-xs text-slate-400">
+            <div className="text-[13px] text-slate-500">
               {formatPostDate(post.occurredAt)}
               {edited && " · edited"}
             </div>
@@ -63,7 +63,10 @@ export function PostCard({ post, onTag }: { post: Post; onTag?: (tag: string) =>
         <>
           <LifeEventBanner clauses={story} />
           {post.content && <PostContent content={post.content} onTag={onTag} />}
-          <MediaGrid post={post} />
+          {/* Photos run edge to edge, as on Facebook. */}
+          <div className="-mx-4 -mb-3 [&>*]:rounded-none [&>*]:border-0">
+            <MediaGrid post={post} />
+          </div>
         </>
       )}
       {/* Articles and albums edit in the full-screen composer. */}
@@ -158,7 +161,7 @@ export function PostMenu({ post, onEdit, onDeleted }: { post: Post; onEdit: () =
       {menuOpen && (
         <>
           <div className="fixed inset-0 z-10" onClick={() => setMenuOpen(false)} />
-          <div className="absolute right-0 z-20 mt-1 w-40 overflow-hidden rounded-xl border border-slate-200 bg-white py-1 text-sm shadow-lg">
+          <div className="absolute right-0 z-20 mt-1 w-40 overflow-hidden rounded-xl bg-white py-1 text-sm shadow-md">
             <MenuItem onClick={() => (onEdit(), setMenuOpen(false))}>
               <PencilSimpleIcon /> Edit {noun}
             </MenuItem>

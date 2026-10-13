@@ -52,6 +52,7 @@ pub fn run() {
             commands::delete_relation,
             commands::set_photo_tags,
             commands::list_trash,
+            commands::storage_usage,
             commands::restore_from_trash,
             commands::purge_from_trash,
             commands::empty_trash,

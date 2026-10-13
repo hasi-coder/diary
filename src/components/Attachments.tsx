@@ -155,7 +155,7 @@ export function AlbumEditor(props: {
   return (
     <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
       {props.items.map((a, i) => (
-        <div key={a.key} className="overflow-hidden rounded-xl border border-slate-200 bg-white">
+        <div key={a.key} className="overflow-hidden rounded-xl bg-white">
           <div className="relative aspect-square bg-slate-50">
             {a.status === "ready" && a.media && <MediaTile media={a.media} className="h-full w-full" />}
             {a.status === "uploading" && (

@@ -62,7 +62,7 @@ function ProfileHoverCard({ profile, anchor }: { profile: Profile; anchor: DOMRe
 
   return (
     <div
-      className="fixed z-50 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl"
+      className="fixed z-50 overflow-hidden rounded-2xl bg-white shadow-md"
       style={{ ...style, width: CARD_WIDTH }}
     >
       <CoverImage profile={profile} className="h-16" />

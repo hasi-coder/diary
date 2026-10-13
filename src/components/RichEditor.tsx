@@ -228,7 +228,7 @@ function MentionMenu({ state }: { state: SuggestState }) {
   const below = rect.bottom + 280 < window.innerHeight;
   return (
     <ul
-      className="fixed z-50 w-72 overflow-hidden rounded-xl border border-slate-200 bg-white py-1 shadow-lg"
+      className="fixed z-50 w-72 overflow-hidden rounded-xl bg-white py-1 shadow-md"
       style={below ? { top: rect.bottom + 6, left: rect.left } : { bottom: window.innerHeight - rect.top + 6, left: rect.left }}
     >
       {state.items.map((p, i) => (
@@ -332,7 +332,7 @@ function LinkPopover({ editor, onClose }: { editor: Editor; onClose: () => void 
     onClose();
   };
   return (
-    <div className="absolute left-0 top-full z-30 mt-1 flex w-80 items-center gap-2 rounded-xl border border-slate-200 bg-white p-2 shadow-lg">
+    <div className="absolute left-0 top-full z-30 mt-1 flex w-80 items-center gap-2 rounded-xl bg-white p-2 shadow-md">
       <input
         autoFocus
         value={href}

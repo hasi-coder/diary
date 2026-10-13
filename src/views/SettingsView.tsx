@@ -1,8 +1,9 @@
 // Workspace details, what's visible in the repository, and storage migrations.
-import { useState, type ReactNode } from "react";
-import { ArrowsClockwiseIcon, CheckCircleIcon, EyeIcon, EyeSlashIcon, GearIcon, ImageIcon, KeyIcon, ShieldCheckIcon, WarningIcon } from "@phosphor-icons/react";
+import { useEffect, useState, type ReactNode } from "react";
+import { ArrowsClockwiseIcon, CheckCircleIcon, HardDrivesIcon, EyeIcon, EyeSlashIcon, GearIcon, ImageIcon, KeyIcon, ShieldCheckIcon, WarningIcon } from "@phosphor-icons/react";
 import { loadPrefs, savePrefs, type UploadFormat, type UploadPrefs } from "../lib/uploads";
-import { api, errorMessage } from "../lib/api";
+import { api, errorMessage, type StorageUsage } from "../lib/api";
+import { formatBytes } from "../lib/format";
 import { useJournal } from "../lib/journal";
 import { AgentAccessCard } from "../components/AgentAccessCard";
 import { SyncCard } from "../components/SyncParts";
@@ -25,6 +26,8 @@ export function SettingsView() {
     >
       <div className="space-y-6">
         <MigrationCard />
+
+        <StorageCard />
 
         <UploadsCard />
 
@@ -240,9 +243,65 @@ function UploadsCard() {
   );
 }
 
+const STORAGE_PARTS: Record<StorageUsage["parts"][number]["key"], { label: string; color: string }> = {
+  media: { label: "Photos & videos", color: "bg-brand-500" },
+  posts: { label: "Posts, articles & albums", color: "bg-emerald-500" },
+  items: { label: "Products", color: "bg-amber-500" },
+  entities: { label: "Profiles & pages", color: "bg-violet-500" },
+  series: { label: "Series", color: "bg-rose-500" },
+  other: { label: "Workspace & key file", color: "bg-slate-400" },
+};
+
+/** Disk space per kind of record, from file sizes alone. */
+function StorageCard() {
+  const { version, snapshot, navigate } = useJournal();
+  const [usage, setUsage] = useState<StorageUsage | null>(null);
+  useEffect(() => void api.storageUsage().then(setUsage).catch(() => {}), [version]);
+  if (!usage) return null;
+  const parts = [...usage.parts].filter((p) => p.files > 0).sort((a, b) => b.bytes - a.bytes);
+  const share = (bytes: number) => (usage.totalBytes ? (bytes / usage.totalBytes) * 100 : 0);
+  return (
+    <Card title="Storage" icon={<HardDrivesIcon className="text-brand-500" />}>
+      <div className="mb-3 flex items-baseline justify-between">
+        <span className="text-2xl font-bold text-slate-800">{formatBytes(usage.totalBytes)}</span>
+        <span className="text-sm text-slate-500">{usage.parts.reduce((n, p) => n + p.files, 0).toLocaleString()} encrypted files</span>
+      </div>
+      <div className="mb-4 flex h-2.5 overflow-hidden rounded-full bg-slate-100">
+        {parts.map((p) => (
+          <div key={p.key} className={STORAGE_PARTS[p.key].color} style={{ width: `${Math.max(share(p.bytes), 0.5)}%` }} title={STORAGE_PARTS[p.key].label} />
+        ))}
+      </div>
+      <dl className="divide-y divide-slate-100">
+        {parts.map((p) => (
+          <div key={p.key} className="flex items-center gap-3 py-2 text-sm">
+            <span className={`h-2.5 w-2.5 rounded-full ${STORAGE_PARTS[p.key].color}`} />
+            <dt className="flex-1 text-slate-700">{STORAGE_PARTS[p.key].label}</dt>
+            <dd className="w-24 text-right text-slate-400">{p.files.toLocaleString()} {p.files === 1 ? "file" : "files"}</dd>
+            <dd className="w-20 text-right font-medium text-slate-800">{formatBytes(p.bytes)}</dd>
+          </div>
+        ))}
+      </dl>
+      <p className="mt-3 text-xs text-slate-400">
+        Includes things in the Trash
+        {snapshot.trashCount > 0 && (
+          <>
+            {" "}
+            (
+            <button className="text-brand-600 hover:underline" onClick={() => navigate({ view: "trash" })}>
+              {snapshot.trashCount} {snapshot.trashCount === 1 ? "item" : "items"}
+            </button>
+            ); emptying it frees their space
+          </>
+        )}
+        . Save &amp; Sync copies this much to each destination.
+      </p>
+    </Card>
+  );
+}
+
 function Card(props: { title: string; icon?: ReactNode; children: ReactNode }) {
   return (
-    <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+    <section className="rounded-2xl bg-white p-6 shadow-sm">
       <h2 className="mb-4 flex items-center gap-2 text-base font-bold text-slate-800">
         {props.icon} {props.title}
       </h2>

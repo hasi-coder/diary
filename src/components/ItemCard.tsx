@@ -19,7 +19,7 @@ export function ItemCard({ item, showShop }: { item: Item; showShop?: boolean })
   const status = STATUS[item.status];
 
   return (
-    <div className={`flex flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm ${item.status === "sold" ? "opacity-70" : ""}`}>
+    <div className={`flex flex-col overflow-hidden rounded-2xl bg-white shadow-sm ${item.status === "sold" ? "opacity-70" : ""}`}>
       <div className={`relative flex h-40 items-center justify-center bg-gradient-to-br ${colorOf(shop).cover}`}>
         <button type="button" onClick={() => setViewing(true)} className="absolute inset-0 flex items-center justify-center" aria-label={`View ${item.name}`}>
           {item.media[0] ? <MediaPreview media={item.media[0]} /> : <ShoppingBagIcon size={40} weight="duotone" className="text-white/90" />}
@@ -35,7 +35,7 @@ export function ItemCard({ item, showShop }: { item: Item; showShop?: boolean })
           {menuOpen && (
             <>
               <div className="fixed inset-0 z-10" onClick={() => setMenuOpen(false)} />
-              <div className="absolute right-0 z-20 mt-1 w-36 overflow-hidden rounded-xl border border-slate-200 bg-white py-1 text-sm shadow-lg">
+              <div className="absolute right-0 z-20 mt-1 w-36 overflow-hidden rounded-xl bg-white py-1 text-sm shadow-md">
                 <MenuItem onClick={() => (setEditing(true), setMenuOpen(false))}>
                   <PencilSimpleIcon /> Edit
                 </MenuItem>

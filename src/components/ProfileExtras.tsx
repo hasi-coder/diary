@@ -127,7 +127,7 @@ export function RelationshipsSection({ profile }: { profile: Profile }) {
   const groupOf = (kind: string) => RELATION_KINDS.find((k) => k.kind === kind)?.group ?? "Other";
 
   return (
-    <section className="max-w-2xl rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+    <section className="max-w-2xl rounded-2xl bg-white p-6 shadow-sm">
       <div className="mb-4 flex items-center justify-between">
         <h2 className="flex items-center gap-2 text-lg font-bold text-slate-800">
           <UsersIcon className="text-brand-500" /> {profile.kind === "person" || profile.kind === "me" ? "Family and relationships" : "Connections"}
@@ -295,7 +295,7 @@ export function LifeEventsCard({ profile }: { profile: Profile }) {
   const rows = (posts ?? []).flatMap((p) => lifeEventsIn(storyOf(p)).map((e, i) => ({ post: p, ...e, key: `${p.id}-${i}` })));
   if (rows.length === 0) return null;
   return (
-    <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+    <section className="rounded-2xl bg-white p-5 shadow-sm">
       <h2 className="mb-3 flex items-center gap-2 font-bold text-slate-800">
         <FlagBannerIcon className="text-brand-500" /> Life events
       </h2>
