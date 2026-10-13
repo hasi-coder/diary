@@ -357,6 +357,18 @@ it reads the page and calls My Diary's MCP tools.
 - **Undo.** Agent deletes go to the Trash; only you can restore from it or empty it.
 - **Activity log.** Recent calls are listed in Settings (in memory only).
 
+**Skill: publish from a URL.** `.claude/skills/publish-to-my-diary/` (linked at
+`.codex/skills/` for Codex) teaches agents the workflow:
+
+- extract the product with `scripts/extract_product.py`, which reads Shopify's `<url>.js` (every
+  photo, price, options), schema.org JSON-LD, or Open Graph tags;
+- tidy the name and description;
+- check `find_by_source_url`;
+- create or update the shop, then the product with its photos.
+
+`scripts/mcp_call.py` calls the tools without an MCP client. It reads the token from
+`MY_DIARY_MCP_TOKEN` or `~/.my-diary-agent-token`.
+
 **Transports:**
 
 - Streamable HTTP: `POST /mcp`, JSON responses, protocol `2025-06-18`.
