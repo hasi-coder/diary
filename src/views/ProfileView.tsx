@@ -20,6 +20,7 @@ import { useJournal, usePosts } from "../lib/journal";
 import { canSell, KINDS, subtitle } from "../lib/format";
 import { Composer } from "../components/Composer";
 import { ItemCard } from "../components/ItemCard";
+import { ProductPhotoSize } from "../components/Products";
 import { MediaGallery } from "../components/Media";
 import { ItemForm, ProfileForm } from "../components/forms";
 import { PostCard } from "../components/PostCard";
@@ -322,6 +323,7 @@ function ShopTab({ profile }: { profile: Profile }) {
           <PlusIcon /> List an item
         </Button>
       </div>
+      {items.length > 0 && <ProductPhotoSize profile={profile} />}
       {items.length === 0 ? (
         <EmptyState icon={<ShoppingBagIcon />} title="Nothing listed yet">
           Add the things {profile.name} sells.

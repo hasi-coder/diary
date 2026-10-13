@@ -6,7 +6,7 @@ use std::sync::Mutex;
 use base64::engine::general_purpose::STANDARD as B64;
 use base64::Engine;
 use tauri::ipc::{InvokeBody, Request};
-use tauri::{AppHandle, Manager, State};
+use tauri::{AppHandle, Emitter, Manager, State};
 use zeroize::Zeroizing;
 
 use crate::error::{Error, Result};
@@ -263,6 +263,32 @@ pub fn set_photo_tags(state: State<'_, AppState>, post_id: String, media_id: Str
 #[tauri::command]
 pub fn list_trash(state: State<'_, AppState>) -> Result<Vec<TrashEntry>> {
     state.with_workspace(|ws| Ok(ws.list_trash()))
+}
+
+#[tauri::command]
+pub fn set_product_photo_size(state: State<'_, AppState>, profile_id: String, max: u32) -> Result<Profile> {
+    state.with_workspace(|ws| ws.set_product_photo_size(&profile_id, max))
+}
+
+/// Shrinks a page's existing product photos to its size, one product at a
+/// time (so the journal stays usable), reporting `photo-shrink-progress`.
+#[tauri::command]
+pub async fn shrink_product_photos(app: AppHandle, shop_id: String) -> Result<ShrinkReport> {
+    blocking(move || {
+        let state = app.state::<AppState>();
+        let ids = state.with_workspace(|ws| Ok(ws.product_ids_of(&shop_id)))?;
+        let mut report = ShrinkReport::default();
+        for (done, id) in ids.iter().enumerate() {
+            match state.with_workspace(|ws| ws.shrink_product_photos(id, &mut report)) {
+                // Deleted meanwhile: nothing to shrink.
+                Ok(()) | Err(Error::NotFound(_)) => {}
+                Err(e) => return Err(e),
+            }
+            let _ = app.emit("photo-shrink-progress", (done + 1, ids.len()));
+        }
+        Ok(report)
+    })
+    .await
 }
 
 #[tauri::command]

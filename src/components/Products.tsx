@@ -1,13 +1,14 @@
 // Products (shop items) as you see them in a look: a small gallery you can flip
 // through in place, the price and the shop. Used beside a photo ("side by side"),
 // over it (a popover on its tag), in an album's lookbook, and in the shop.
-import { useState } from "react";
-import { ShoppingBagIcon, StorefrontIcon } from "@phosphor-icons/react";
-import { mediaUrl, type Item, type MediaRef, type PhotoTag } from "../lib/api";
+import { useEffect, useState } from "react";
+import { listen } from "@tauri-apps/api/event";
+import { ArrowsInIcon, CircleNotchIcon, ImageIcon, ShoppingBagIcon, StorefrontIcon } from "@phosphor-icons/react";
+import { api, errorMessage, isTauri, mediaUrl, type Item, type MediaRef, type PhotoTag, type Profile } from "../lib/api";
 import { useJournal } from "../lib/journal";
-import { formatPrice, STATUS } from "../lib/format";
+import { formatBytes, formatPrice, STATUS } from "../lib/format";
 import { MediaPreview } from "./Media";
-import { Modal } from "./ui";
+import { Button, inputClass, Modal } from "./ui";
 
 /** The main photo with its thumbnails underneath; picking a thumbnail swaps it in place. */
 export function ProductGallery({ item, large }: { item: Item; large?: boolean }) {
@@ -158,6 +159,94 @@ export function TaggedPhoto({ media, onOpen }: { media: MediaRef; onOpen?: () =>
         <div className="absolute inset-x-3 bottom-3 rounded-xl bg-white p-3 shadow-2xl">
           <ProductCard item={item} row />
         </div>
+      )}
+    </div>
+  );
+}
+
+const PHOTO_SIZES: [number, string][] = [
+  [0, "Original size"],
+  [2048, "Extra large · 2048 px"],
+  [1600, "Large · 1600 px"],
+  [1280, "Medium · 1280 px"],
+  [1080, "Standard · 1080 px"],
+  [720, "Small · 720 px"],
+];
+
+/** A page's product photo size: new photos are stored at it, existing ones shrink on request. */
+export function ProductPhotoSize({ profile }: { profile: Profile }) {
+  const { snapshot, refresh } = useJournal();
+  const [progress, setProgress] = useState<[number, number] | null>(null);
+  const [result, setResult] = useState<string | null>(null);
+  const photos = snapshot.items.filter((i) => i.shopId === profile.id).flatMap((i) => i.media.filter((m) => m.kind === "image"));
+  const bytes = photos.reduce((n, m) => n + m.size, 0);
+
+  useEffect(() => {
+    if (!isTauri()) return;
+    const off = listen<[number, number]>("photo-shrink-progress", (e) => setProgress(e.payload));
+    return () => void off.then((f) => f());
+  }, []);
+
+  const choose = async (max: number) => {
+    setResult(null);
+    try {
+      await api.setProductPhotoSize(profile.id, max);
+      await refresh();
+    } catch (e) {
+      setResult(errorMessage(e));
+    }
+  };
+  const shrink = async () => {
+    setResult(null);
+    setProgress([0, 0]);
+    try {
+      const r = await api.shrinkProductPhotos(profile.id);
+      setResult(
+        r.shrunk === 0
+          ? "All photos already fit this size."
+          : `Shrank ${r.shrunk} of ${r.photos} photos: ${formatBytes(r.bytesBefore)} → ${formatBytes(r.bytesAfter)}.`,
+      );
+    } catch (e) {
+      setResult(errorMessage(e));
+    } finally {
+      setProgress(null);
+      await refresh();
+    }
+  };
+
+  return (
+    <div className="mb-4 rounded-lg bg-white p-4 shadow-sm">
+      <div className="flex flex-wrap items-center gap-3">
+        <ImageIcon size={20} className="text-slate-500" />
+        <div className="min-w-0 flex-1">
+          <div className="text-[15px] font-semibold text-slate-800">Product photo size</div>
+          <div className="text-[13px] text-slate-500">
+            {photos.length} photos · {formatBytes(bytes)}. New photos, yours or an agent's, are stored at this size.
+          </div>
+        </div>
+        <select
+          value={profile.productPhotoMax}
+          onChange={(e) => void choose(Number(e.target.value))}
+          disabled={!!progress}
+          className={`${inputClass} w-auto`}
+          aria-label="Product photo size"
+        >
+          {PHOTO_SIZES.map(([value, label]) => (
+            <option key={value} value={value}>
+              {label}
+            </option>
+          ))}
+        </select>
+        <Button variant="outline" disabled={!profile.productPhotoMax || !!progress} onClick={() => void shrink()}>
+          {progress ? <CircleNotchIcon className="animate-spin" /> : <ArrowsInIcon />}
+          {progress ? `Shrinking ${progress[0]}/${progress[1] || "…"}` : "Shrink existing photos"}
+        </Button>
+      </div>
+      {result && <p className="mt-2 text-[13px] text-slate-600">{result}</p>}
+      {!!profile.productPhotoMax && !result && !progress && (
+        <p className="mt-2 text-[13px] text-slate-500">
+          Shrinking re-saves larger photos as JPEG and keeps any that wouldn't get smaller. It can't be undone.
+        </p>
       )}
     </div>
   );

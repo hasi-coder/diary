@@ -464,6 +464,7 @@ pub fn create_workspace(
             avatar: None,
             cover: None,
             cover_position: 50,
+            product_photo_max: 0,
             relations: Vec::new(),
             source_url: String::new(),
             trashed_at: None,
@@ -1026,6 +1027,7 @@ impl Workspace {
             avatar: existing.as_ref().and_then(|p| p.avatar.clone()),
             cover: existing.as_ref().and_then(|p| p.cover.clone()),
             cover_position: existing.as_ref().map_or(50, |p| p.cover_position),
+            product_photo_max: existing.as_ref().map_or(0, |p| p.product_photo_max),
             // An edit that doesn't mention the source (the UI) keeps it.
             source_url: match input.source_url.trim() {
                 "" => existing.as_ref().map(|p| p.source_url.clone()).unwrap_or_default(),
@@ -1142,6 +1144,67 @@ impl Workspace {
         let mut profile = self.profiles.get(profile_id).ok_or_else(|| Error::NotFound(format!("profile {profile_id}")))?.clone();
         profile.cover_position = position.min(100);
         self.put_profile(profile)
+    }
+
+    // ---- Product photo size ----
+
+    /// Sets how large this page's product photos are stored, for photos added from now on.
+    pub fn set_product_photo_size(&mut self, profile_id: &str, max: u32) -> Result<Profile> {
+        if !media::PHOTO_SIZES.contains(&max) {
+            return Err(Error::Invalid(format!("Choose one of {:?} pixels (0 keeps originals).", media::PHOTO_SIZES)));
+        }
+        let mut profile = self.profiles.get(profile_id).ok_or_else(|| Error::NotFound(format!("profile {profile_id}")))?.clone();
+        profile.product_photo_max = max;
+        self.put_profile(profile)
+    }
+
+    /// A page's products, for shrinking one at a time. (Products in the Trash keep their photos.)
+    pub fn product_ids_of(&self, shop_id: &str) -> Vec<String> {
+        self.items.values().filter(|i| i.shop_id == shop_id).map(|i| i.id.clone()).collect()
+    }
+
+    /// Re-encodes staged photos to fit `max`, where that makes them smaller.
+    fn fit_staged(&mut self, media: &mut [MediaRef], max: u32) {
+        for m in media.iter_mut() {
+            let Some(staged) = self.media.staged.get_mut(&m.id) else { continue };
+            if let Some(out) = media::fit_photo(&staged.bytes, max) {
+                *m = MediaRef { size: out.len() as u64, mime: "image/jpeg".into(), name: media::jpeg_name(&m.name), ..m.clone() };
+                *staged = StagedMedia { media: m.clone(), bytes: Arc::new(Zeroizing::new(out)) };
+            }
+        }
+    }
+
+    /// Shrinks one product's saved photos to its page's size. Each smaller photo
+    /// becomes a new file; the old one is deleted after the product is saved,
+    /// so an interruption never leaves a product pointing at a missing photo.
+    pub fn shrink_product_photos(&mut self, item_id: &str, report: &mut ShrinkReport) -> Result<()> {
+        let mut item = self.items.get(item_id).ok_or_else(|| Error::NotFound(format!("item {item_id}")))?.clone();
+        let max = self.profiles.get(&item.shop_id).map_or(0, |p| p.product_photo_max);
+        let mut replaced = Vec::new();
+        for m in item.media.iter_mut().filter(|m| m.kind == MediaKind::Image) {
+            report.photos += 1;
+            report.bytes_before += m.size;
+            let bytes = self.read_media_bytes(&m.id)?;
+            if let Some(out) = media::fit_photo(&bytes, max) {
+                let new = MediaRef { id: Uuid::new_v4().to_string(), size: out.len() as u64, mime: "image/jpeg".into(), name: media::jpeg_name(&m.name), ..m.clone() };
+                self.media.staged.insert(new.id.clone(), StagedMedia { media: new.clone(), bytes: Arc::new(Zeroizing::new(out)) });
+                replaced.push(std::mem::replace(m, new).id);
+                report.shrunk += 1;
+            }
+            report.bytes_after += m.size;
+        }
+        if replaced.is_empty() {
+            return Ok(());
+        }
+        self.seal_staged(&item.media)?;
+        self.write_record(Kind::Item, &item.id, &item, json!({}))?;
+        self.commit_staged(&item.media);
+        self.items.insert(item.id.clone(), item);
+        self.reindex_media();
+        for id in replaced {
+            self.remove_media_file(&id)?;
+        }
+        Ok(())
     }
 
     // ---- Relationships ----
@@ -1433,8 +1496,11 @@ impl Workspace {
             "" => existing.as_ref().map(|i| i.source_url.clone()).unwrap_or_default(),
             url => short(url, 2000),
         };
+        let photo_max = shop.product_photo_max;
         let previous: Vec<MediaRef> = existing.map(|i| i.media).unwrap_or_default();
-        let media = self.resolve_media(&input.media_ids, &previous, MAX_MEDIA_PER_ITEM, "item")?;
+        let mut media = self.resolve_media(&input.media_ids, &previous, MAX_MEDIA_PER_ITEM, "item")?;
+        // New photos are stored at the page's product photo size.
+        self.fit_staged(&mut media, photo_max);
         let item = Item {
             id: input.id.unwrap_or_else(|| Uuid::new_v4().to_string()),
             shop_id: input.shop_id,
@@ -2713,6 +2779,69 @@ mod tests {
                        "occurredAt": 5, "createdAt": 5, "updatedAt": 5});
         fs::write(dir.join("posts").join(format!("{post}.enc")), seal(&format!("post:{post}"), p)).unwrap();
         (post, sarah)
+    }
+
+    #[test]
+    fn product_photo_size_per_page() {
+        let root = tempfile::tempdir().unwrap();
+        let mut ws = create_workspace(root.path(), "", "Personal", "Alex", "correct horse", FAST).unwrap();
+        let shop = ws.save_profile(person("Saree House", ProfileKind::Shop)).unwrap();
+        let big = media::tests::photo_png(1500, 1000);
+        let input = |media_ids: Vec<String>| ItemInput {
+            source_url: String::new(),
+            media_ids,
+            id: None,
+            shop_id: shop.id.clone(),
+            name: "Saree".into(),
+            description: String::new(),
+            price_cents: None,
+            currency: "LKR".into(),
+            status: ItemStatus::Available,
+        };
+        let dims = |ws: &mut Workspace, id: &str| {
+            let img = image::load_from_memory(&ws.read_media_bytes(id).unwrap()).unwrap();
+            (img.width(), img.height())
+        };
+
+        // Originals by default.
+        let photo = ws.stage_media("a.png", big.clone()).unwrap();
+        let kept = ws.save_item(input(vec![photo.id])).unwrap();
+        assert_eq!((kept.media[0].mime.as_str(), kept.media[0].size), ("image/png", big.len() as u64));
+
+        // Only the listed sizes.
+        assert!(ws.set_product_photo_size(&shop.id, 999).is_err());
+        ws.set_product_photo_size(&shop.id, 720).unwrap();
+        // Editing the page elsewhere keeps the setting.
+        let mut edit = person("Saree House", ProfileKind::Shop);
+        edit.id = Some(shop.id.clone());
+        assert_eq!(ws.save_profile(edit).unwrap().product_photo_max, 720);
+
+        // New photos fit the size.
+        let photo = ws.stage_media("b.png", big.clone()).unwrap();
+        let fitted = ws.save_item(input(vec![photo.id])).unwrap();
+        let m = &fitted.media[0];
+        assert_eq!((m.mime.as_str(), m.name.as_str()), ("image/jpeg", "b.jpg"));
+        assert!(m.size < big.len() as u64);
+        assert_eq!(dims(&mut ws, &m.id), (720, 480));
+
+        // Existing photos shrink on request; the old file goes.
+        let old_id = kept.media[0].id.clone();
+        let mut report = ShrinkReport::default();
+        for id in ws.product_ids_of(&shop.id) {
+            ws.shrink_product_photos(&id, &mut report).unwrap();
+        }
+        assert_eq!((report.photos, report.shrunk), (2, 1));
+        assert!(report.bytes_after < report.bytes_before);
+        let shrunk = ws.items[&kept.id].media[0].clone();
+        assert_ne!(shrunk.id, old_id);
+        assert_eq!(dims(&mut ws, &shrunk.id), (720, 480));
+        assert!(!root.path().join("workspace_personal").join(record_rel_path(Kind::Media, &old_id)).exists());
+
+        // And it all survives a reopen.
+        drop(ws);
+        let mut ws = open_workspace(root.path(), "workspace_personal", "correct horse").unwrap();
+        assert_eq!(ws.profiles[&shop.id].product_photo_max, 720);
+        assert_eq!(dims(&mut ws, &shrunk.id), (720, 480));
     }
 
     #[test]

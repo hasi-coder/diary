@@ -24,6 +24,8 @@ export interface Profile {
   cover: MediaRef | null;
   /** Vertical focus of the cover, 0 (top) to 100 (bottom). */
   coverPosition: number;
+  /** Pages and shops: long side, in pixels, that product photos are stored at (0 = original). */
+  productPhotoMax: number;
   relations: Relation[];
   /** Where a page or shop was imported from by an agent; absent when none. */
   sourceUrl?: string;
@@ -43,7 +45,7 @@ export interface Relation {
 
 export type RelationInput = Omit<Relation, "id"> & { id?: string };
 
-export type ProfileInput = Omit<Profile, "id" | "createdAt" | "updatedAt" | "avatar" | "cover" | "coverPosition" | "relations" | "sourceUrl"> & { id?: string };
+export type ProfileInput = Omit<Profile, "id" | "createdAt" | "updatedAt" | "avatar" | "cover" | "coverPosition" | "productPhotoMax" | "relations" | "sourceUrl"> & { id?: string };
 
 export type PostKind = "status" | "article" | "album" | "milestone";
 
@@ -200,6 +202,13 @@ export interface StorageUsage {
   totalBytes: number;
 }
 
+export interface ShrinkReport {
+  photos: number;
+  shrunk: number;
+  bytesBefore: number;
+  bytesAfter: number;
+}
+
 export interface TrashEntry {
   kind: "post" | "profile" | "item";
   id: string;
@@ -348,6 +357,9 @@ export const api = {
   saveSeries: (input: SeriesInput) => invoke<Series>("save_series", { input }),
   listTrash: () => invoke<TrashEntry[]>("list_trash"),
   storageUsage: () => invoke<StorageUsage>("storage_usage"),
+  setProductPhotoSize: (profileId: string, max: number) => invoke<Profile>("set_product_photo_size", { profileId, max }),
+  /** Long-running; emits `photo-shrink-progress` as [done, total]. */
+  shrinkProductPhotos: (shopId: string) => invoke<ShrinkReport>("shrink_product_photos", { shopId }),
   restoreFromTrash: (kind: TrashEntry["kind"], id: string) => invoke<void>("restore_from_trash", { kind, id }),
   purgeFromTrash: (kind: TrashEntry["kind"], id: string) => invoke<void>("purge_from_trash", { kind, id }),
   emptyTrash: () => invoke<number>("empty_trash"),

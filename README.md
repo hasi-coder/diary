@@ -462,6 +462,11 @@ Series are their own encrypted records (`series/<uuid>.enc`).
 - **Listing items:** shops, and pages with a shop, list items with a price, currency and status
   (available, reserved or sold).
 - **Marketplace:** shows every listing in the workspace, with search and a "show sold" toggle.
+- **Product photo size (per page):** a shop's Shop tab sets how large its product photos are stored (Original, 2048, 1600, 1280, 1080 or 720 px on the long side).
+  - New product photos are resized when the product is saved, whether you or an agent added them.
+  - "Shrink existing photos" re-saves larger ones, one product at a time.
+  - Resized photos are re-encoded as JPEG (quality 85): the camera's rotation is applied, transparency is flattened onto white, and metadata is dropped.
+  - A photo is only replaced when the result is smaller. A JPEG that already fits is never re-encoded, so running it again loses nothing.
 
 ### Search
 

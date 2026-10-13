@@ -29,6 +29,58 @@ const CACHE_BUDGET_BYTES: usize = 256 * 1024 * 1024;
 
 pub type Bytes = Arc<Zeroizing<Vec<u8>>>;
 
+/// JPEG quality for resized photos: no visible loss at normal viewing sizes.
+const PHOTO_QUALITY: u8 = 85;
+
+/// Long-side sizes a page can choose for its product photos (0 keeps originals).
+pub const PHOTO_SIZES: [u32; 6] = [0, 2048, 1600, 1280, 1080, 720];
+
+/// Re-encodes a photo as JPEG that fits in `max` × `max` pixels, honouring
+/// the camera's rotation and dropping metadata (EXIF, location). `None` when
+/// that wouldn't make it smaller, or for formats kept as they are (GIF, HEIC,
+/// AVIF, video), so callers keep the original.
+pub fn fit_photo(bytes: &[u8], max: u32) -> Option<Vec<u8>> {
+    use image::{codecs::jpeg::JpegEncoder, imageops::FilterType, DynamicImage, ImageDecoder, ImageReader};
+    let mime = match sniff(bytes) {
+        Some((MediaKind::Image, mime @ ("image/jpeg" | "image/png" | "image/webp"))) if max > 0 => mime,
+        _ => return None,
+    };
+    let mut decoder = ImageReader::new(std::io::Cursor::new(bytes)).with_guessed_format().ok()?.into_decoder().ok()?;
+    let orientation = decoder.orientation().ok();
+    let mut img = DynamicImage::from_decoder(decoder).ok()?;
+    if let Some(o) = orientation {
+        img.apply_orientation(o);
+    }
+    if img.width().max(img.height()) > max {
+        img = img.resize(max, max, FilterType::Lanczos3);
+    } else if mime == "image/jpeg" {
+        // Already fits: re-encoding would only lose quality, every time it ran.
+        return None;
+    }
+    // JPEG has no transparency: flatten onto white, like a product shot.
+    let rgb = if img.color().has_alpha() {
+        let mut rgba = img.to_rgba8();
+        for p in rgba.pixels_mut() {
+            let a = p[3] as u32;
+            for c in 0..3 {
+                p[c] = ((p[c] as u32 * a + 255 * (255 - a)) / 255) as u8;
+            }
+        }
+        DynamicImage::ImageRgba8(rgba).to_rgb8()
+    } else {
+        img.to_rgb8()
+    };
+    let mut out = Vec::new();
+    JpegEncoder::new_with_quality(&mut out, PHOTO_QUALITY).encode_image(&rgb).ok()?;
+    (out.len() < bytes.len()).then_some(out)
+}
+
+/// `photo.png` -> `photo.jpg`, after re-encoding.
+pub fn jpeg_name(name: &str) -> String {
+    let stem = name.rsplit_once('.').map_or(name, |(stem, _)| stem);
+    format!("{stem}.jpg")
+}
+
 /// Identifies the file type from its magic bytes; the client-declared type is ignored.
 pub fn sniff(bytes: &[u8]) -> Option<(MediaKind, &'static str)> {
     let at = |offset: usize, magic: &[u8]| bytes.get(offset..offset + magic.len()) == Some(magic);
@@ -210,7 +262,35 @@ pub fn serve(state: &AppState, request: &Request<Vec<u8>>) -> Response<Vec<u8>> 
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
+
+    /// A real PNG with some detail, so JPEG has something to compress.
+    pub fn photo_png(w: u32, h: u32) -> Vec<u8> {
+        let img = image::RgbImage::from_fn(w, h, |x, y| image::Rgb([(x % 256) as u8, (y % 256) as u8, ((x * y) % 256) as u8]));
+        let mut out = std::io::Cursor::new(Vec::new());
+        img.write_to(&mut out, image::ImageFormat::Png).unwrap();
+        out.into_inner()
+    }
+
+    #[test]
+    fn fit_photo_shrinks_or_keeps() {
+        let big = photo_png(1600, 800);
+        let out = fit_photo(&big, 1080).expect("smaller");
+        assert_eq!(sniff(&out), Some((MediaKind::Image, "image/jpeg")));
+        let img = image::load_from_memory(&out).unwrap();
+        assert_eq!((img.width(), img.height()), (1080, 540));
+        assert!(out.len() < big.len());
+
+        assert_eq!(fit_photo(&big, 0), None, "0 keeps originals");
+        assert_eq!(fit_photo(&out, 1080), None, "a JPEG that fits is never re-encoded");
+        let small = photo_png(600, 400);
+        assert_eq!(sniff(&fit_photo(&small, 1080).expect("PNG that fits still becomes a smaller JPEG")), Some((MediaKind::Image, "image/jpeg")));
+        assert_eq!(fit_photo(&[b"GIF89a".as_slice(), &[0; 64]].concat(), 720), None, "GIFs are kept");
+        assert_eq!(fit_photo(&[b"\x89PNG\r\n\x1a\n".as_slice(), &[0; 64]].concat(), 720), None, "undecodable files are kept");
+        assert_eq!(jpeg_name("front.png"), "front.jpg");
+        assert_eq!(jpeg_name("noext"), "noext.jpg");
+    }
+
     use super::*;
 
     #[test]

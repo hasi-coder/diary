@@ -53,6 +53,8 @@ pub fn run() {
             commands::set_photo_tags,
             commands::list_trash,
             commands::storage_usage,
+            commands::set_product_photo_size,
+            commands::shrink_product_photos,
             commands::restore_from_trash,
             commands::purge_from_trash,
             commands::empty_trash,

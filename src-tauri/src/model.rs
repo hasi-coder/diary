@@ -110,6 +110,10 @@ pub struct Profile {
     /// Vertical focus of the cover photo, 0 (top) to 100 (bottom).
     #[serde(default = "default_cover_position")]
     pub cover_position: u8,
+    /// Pages and shops: product photos are stored at most this many pixels on
+    /// their long side (re-encoded as JPEG). 0 keeps them as they are.
+    #[serde(default)]
+    pub product_photo_max: u32,
     /// Relationships this profile declared. Each is shown on both profiles,
     /// with the inverse label on the other side.
     #[serde(default)]
@@ -603,6 +607,16 @@ pub struct StoragePart {
     pub key: String,
     pub files: usize,
     pub bytes: u64,
+}
+
+/// What shrinking a page's product photos did.
+#[derive(Clone, Debug, Default, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ShrinkReport {
+    pub photos: usize,
+    pub shrunk: usize,
+    pub bytes_before: u64,
+    pub bytes_after: u64,
 }
 
 /// Something in the Trash, as the Trash view lists it.
