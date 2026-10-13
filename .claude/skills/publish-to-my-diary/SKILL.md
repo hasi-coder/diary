@@ -1,6 +1,6 @@
 ---
 name: publish-to-my-diary
-description: Publish a shop/brand page and its products from a URL into the user's My Diary journal over its MCP server (tools like create_page, create_product, add_product_photos). Use when the user gives a product or shop URL and asks to add, publish, import or save it to My Diary, or to update products already imported.
+description: Publish a shop/brand page (including public Facebook pages) and its products from a URL into the user's My Diary journal over its MCP server (tools like create_page, create_product, add_product_photos). Use when the user gives a product or shop URL and asks to add, publish, import or save it to My Diary, or to update products already imported.
 ---
 
 # Publish pages and products to My Diary
@@ -68,6 +68,33 @@ which products they want, or extract each product URL.
   filler and repeated headings. Append the options line from `optionsText` (e.g. `Size: 3, 4, 5`).
 - **price:** in major units (`4950`, not cents), with **currency** as an ISO code (`LKR`).
 - **status:** `available`, or `sold` if out of stock.
+
+## 2b. Facebook pages
+
+For a `facebook.com` URL, don't use `extract_product.py`; run:
+
+```bash
+python3 scripts/extract_facebook.py "<facebook page url>"
+```
+
+- **Public only.** It reads what Facebook shows a logged-out visitor: the page's name, its
+  about line and its profile photo. Never ask for the user's Facebook login or cookies, and
+  never try to get around a login wall.
+- **Not available without login:** posts, shop items and Marketplace listings. For those, the
+  extractor warns, and `page` may be `null`. Import the page itself (from its main URL), then ask
+  the user to paste the item's text and give you its photos. Send those photos as base64
+  `images`; use `imageUrls` only for public web addresses.
+- **People:** a public personal profile can only be saved as a **page** (`kind: "page"`),
+  because agents can't create people in the journal. Say so, and suggest the user add the person
+  in the app instead if that's what they meant.
+- **Publishing:**
+  - Check `find_by_source_url` with the `sourceUrl` first. The extractor normalises it to
+    `https://www.facebook.com/<name>/`.
+  - Then `create_page` with `name`, `kind` (`shop` if it clearly sells things), `tagline`,
+    `sourceUrl` and `avatarUrl`.
+  - Leave the follower count out of the tagline.
+  - Facebook photo links expire after a few days, so pass them straight on rather than
+    saving them.
 
 ## 3. Publish
 
