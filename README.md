@@ -323,7 +323,7 @@ it reads the page and calls My Diary's MCP tools.
 | Agent | Setup |
 | --- | --- |
 | Claude Code | `claude mcp add --transport http my-diary http://127.0.0.1:47615/mcp --header "Authorization: Bearer <token>"` |
-| Codex | `~/.codex/config.toml`: `[mcp_servers.my-diary]` with `command = "<app executable>"`, `args = ["--mcp-stdio"]`, `env = { MY_DIARY_MCP_TOKEN = "<token>" }` |
+| Codex | `~/.codex/config.toml`: `[mcp_servers.my-diary]` with `url = "http://127.0.0.1:47615/mcp"` and `bearer_token_env_var = "MY_DIARY_MCP_TOKEN"` (the variable's **name**), plus `export MY_DIARY_MCP_TOKEN="<token>"` in your shell profile |
 | VS Code · Copilot | `.vscode/mcp.json`: `{"servers": {"my-diary": {"type": "http", "url": "http://127.0.0.1:47615/mcp", "headers": {"Authorization": "Bearer <token>"}}}}` |
 | Any stdio client | command `<app executable> --mcp-stdio`, env `MY_DIARY_MCP_TOKEN` (and `MY_DIARY_MCP_URL` for another port) |
 

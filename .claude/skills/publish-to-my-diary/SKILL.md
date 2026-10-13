@@ -14,9 +14,11 @@ You cannot read posts, people or anything else in the journal, and you must not 
 
 ## 1. Connect
 
-- **As an MCP client:** if tools named `create_page`, `create_product`, etc. (server `my-diary`)
-  are available, use them.
-- **Otherwise:** use the bundled script. It reads the token from `MY_DIARY_MCP_TOKEN`, or from
+- **As an MCP client (preferred):** look for tools named `find_by_source_url`, `create_page`,
+  `create_product`, `add_product_photos`, etc. Their prefix depends on the server name in the
+  agent's config (e.g. `my-diary.create_product` or `mcp__my-diary__create_product`), so match on
+  the tool name, not the prefix. If they're available, use them and skip the script below.
+- **Otherwise (fallback):** use the bundled script. It reads the token from `MY_DIARY_MCP_TOKEN`, or from
   `~/.my-diary-agent-token`, which the user can create with `pbpaste > ~/.my-diary-agent-token
   && chmod 600 ~/.my-diary-agent-token` after copying the token in Settings › Agent access. If
   neither exists, ask the user to create that file. Never print the token or write it anywhere
@@ -29,9 +31,13 @@ You cannot read posts, people or anything else in the journal, and you must not 
 
   Pass arguments as one JSON string; for long JSON, build it with `python3 -c` or a heredoc.
 - **Errors you may see:**
-  - `locked`: ask the user to unlock My Diary.
-  - `Agent access is turned off`: ask them to switch it on.
-  - `Invalid token`: ask for the current token.
+  - `locked` (HTTP 503): ask the user to unlock My Diary.
+  - `Agent access is turned off` (403): ask them to switch it on.
+  - Connection refused: My Diary isn't running, or uses another port (shown in Settings).
+  - `Invalid token` (401): either the token was regenerated (ask for the current one), or the
+    agent's config is wrong. For Codex, `bearer_token_env_var` must name an environment
+    variable (e.g. `"MY_DIARY_MCP_TOKEN"`) that holds the token; it must not be the token itself.
+    Point this out instead of retrying.
 
 ## 2. Extract the product
 
@@ -87,6 +93,10 @@ the **shop's home URL**.
      pass `removePhotoIds` (from `get_product`), then `add_product_photos` with `imageUrls`.
 3. **Report back:** the shop and product names, price, number of photos, and whether you created
    or updated each.
+
+**Photos:** pass `imageUrls`, and let My Diary download them. Don't fetch images yourself and
+send base64: it's slow and fills your context. Use `images` (base64) only for files the user gives
+you locally.
 
 **If an image fails** ("isn't a public address", "larger than 25 MB", "Unsupported file type"),
 retry `add_product_photos` without that image and tell the user which one was skipped. The app

@@ -9,7 +9,7 @@ import { Button, ConfirmDialog, ErrorText } from "./ui";
 type Client = "claude" | "codex" | "vscode" | "stdio";
 const CLIENTS: { id: Client; label: string; where: string }[] = [
   { id: "claude", label: "Claude Code", where: "Run in a terminal" },
-  { id: "codex", label: "Codex", where: "Add to ~/.codex/config.toml" },
+  { id: "codex", label: "Codex", where: "Add the server to ~/.codex/config.toml and the token to your shell profile" },
   { id: "vscode", label: "VS Code · Copilot", where: "Add to .vscode/mcp.json (or your user mcp.json)" },
   { id: "stdio", label: "Other (stdio)", where: "Any MCP client that launches a command" },
 ];
@@ -19,7 +19,8 @@ function snippet(client: Client, a: AgentAccess, token: string) {
     case "claude":
       return `claude mcp add --transport http my-diary ${a.url} --header "Authorization: Bearer ${token}"`;
     case "codex":
-      return `[mcp_servers.my-diary]\ncommand = "${a.executable}"\nargs = ["--mcp-stdio"]\nenv = { MY_DIARY_MCP_TOKEN = "${token}", MY_DIARY_MCP_URL = "${a.url}" }`;
+      // bearer_token_env_var takes the NAME of a variable holding the token, not the token.
+      return `# ~/.codex/config.toml\n[mcp_servers.my-diary]\nurl = "${a.url}"\nbearer_token_env_var = "MY_DIARY_MCP_TOKEN"\n\n# ~/.zshrc (or your shell's profile); restart Codex afterwards\nexport MY_DIARY_MCP_TOKEN="${token}"`;
     case "vscode":
       return JSON.stringify({ servers: { "my-diary": { type: "http", url: a.url, headers: { Authorization: `Bearer ${token}` } } } }, null, 2);
     case "stdio":
