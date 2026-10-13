@@ -269,8 +269,16 @@ anything and needs no key, so it can also run after locking. Set it up in
   to the branch, so the remote only ever holds the current state.
 - There's no history of edits, and no growth from re-encrypted files: each save re-encrypts with
   a new nonce, so git couldn't compress older versions anyway.
+- **Each push uploads only what changed.** Because snapshots share no history, git on its own
+  would re-send every file each time; changing one photo re-sent the whole workspace. After each
+  push the staging repository is packed with a reachability bitmap of that snapshot. On the next
+  push git subtracts everything the remote already has, so one changed photo uploads one photo,
+  and an unchanged sync uploads a few hundred bytes.
 - The staging repository lives in the app's config folder (`sync/<workspace>.git`), never in the
-  workspace; its old objects are pruned after each push.
+  workspace. It keeps only the last pushed snapshot, as one pack: older objects are dropped after
+  each push.
+- Replaced files are no longer reachable on the remote. GitHub deletes unreachable objects in its
+  own periodic cleanup, so the repository's reported size can lag behind for a while.
 - Caches, half-finished key rotations and temp files are left out.
 - If the branch holds a snapshot this device didn't push (another computer), Save & Sync stops
   and asks before **overwriting the remote**.

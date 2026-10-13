@@ -4,7 +4,8 @@
 //!   app's data folder, not the workspace) stages `workspace_<label>/`, makes one
 //!   commit with no parent and force-pushes it, then drops the old local objects.
 //!   The remote holds just the current state: no history of edits, no growth
-//!   from re-encrypted files. If the remote has a snapshot this device didn't
+//!   from re-encrypted files. A reachability bitmap of the last pushed snapshot
+//!   means each push uploads only the files that changed. If the remote has a snapshot this device didn't
 //!   push (another computer), it refuses unless forced.
 //! - **Backup folder.** Snapshots of the workspace in any folder (e.g. one synced
 //!   by Google Drive, iCloud or Dropbox). Files are stored once by content hash,
@@ -206,6 +207,8 @@ impl Git {
             .arg(format!("--git-dir={}", self.git_dir.display()))
             .arg(format!("--work-tree={}", self.work_tree.display()))
             .args(["-c", "core.autocrlf=false", "-c", "core.quotepath=off", "-c", "gc.auto=0"])
+            // Encrypted files never delta-compress: don't spend time trying.
+            .args(["-c", "pack.window=0"])
             .args(args)
             // Never wait for a password prompt; credential helpers (keychain, gh) still work.
             .env("GIT_TERMINAL_PROMPT", "0")
@@ -293,12 +296,32 @@ pub fn push_git(staged: &StagedSnapshot, last_pushed: &str, force: bool) -> Resu
     if same {
         return Ok(GitOutcome { commit: last_pushed.to_string(), pushed: false });
     }
+    // Snapshots share no history, so git's usual "what does the remote already
+    // have" walk finds nothing and re-sends every file. A reachability bitmap
+    // of the last pushed snapshot lets it subtract exactly what's there: only
+    // changed files go up. (Repos synced before bitmaps get one here, once.)
+    // Only pack here: pruning now would delete the snapshot about to be pushed.
+    if !remote_head.is_empty() && remote_head == last_pushed && !has_bitmap(&git.git_dir) {
+        let _ = git.run(&["repack", "-a", "-d", "-b", "-q"]);
+    }
     git.run(&["push", "--force", "--quiet", &staged.remote, &format!("{}:refs/heads/{}", staged.commit, staged.branch)])?;
-    // Latest only, locally too: keep just this snapshot.
+    // Latest only, locally too: keep just this snapshot, in one pack with a bitmap for the next push.
     git.run(&["update-ref", "refs/heads/snapshot", &staged.commit])?;
-    let _ = git.run(&["reflog", "expire", "--expire=now", "--all"]);
-    let _ = git.run(&["prune", "--expire=now"]);
+    compact(git);
     Ok(GitOutcome { commit: staged.commit.clone(), pushed: true })
+}
+
+/// Drops everything but `refs/heads/snapshot`, packed once with a reachability bitmap.
+fn compact(git: &Git) {
+    let _ = git.run(&["reflog", "expire", "--expire=now", "--all"]);
+    let _ = git.run(&["repack", "-a", "-d", "-b", "-q"]);
+    let _ = git.run(&["prune", "--expire=now"]);
+}
+
+fn has_bitmap(git_dir: &Path) -> bool {
+    fs::read_dir(git_dir.join("objects/pack"))
+        .map(|d| d.flatten().any(|e| e.path().extension().is_some_and(|x| x == "bitmap")))
+        .unwrap_or(false)
 }
 
 // ---- Backup folder ----
@@ -629,6 +652,17 @@ mod tests {
         // Another workspace in the same data folder must not be included.
         store::create_workspace(&data, "other", "Other", "Sam", "correct horse", FAST).unwrap();
         Command::new(git_binary().unwrap()).args(["init", "-q", "--bare"]).arg(&remote).status().unwrap();
+        // Keep every push as a pack, so we can count what each one sent.
+        git(&remote, &["config", "receive.unpackLimit", "1"]);
+        // Photos that don't change between syncs.
+        for i in 0..30 {
+            let dir = data.join(format!("workspace_personal/media/{:02x}", i));
+            fs::create_dir_all(&dir).unwrap();
+            fs::write(dir.join(format!("{i}.enc")), (0..20_000).map(|b| (b * 31 + i * 7) as u8).collect::<Vec<u8>>()).unwrap();
+        }
+        let in_pack = || -> u64 {
+            git(&remote, &["count-objects", "-v"]).lines().find_map(|l| l.strip_prefix("in-pack: ")).unwrap().parse().unwrap()
+        };
         let settings = |config: &Path| {
             let mut s = load(config).workspaces.get("workspace_personal").cloned().unwrap_or_default();
             s.git_remote = remote.display().to_string();
@@ -646,9 +680,29 @@ mod tests {
         assert!(!again.git.unwrap().pushed);
 
         // Changed: a new snapshot replaces the old one; still one commit, no history.
+        // Only what changed is sent, not the 30 photos again.
         write_post(&data, "hello");
+        let before = in_pack();
         let second = run(&data, &config, "workspace_personal", &settings(&config), false).unwrap();
-        assert!(second.git.as_ref().unwrap().pushed);
+        assert!(second.git.as_ref().is_some_and(|g| g.pushed), "{:?}", second.errors);
+        let sent = in_pack() - before;
+        assert!(sent < 10, "the second push sent {sent} objects");
+
+        // A sync folder from before bitmaps gets one on its next push, and still only sends changes.
+        let pack_dir = config.join("sync/workspace_personal.git/objects/pack");
+        for e in fs::read_dir(&pack_dir).unwrap().flatten() {
+            if e.path().extension().is_some_and(|x| x == "bitmap") {
+                fs::remove_file(e.path()).unwrap();
+            }
+        }
+        write_post(&data, "after upgrade");
+        let before = in_pack();
+        let upgraded = run(&data, &config, "workspace_personal", &settings(&config), false).unwrap();
+        assert!(upgraded.git.as_ref().is_some_and(|g| g.pushed), "{:?}", upgraded.errors);
+        let sent = in_pack() - before;
+        assert!(sent < 10, "the first push after the upgrade sent {sent} objects");
+        let unchanged = run(&data, &config, "workspace_personal", &settings(&config), false).unwrap();
+        assert!(!unchanged.git.as_ref().unwrap().pushed);
         assert_eq!(git(&remote, &["rev-list", "--count", "main"]), "1");
         assert_ne!(second.git.unwrap().commit, first.git.unwrap().commit);
 
