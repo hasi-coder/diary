@@ -33,6 +33,8 @@ fn profile(kind: ProfileKind, name: &str, color: &str) -> ProfileInput {
         pronouns: String::new(),
         terms: "neutral".into(),
         relationship_status: String::new(),
+        birthday: String::new(),
+        anniversary: String::new(),
     }
 }
 

@@ -461,6 +461,15 @@ Series are their own encrypted records (`series/<uuid>.enc`).
 
 - **Listing items:** shops, and pages with a shop, list items with a price, currency and status
   (available, reserved or sold).
+- **Memories:** Home shows "On this day": posts from today's date in earlier years, most recent year first, with the others one click away.
+- **Celebrations:** profiles can have a birthday and an anniversary (wedding or relationship for people, founded or opened for pages, shops and places). The date can be stored without the year. Home's right column lists the ones in the next two weeks ("Sarah turns 40 tomorrow"). A 29 February date falls on the 28th in other years.
+- **Comments and reactions:** every post has Facebook's Like button and a Comment box. Hover over Like to pick Love, Care, Haha, Wow, Sad or Angry.
+  - Comments can be written as you or as any of your people (click the avatar beside the box), so the journal can record what others said.
+  - Comments can be edited, and deleting one is permanent; they don't go to the Trash.
+  - Each profile has at most one reaction per post.
+  - Adding comments or reactions doesn't mark the post as edited.
+  - Comments are encrypted with the post and are found by search.
+  - Purging a profile from the Trash removes its comments and reactions.
 - **Marketplace:** shows every listing in the workspace, with search and a "show sold" toggle.
 - **Product photo size (per page):** a shop's Shop tab sets how large its product photos are stored (Original, 2048, 1600, 1280, 1080 or 720 px on the long side).
   - New product photos are resized when the product is saved, whether you or an agent added them.

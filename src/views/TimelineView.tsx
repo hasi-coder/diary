@@ -3,6 +3,7 @@ import { HouseIcon, MagnifyingGlassIcon, NotebookIcon, XIcon } from "@phosphor-i
 import { useJournal, usePosts } from "../lib/journal";
 import { KINDS, MONTHS, periodRange } from "../lib/format";
 import { Composer } from "../components/Composer";
+import { Celebrations, OnThisDay } from "../components/Memories";
 import { PostCard } from "../components/PostCard";
 import { Page } from "../components/Shell";
 import { EmptyState, ErrorText } from "../components/ui";
@@ -48,6 +49,7 @@ export function TimelineView() {
       <div className="space-y-6">
         <MigrationBanner />
         <Composer />
+        {!filtered && <OnThisDay />}
 
         {filtered && (
           <div className="flex flex-wrap items-center gap-2 text-sm">
@@ -124,6 +126,7 @@ function TimelineRail(props: {
 
   return (
     <>
+      <Celebrations />
       <h3 className="mb-4 text-xs font-semibold uppercase tracking-wider text-slate-400">Timeline Scrubber</h3>
       <div className="mb-8 space-y-1">
         {years.length === 0 && <p className="text-sm text-slate-400">No entries yet.</p>}

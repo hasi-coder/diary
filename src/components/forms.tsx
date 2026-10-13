@@ -2,7 +2,8 @@
 import { useRef, useState } from "react";
 import { api, errorMessage, type Item, type ItemStatus, type Profile, type ProfileInput, type ProfileKind } from "../lib/api";
 import { useJournal } from "../lib/journal";
-import { COLORS, KINDS, STATUS } from "../lib/format";
+import { COLORS, KINDS, MONTHS, STATUS } from "../lib/format";
+import { parsePartialDate } from "../lib/dates";
 import { GENDER_SUGGESTIONS, PRONOUNS, RELATIONSHIP_STATUSES, TERMS, termsForPronouns } from "../lib/catalog";
 import { ImageIcon, XIcon } from "@phosphor-icons/react";
 import { AttachmentStrip, useAttachments } from "./Attachments";
@@ -40,6 +41,8 @@ export function ProfileForm(props: { profile?: Profile; initialKind?: ProfileKin
           pronouns: "",
           terms: "neutral",
           relationshipStatus: "",
+          birthday: "",
+          anniversary: "",
         },
   );
   const [busy, setBusy] = useState(false);
@@ -112,6 +115,21 @@ export function ProfileForm(props: { profile?: Profile; initialKind?: ProfileKin
         <Field label={kind === "shop" || kind === "place" ? "Address / location" : "Location"}>
           <input className={inputClass} value={form.location} onChange={(e) => set("location", e.target.value)} />
         </Field>
+
+        {kind === "person" || kind === "me" ? (
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label="Birthday" hint="Leave the year empty if you don't know it.">
+              <PartialDateInput value={form.birthday} onChange={(v) => set("birthday", v)} />
+            </Field>
+            <Field label="Anniversary" hint="Wedding or relationship anniversary.">
+              <PartialDateInput value={form.anniversary} onChange={(v) => set("anniversary", v)} />
+            </Field>
+          </div>
+        ) : (
+          <Field label={kind === "place" ? "Opened or first visited" : "Founded"} hint="Shows up in Celebrations every year.">
+            <PartialDateInput value={form.anniversary} onChange={(v) => set("anniversary", v)} />
+          </Field>
+        )}
 
         {kind === "page" && (
           <label className="flex items-center gap-3 rounded-xl border border-slate-200 px-3 py-2.5 text-sm text-slate-700">
@@ -374,6 +392,53 @@ function IdentityFields({ form, set }: { form: ProfileInput; set: <K extends key
           ))}
         </div>
       </Field>
+    </div>
+  );
+}
+
+/** Month, day and an optional year, as "YYYY-MM-DD" or "MM-DD" ("" when cleared). */
+function PartialDateInput({ value, onChange }: { value: string; onChange: (value: string) => void }) {
+  const p = parsePartialDate(value);
+  const [year, setYear] = useState(p?.year ? String(p.year) : "");
+  const month = p?.month ?? 0;
+  const day = p?.day ?? 0;
+  const emit = (m: number, d: number, y: string) => {
+    if (!m || !d) return onChange("");
+    const md = `${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+    onChange(/^\d{4}$/.test(y) ? `${y}-${md}` : md);
+  };
+  const days = month ? new Date(2000, month, 0).getDate() : 31;
+  return (
+    <div className="flex gap-2">
+      <select className={`${inputClass} flex-[2]`} value={month} onChange={(e) => emit(Number(e.target.value), day || 1, year)} aria-label="Month">
+        <option value={0}>Month</option>
+        {MONTHS.map((m, i) => (
+          <option key={m} value={i + 1}>
+            {m}
+          </option>
+        ))}
+      </select>
+      <select className={`${inputClass} flex-1`} value={day} onChange={(e) => emit(month || 1, Number(e.target.value), year)} aria-label="Day">
+        <option value={0}>Day</option>
+        {Array.from({ length: days }, (_, i) => (
+          <option key={i} value={i + 1}>
+            {i + 1}
+          </option>
+        ))}
+      </select>
+      <input
+        className={`${inputClass} flex-1`}
+        inputMode="numeric"
+        placeholder="Year"
+        value={year}
+        maxLength={4}
+        onChange={(e) => {
+          const y = e.target.value.replace(/\D/g, "");
+          setYear(y);
+          if (y === "" || y.length === 4) emit(month, day, y);
+        }}
+        aria-label="Year (optional)"
+      />
     </div>
   );
 }

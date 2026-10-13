@@ -102,6 +102,13 @@ pub struct Profile {
     /// e.g. "Married", "In an open relationship", "It's complicated".
     #[serde(default)]
     pub relationship_status: String,
+    /// `YYYY-MM-DD`, or `MM-DD` when the year isn't known. Empty = not set.
+    #[serde(default)]
+    pub birthday: String,
+    /// Same format: a wedding or relationship anniversary (people), or when a
+    /// page, shop or place opened.
+    #[serde(default)]
+    pub anniversary: String,
     /// Profile picture. Its bytes live in `media/<id>.enc`.
     #[serde(default)]
     pub avatar: Option<MediaRef>,
@@ -212,6 +219,10 @@ pub struct ProfileInput {
     #[serde(default)]
     pub relationship_status: String,
     #[serde(default)]
+    pub birthday: String,
+    #[serde(default)]
+    pub anniversary: String,
+    #[serde(default)]
     pub source_url: String,
 }
 
@@ -228,6 +239,30 @@ pub enum PostKind {
     Album,
     /// A life event ("Started a new job"): `title` plus an `event_type` category.
     Milestone,
+}
+
+/// A note under a post, as on Facebook: "looking back, this was the start of…".
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Comment {
+    pub id: String,
+    pub author_id: String,
+    /// Markdown, with mentions like a post.
+    pub content: String,
+    pub created_at: i64,
+    pub updated_at: i64,
+}
+
+/// Facebook's reactions.
+pub const REACTIONS: [&str; 7] = ["like", "love", "care", "haha", "wow", "sad", "angry"];
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Reaction {
+    pub profile_id: String,
+    /// One of [`REACTIONS`].
+    pub kind: String,
+    pub created_at: i64,
 }
 
 /// "feeling happy", "eating breakfast" and the like.
@@ -356,6 +391,12 @@ pub struct Post {
     /// Attached images and videos, in display order. Bytes live in `media/<id>.enc`.
     #[serde(default)]
     pub media: Vec<MediaRef>,
+    /// Notes added under the post later, by any profile, oldest first.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub comments: Vec<Comment>,
+    /// At most one per profile.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub reactions: Vec<Reaction>,
     /// In the Trash since then (unix millis); `None` while live.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub trashed_at: Option<i64>,

@@ -1,6 +1,8 @@
 // A Facebook-style profile page for any entity: cover, intro, posts, about, shop.
 import { useState } from "react";
 import {
+  CakeIcon,
+  ConfettiIcon,
   ArrowsVerticalIcon,
   BriefcaseIcon,
   CameraIcon,
@@ -18,6 +20,7 @@ import {
 import { api, type Profile } from "../lib/api";
 import { useJournal, usePosts } from "../lib/journal";
 import { canSell, KINDS, subtitle } from "../lib/format";
+import { formatPartialDate } from "../lib/dates";
 import { Composer } from "../components/Composer";
 import { ItemCard } from "../components/ItemCard";
 import { ProductPhotoSize } from "../components/Products";
@@ -348,5 +351,12 @@ function detailRows(p: Profile) {
   if (p.relationshipStatus) rows.push({ label: "status", value: p.relationshipStatus, icon: HeartStraightIcon });
   if (p.category) rows.push({ label: "category", value: p.category, icon: BriefcaseIcon });
   if (p.location) rows.push({ label: "location", value: p.location, icon: MapPinIcon });
+  if (p.birthday) rows.push({ label: "birthday", value: `Born ${formatPartialDate(p.birthday)}`, icon: CakeIcon });
+  if (p.anniversary)
+    rows.push({
+      label: "anniversary",
+      value: `${p.kind === "person" || p.kind === "me" ? "Anniversary" : p.kind === "place" ? "Since" : "Founded"} ${formatPartialDate(p.anniversary)}`,
+      icon: ConfettiIcon,
+    });
   return rows;
 }

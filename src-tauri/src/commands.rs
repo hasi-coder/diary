@@ -233,6 +233,26 @@ pub fn set_profile_photo(state: State<'_, AppState>, profile_id: String, slot: P
 }
 
 #[tauri::command]
+pub fn add_comment(state: State<'_, AppState>, post_id: String, author_id: String, content: String) -> Result<Post> {
+    state.with_workspace(|ws| ws.add_comment(&post_id, &author_id, &content))
+}
+
+#[tauri::command]
+pub fn edit_comment(state: State<'_, AppState>, post_id: String, comment_id: String, content: String) -> Result<Post> {
+    state.with_workspace(|ws| ws.edit_comment(&post_id, &comment_id, &content))
+}
+
+#[tauri::command]
+pub fn delete_comment(state: State<'_, AppState>, post_id: String, comment_id: String) -> Result<Post> {
+    state.with_workspace(|ws| ws.delete_comment(&post_id, &comment_id))
+}
+
+#[tauri::command]
+pub fn set_reaction(state: State<'_, AppState>, post_id: String, profile_id: String, kind: Option<String>) -> Result<Post> {
+    state.with_workspace(|ws| ws.set_reaction(&post_id, &profile_id, kind.as_deref()))
+}
+
+#[tauri::command]
 pub fn set_cover_position(state: State<'_, AppState>, profile_id: String, position: u8) -> Result<Profile> {
     state.with_workspace(|ws| ws.set_cover_position(&profile_id, position))
 }

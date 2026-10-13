@@ -20,6 +20,10 @@ export interface Profile {
   /** Words used for this profile in relationship labels. */
   terms: "neutral" | "feminine" | "masculine";
   relationshipStatus: string;
+  /** "YYYY-MM-DD", or "MM-DD" without the year; empty when not set. */
+  birthday: string;
+  /** Same format: wedding or relationship anniversary, or when a page or place opened. */
+  anniversary: string;
   avatar: MediaRef | null;
   cover: MediaRef | null;
   /** Vertical focus of the cover, 0 (top) to 100 (bottom). */
@@ -99,8 +103,37 @@ export interface Post {
   /** Series it belongs to; absent when none. */
   seriesIds?: string[];
   media: MediaRef[];
+  /** Notes added later, oldest first; absent when none. */
+  comments?: Comment[];
+  /** At most one per profile; absent when none. */
+  reactions?: Reaction[];
   createdAt: number;
   updatedAt: number;
+}
+
+export interface Comment {
+  id: string;
+  authorId: string;
+  content: string;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export const REACTIONS = {
+  like: { emoji: "👍", label: "Like", color: "text-brand-600" },
+  love: { emoji: "❤️", label: "Love", color: "text-rose-600" },
+  care: { emoji: "🥰", label: "Care", color: "text-amber-500" },
+  haha: { emoji: "😆", label: "Haha", color: "text-amber-500" },
+  wow: { emoji: "😮", label: "Wow", color: "text-amber-500" },
+  sad: { emoji: "😢", label: "Sad", color: "text-amber-500" },
+  angry: { emoji: "😡", label: "Angry", color: "text-orange-600" },
+} as const;
+export type ReactionKind = keyof typeof REACTIONS;
+
+export interface Reaction {
+  profileId: string;
+  kind: ReactionKind;
+  createdAt: number;
 }
 
 export interface PostInput {
@@ -351,6 +384,10 @@ export const api = {
   saveProfile: (input: ProfileInput) => invoke<Profile>("save_profile", { input }),
   deleteProfile: (id: string) => invoke<void>("delete_profile", { id }),
   savePost: (input: PostInput) => invoke<Post>("save_post", { input }),
+  addComment: (postId: string, authorId: string, content: string) => invoke<Post>("add_comment", { postId, authorId, content }),
+  editComment: (postId: string, commentId: string, content: string) => invoke<Post>("edit_comment", { postId, commentId, content }),
+  deleteComment: (postId: string, commentId: string) => invoke<Post>("delete_comment", { postId, commentId }),
+  setReaction: (postId: string, profileId: string, kind: ReactionKind | null) => invoke<Post>("set_reaction", { postId, profileId, kind }),
   deletePost: (id: string) => invoke<void>("delete_post", { id }),
   saveItem: (input: ItemInput) => invoke<Item>("save_item", { input }),
   deleteItem: (id: string) => invoke<void>("delete_item", { id }),

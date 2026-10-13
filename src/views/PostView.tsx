@@ -8,6 +8,7 @@ import { Composer } from "../components/Composer";
 import { MediaGrid, MediaPreview, MediaTile, Theater } from "../components/Media";
 import { PostCard, PostMenu } from "../components/PostCard";
 import { PostContent } from "../components/PostContent";
+import { PostFooter } from "../components/PostFooter";
 import { Page } from "../components/Shell";
 import { LookProducts, TaggedPhoto } from "../components/Products";
 import { SeriesNav } from "../components/SeriesParts";
@@ -90,6 +91,9 @@ function ArticleReader({ post }: { post: Post }) {
           <PostContent content={post.content} large />
         </div>
         {post.media.length > 1 && <MediaGrid post={post} media={post.media.slice(1)} />}
+        <div className="mt-8">
+          <PostFooter post={post} flush />
+        </div>
       </div>
       {viewing && <Theater items={post.media.map((m) => ({ media: m, post }))} index={0} onClose={() => setViewing(false)} />}
       {editing && <Composer editing={post} onDone={() => setEditing(false)} />}
@@ -128,6 +132,9 @@ function AlbumPage({ post }: { post: Post }) {
             <PostContent content={post.content} />
           </div>
         )}
+        <div className="-mx-6 -mb-6 mt-4">
+          <PostFooter post={post} flush />
+        </div>
       </section>
 
       <div className="mt-6 mb-3 flex justify-end">

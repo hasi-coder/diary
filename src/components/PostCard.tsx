@@ -10,6 +10,7 @@ import { Composer } from "./Composer";
 import { MediaGrid, MediaPreview } from "./Media";
 import { PostContent } from "./PostContent";
 import { PostHeadline } from "./PostExtras";
+import { PostFooter } from "./PostFooter";
 import { categoryOf } from "../lib/lifeEvents";
 import { lifeEventsIn, storyOf } from "../lib/story";
 import { SeriesBadges } from "./SeriesParts";
@@ -64,13 +65,14 @@ export function PostCard({ post, onTag }: { post: Post; onTag?: (tag: string) =>
           <LifeEventBanner clauses={story} />
           {post.content && <PostContent content={post.content} onTag={onTag} />}
           {/* Photos run edge to edge, as on Facebook. */}
-          <div className="-mx-4 -mb-3 [&>*]:rounded-none [&>*]:border-0">
+          <div className="-mx-4 [&>*]:rounded-none [&>*]:border-0">
             <MediaGrid post={post} />
           </div>
         </>
       )}
       {/* Articles and albums edit in the full-screen composer. */}
       {editing && (post.kind === "article" || post.kind === "album") && <Composer editing={post} onDone={() => setEditing(false)} />}
+      {!editing && <PostFooter post={post} />}
     </article>
   );
 }

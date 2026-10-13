@@ -247,6 +247,8 @@ fn profile_input(p: &Profile) -> ProfileInput {
         pronouns: p.pronouns.clone(),
         terms: p.terms.clone(),
         relationship_status: p.relationship_status.clone(),
+        birthday: p.birthday.clone(),
+        anniversary: p.anniversary.clone(),
         source_url: p.source_url.clone(),
     }
 }
@@ -368,6 +370,8 @@ pub fn call_tool(state: &AppState, name: &str, args: &Value) -> Result<(Value, S
                     pronouns: String::new(),
                     terms: "neutral".into(),
                     relationship_status: String::new(),
+                    birthday: String::new(),
+                    anniversary: String::new(),
                     source_url: String::new(),
                 };
                 apply_page_fields(&mut input, args);

@@ -387,6 +387,37 @@ fn recover_rotation(dir: &Path) -> Result<()> {
     }
 }
 
+const MAX_COMMENTS_PER_POST: usize = 500;
+
+/// A birthday or anniversary: `YYYY-MM-DD`, or `MM-DD` without the year
+/// (digits needn't be padded). Empty stays empty.
+fn clean_date(value: &str, what: &str) -> Result<String> {
+    let v = value.trim();
+    if v.is_empty() {
+        return Ok(String::new());
+    }
+    let bad = || Error::Invalid(format!("{what} must be YYYY-MM-DD, or MM-DD if you don't know the year."));
+    let parts: Vec<u32> = v.split('-').map(|p| p.parse().map_err(|_| bad())).collect::<Result<_>>()?;
+    let (year, m, d) = match parts[..] {
+        [y, m, d] => (Some(y), m, d),
+        [m, d] => (None, m, d),
+        _ => return Err(bad()),
+    };
+    let days = match m {
+        1 | 3 | 5 | 7 | 8 | 10 | 12 => 31,
+        4 | 6 | 9 | 11 => 30,
+        2 => 29,
+        _ => return Err(bad()),
+    };
+    if d == 0 || d > days || year.is_some_and(|y| !(1800..=2200).contains(&y)) {
+        return Err(bad());
+    }
+    Ok(match year {
+        Some(y) => format!("{y:04}-{m:02}-{d:02}"),
+        None => format!("{m:02}-{d:02}"),
+    })
+}
+
 fn label_of(id: &str) -> String {
     id.strip_prefix(WORKSPACE_PREFIX).unwrap_or(id).to_string()
 }
@@ -461,6 +492,8 @@ pub fn create_workspace(
             pronouns: String::new(),
             terms: "neutral".into(),
             relationship_status: String::new(),
+            birthday: String::new(),
+            anniversary: String::new(),
             avatar: None,
             cover: None,
             cover_position: 50,
@@ -1023,6 +1056,8 @@ impl Workspace {
             pronouns: short(&input.pronouns, 40),
             terms: if TERMS.contains(&input.terms.as_str()) { input.terms.clone() } else { "neutral".into() },
             relationship_status: short(&input.relationship_status, 60),
+            birthday: clean_date(&input.birthday, "Birthday")?,
+            anniversary: clean_date(&input.anniversary, "Anniversary")?,
             // Photos and relationships have their own commands; edits keep them.
             avatar: existing.as_ref().and_then(|p| p.avatar.clone()),
             cover: existing.as_ref().and_then(|p| p.cover.clone()),
@@ -1207,6 +1242,77 @@ impl Workspace {
         Ok(())
     }
 
+    // ---- Comments and reactions ----
+
+    fn live_post(&self, id: &str) -> Result<Post> {
+        self.posts.get(id).cloned().ok_or_else(|| Error::NotFound(format!("post {id}")))
+    }
+
+    /// Adds a comment by `author_id` (any profile) under a post; it stays dated now.
+    pub fn add_comment(&mut self, post_id: &str, author_id: &str, content: &str) -> Result<Post> {
+        let mut post = self.live_post(post_id)?;
+        if !self.profiles.contains_key(author_id) {
+            return Err(Error::NotFound(format!("author {author_id}")));
+        }
+        let content = content.trim();
+        if content.is_empty() {
+            return Err(Error::Invalid("Write a comment first.".into()));
+        }
+        if post.comments.len() >= MAX_COMMENTS_PER_POST {
+            return Err(Error::Invalid(format!("A post can have at most {MAX_COMMENTS_PER_POST} comments.")));
+        }
+        let now = now_millis();
+        post.comments.push(Comment { id: Uuid::new_v4().to_string(), author_id: author_id.into(), content: short(content, 8000), created_at: now, updated_at: now });
+        self.put_post_quietly(post)
+    }
+
+    pub fn edit_comment(&mut self, post_id: &str, comment_id: &str, content: &str) -> Result<Post> {
+        let mut post = self.live_post(post_id)?;
+        let content = content.trim();
+        if content.is_empty() {
+            return Err(Error::Invalid("Write a comment first.".into()));
+        }
+        let comment = post.comments.iter_mut().find(|c| c.id == comment_id).ok_or_else(|| Error::NotFound(format!("comment {comment_id}")))?;
+        comment.content = short(content, 8000);
+        comment.updated_at = now_millis();
+        self.put_post_quietly(post)
+    }
+
+    /// Removes a comment for good (comments don't go to the Trash).
+    pub fn delete_comment(&mut self, post_id: &str, comment_id: &str) -> Result<Post> {
+        let mut post = self.live_post(post_id)?;
+        let before = post.comments.len();
+        post.comments.retain(|c| c.id != comment_id);
+        if post.comments.len() == before {
+            return Err(Error::NotFound(format!("comment {comment_id}")));
+        }
+        self.put_post_quietly(post)
+    }
+
+    /// Sets (or, with `None`, removes) `profile_id`'s reaction to a post.
+    pub fn set_reaction(&mut self, post_id: &str, profile_id: &str, kind: Option<&str>) -> Result<Post> {
+        let mut post = self.live_post(post_id)?;
+        if !self.profiles.contains_key(profile_id) {
+            return Err(Error::NotFound(format!("profile {profile_id}")));
+        }
+        post.reactions.retain(|r| r.profile_id != profile_id);
+        if let Some(kind) = kind {
+            if !REACTIONS.contains(&kind) {
+                return Err(Error::Invalid(format!("Unknown reaction {kind:?}.")));
+            }
+            post.reactions.push(Reaction { profile_id: profile_id.into(), kind: kind.into(), created_at: now_millis() });
+        }
+        self.put_post_quietly(post)
+    }
+
+    /// Writes a post whose body didn't change, keeping `updated_at` (the "edited" marker).
+    fn put_post_quietly(&mut self, post: Post) -> Result<Post> {
+        self.write_post(&post)?;
+        self.posts.insert(post.id.clone(), post.clone());
+        self.index_post(&post.id);
+        Ok(post)
+    }
+
     // ---- Relationships ----
 
     /// Adds or updates a relationship declared by `profile_id`: "`to_id` is my `kind`".
@@ -1378,6 +1484,9 @@ impl Workspace {
             content,
             occurred_at: input.occurred_at.or(existing.as_ref().map(|p| p.occurred_at)).unwrap_or(now),
             media: attached,
+            // Comments and reactions have their own commands; edits keep them.
+            comments: existing.as_ref().map(|p| p.comments.clone()).unwrap_or_default(),
+            reactions: existing.as_ref().map(|p| p.reactions.clone()).unwrap_or_default(),
             created_at: existing.as_ref().map_or(now, |p| p.created_at),
             updated_at: now,
         };
@@ -1705,7 +1814,13 @@ impl Workspace {
     fn strip_references(&mut self, tag: impl Fn(&PhotoTag) -> bool, profile: Option<&str>) -> Result<()> {
         let touches = |p: &Post| {
             p.media.iter().any(|m| m.tags.iter().any(&tag))
-                || profile.is_some_and(|id| p.with_ids.iter().any(|w| w == id) || p.place_id.as_deref() == Some(id) || p.activities.iter().any(|a| a.with_ids.iter().any(|w| w == id)))
+                || profile.is_some_and(|id| {
+                    p.with_ids.iter().any(|w| w == id)
+                        || p.place_id.as_deref() == Some(id)
+                        || p.activities.iter().any(|a| a.with_ids.iter().any(|w| w == id))
+                        || p.comments.iter().any(|c| c.author_id == id)
+                        || p.reactions.iter().any(|r| r.profile_id == id)
+                })
         };
         let affected: Vec<(bool, Post)> = self
             .posts
@@ -1727,6 +1842,8 @@ impl Workspace {
                 for a in &mut post.activities {
                     a.with_ids.retain(|w| w != id);
                 }
+                post.comments.retain(|c| c.author_id != id);
+                post.reactions.retain(|r| r.profile_id != id);
             }
             self.write_post(&post)?;
             let id = post.id.clone();
@@ -1872,14 +1989,16 @@ impl Workspace {
             .filter_map(|t| self.items.get(&t.item_id).map(|i| i.name.as_str()))
             .collect::<Vec<_>>()
             .join(" ");
+        let comments = post.comments.iter().map(|c| c.content.as_str()).collect::<Vec<_>>().join("\n");
         let extra = format!(
-            "{} {} {} {} {} {}",
+            "{} {} {} {} {} {} {}",
             post.feeling.as_ref().map_or("", |f| f.text.as_str()),
             activities,
             post.event_type,
             post.also_event_types.join(" "),
             series,
-            products
+            products,
+            comments
         );
         let fields = [
             Field { text: &post.title, weight: 2.5 },
@@ -2066,6 +2185,8 @@ mod tests {
             pronouns: String::new(),
             terms: "neutral".into(),
             relationship_status: String::new(),
+            birthday: String::new(),
+            anniversary: String::new(),
         }
     }
 
@@ -2779,6 +2900,75 @@ mod tests {
                        "occurredAt": 5, "createdAt": 5, "updatedAt": 5});
         fs::write(dir.join("posts").join(format!("{post}.enc")), seal(&format!("post:{post}"), p)).unwrap();
         (post, sarah)
+    }
+
+    #[test]
+    fn comments_and_reactions() {
+        let root = tempfile::tempdir().unwrap();
+        let mut ws = create_workspace(root.path(), "", "Personal", "Alex", "correct horse", FAST).unwrap();
+        let owner = ws.owner_id().to_string();
+        let sarah = ws.save_profile(person("Sarah", ProfileKind::Person)).unwrap();
+        let saved = ws.save_post(post(&owner, "First day at the lake", vec![])).unwrap();
+
+        // Comments by anyone, in order; the post isn't marked edited.
+        assert!(ws.add_comment(&saved.id, &owner, "   ").is_err());
+        assert!(ws.add_comment(&saved.id, "nobody", "hi").is_err());
+        let p = ws.add_comment(&saved.id, &sarah.id, "I remember this!").unwrap();
+        let p = ws.add_comment(&p.id, &owner, "Looking back, the start of everything").unwrap();
+        assert_eq!(p.comments.len(), 2);
+        assert_eq!(p.comments[0].author_id, sarah.id);
+        assert_eq!(p.updated_at, saved.updated_at, "a comment doesn't edit the post");
+        assert_eq!(ws.search("everything", 10).posts.len(), 1, "comments are searchable");
+
+        let first = p.comments[0].id.clone();
+        let p = ws.edit_comment(&p.id, &first, "I remember this day").unwrap();
+        assert_eq!(p.comments[0].content, "I remember this day");
+        let p = ws.delete_comment(&p.id, &first).unwrap();
+        assert_eq!(p.comments.len(), 1);
+        assert!(ws.delete_comment(&p.id, &first).is_err());
+
+        // One reaction per profile; replaced, or removed with None.
+        assert!(ws.set_reaction(&p.id, &owner, Some("meh")).is_err());
+        let p = ws.set_reaction(&p.id, &owner, Some("like")).unwrap();
+        let p = ws.set_reaction(&p.id, &sarah.id, Some("love")).unwrap();
+        let p = ws.set_reaction(&p.id, &owner, Some("wow")).unwrap();
+        assert_eq!(p.reactions.iter().map(|r| r.kind.as_str()).collect::<Vec<_>>(), ["love", "wow"]);
+        let p = ws.set_reaction(&p.id, &sarah.id, None).unwrap();
+        assert_eq!(p.reactions.len(), 1);
+
+        // Editing the post keeps them; purging a profile removes its comments and reactions.
+        let p = ws.add_comment(&p.id, &sarah.id, "me too").unwrap();
+        let mut edit = post(&owner, "First day at the lake, edited", vec![]);
+        edit.id = Some(p.id.clone());
+        let p = ws.save_post(edit).unwrap();
+        assert_eq!((p.comments.len(), p.reactions.len()), (2, 1));
+        ws.delete_profile(&sarah.id).unwrap();
+        ws.purge("profile", &sarah.id).unwrap();
+        let p = ws.posts[&p.id].clone();
+        assert_eq!(p.comments.len(), 1);
+        assert_eq!(p.comments[0].author_id, owner);
+
+        drop(ws);
+        let ws = open_workspace(root.path(), "workspace_personal", "correct horse").unwrap();
+        assert_eq!(ws.posts[&p.id].comments.len(), 1);
+    }
+
+    #[test]
+    fn birthdays_and_anniversaries() {
+        let root = tempfile::tempdir().unwrap();
+        let mut ws = create_workspace(root.path(), "", "Personal", "Alex", "correct horse", FAST).unwrap();
+        let mut input = person("Sarah", ProfileKind::Person);
+        input.birthday = "1986-3-9".into();
+        input.anniversary = "6-21".into();
+        let sarah = ws.save_profile(input.clone()).unwrap();
+        assert_eq!((sarah.birthday.as_str(), sarah.anniversary.as_str()), ("1986-03-09", "06-21"));
+        for bad in ["1986-02-30", "13-01", "1986/03/09", "03-00", "1700-01-01", "March 9"] {
+            input.birthday = bad.into();
+            assert!(ws.save_profile(input.clone()).is_err(), "{bad} should be rejected");
+        }
+        input.birthday = String::new();
+        input.id = Some(sarah.id.clone());
+        assert_eq!(ws.save_profile(input).unwrap().birthday, "");
     }
 
     #[test]
