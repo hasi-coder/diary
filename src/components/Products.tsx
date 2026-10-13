@@ -45,22 +45,19 @@ export function ProductGallery({ item, large }: { item: Item; large?: boolean })
   );
 }
 
-/** Gallery, price, name and shop. `row` lays it out sideways for narrow lists. */
-export function ProductCard({ item, row, onOpenShop }: { item: Item; row?: boolean; onOpenShop?: () => void }) {
+/**
+ * Price, name, description, source, status and shop. Compact in cards; `full`
+ * (the product view) shows the whole description, keeping its line breaks.
+ */
+export function ProductDetails({ item, full, onOpenShop }: { item: Item; full?: boolean; onOpenShop?: () => void }) {
   const { profiles, navigate } = useJournal();
   const shop = profiles.get(item.shopId);
   const status = STATUS[item.status];
-  const details = (
+  return (
     <div className="min-w-0">
-      <div className="text-sm font-bold text-slate-800">{formatPrice(item.priceCents, item.currency)}</div>
-      <div className="text-sm font-medium text-slate-700">{item.name}</div>
-      {item.description && <p className="mt-0.5 line-clamp-3 text-xs text-slate-500">{item.description}</p>}
-      {item.sourceUrl && (
-        <p className="mt-0.5 truncate text-[11px] text-slate-400" title={item.sourceUrl}>
-          From {item.sourceUrl.replace(/^https?:\/\//, "").split("/")[0]}
-        </p>
-      )}
-      <div className="mt-1.5 flex flex-wrap items-center gap-2">
+      <div className={`font-bold text-slate-800 ${full ? "text-2xl" : "text-sm"}`}>{formatPrice(item.priceCents, item.currency)}</div>
+      <div className={`font-medium text-slate-700 ${full ? "mt-1 text-lg" : "text-sm"}`}>{item.name}</div>
+      <div className={`flex flex-wrap items-center gap-2 ${full ? "mt-3" : "mt-1.5"}`}>
         <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ring-1 ${status.className}`}>{status.label}</span>
         {shop && (
           <button
@@ -72,17 +69,24 @@ export function ProductCard({ item, row, onOpenShop }: { item: Item; row?: boole
           </button>
         )}
       </div>
+      {item.description && (
+        <p className={full ? "mt-4 whitespace-pre-line text-sm leading-relaxed text-slate-600" : "mt-1.5 line-clamp-3 text-xs text-slate-500"}>{item.description}</p>
+      )}
+      {item.sourceUrl && (
+        <p className={`truncate text-[11px] text-slate-400 ${full ? "mt-4" : "mt-0.5"}`} title={item.sourceUrl}>
+          From {full ? item.sourceUrl : item.sourceUrl.replace(/^https?:\/\//, "").split("/")[0]}
+        </p>
+      )}
     </div>
   );
-  return row ? (
-    <div className="grid grid-cols-[7rem_1fr] gap-3">
+}
+
+/** Gallery plus details. `row` lays it out sideways for narrow lists. */
+export function ProductCard({ item, row, onOpenShop }: { item: Item; row?: boolean; onOpenShop?: () => void }) {
+  return (
+    <div className={row ? "grid grid-cols-[7rem_1fr] gap-3" : "space-y-2"}>
       <ProductGallery item={item} />
-      {details}
-    </div>
-  ) : (
-    <div className="space-y-2">
-      <ProductGallery item={item} />
-      {details}
+      <ProductDetails item={item} onOpenShop={onOpenShop} />
     </div>
   );
 }
@@ -109,7 +113,7 @@ export function ProductViewer({ item, onClose }: { item: Item; onClose: () => vo
     <Modal title={item.name} onClose={onClose} huge>
       <div className="grid gap-6 md:grid-cols-[minmax(0,28rem)_1fr]">
         <ProductGallery item={item} large />
-        <ProductCard item={{ ...item, media: [] }} onOpenShop={onClose} />
+        <ProductDetails item={item} full onOpenShop={onClose} />
       </div>
     </Modal>
   );
