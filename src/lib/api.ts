@@ -221,6 +221,8 @@ export interface SyncSettings {
   backupDir: string;
   keep: number;
   onLock: boolean;
+  /** Sync automatically a minute after changes stop, while unlocked. */
+  auto: boolean;
   lastPushedCommit: string;
   lastGitAt: number | null;
   lastBackupAt: number | null;
@@ -347,7 +349,7 @@ export const api = {
   setAgentAccess: (enabled: boolean, port?: number) => invoke<AgentAccess>("set_agent_access", { enabled, port }),
   regenerateAgentToken: () => invoke<AgentAccess>("regenerate_agent_token"),
   getSyncSettings: () => invoke<SyncView>("get_sync_settings"),
-  saveSyncSettings: (input: Pick<SyncSettings, "gitRemote" | "gitBranch" | "sshKey" | "backupDir" | "keep" | "onLock">) => invoke<SyncView>("save_sync_settings", { input }),
+  saveSyncSettings: (input: Pick<SyncSettings, "gitRemote" | "gitBranch" | "sshKey" | "backupDir" | "keep" | "onLock" | "auto">) => invoke<SyncView>("save_sync_settings", { input }),
   syncNow: (force = false) => invoke<SyncReport>("sync_now", { force }),
   listBackups: () => invoke<BackupInfo[]>("list_backups"),
   restoreBackup: (name: string) => invoke<string>("restore_backup", { name }),

@@ -84,7 +84,7 @@ export function SyncButton() {
 /** Settings › Save & Sync. */
 export function SyncCard() {
   const [view, setView] = useState<SyncView | null>(null);
-  const [form, setForm] = useState({ gitRemote: "", gitBranch: "main", sshKey: "", backupDir: "", keep: 10, onLock: false });
+  const [form, setForm] = useState({ gitRemote: "", gitBranch: "main", sshKey: "", backupDir: "", keep: 10, onLock: false, auto: false });
   const [backups, setBackups] = useState<BackupInfo[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -94,7 +94,7 @@ export function SyncCard() {
   const load = useCallback(async () => {
     const v = await api.getSyncSettings();
     setView(v);
-    setForm({ gitRemote: v.settings.gitRemote, gitBranch: v.settings.gitBranch || "main", sshKey: v.settings.sshKey ?? "", backupDir: v.settings.backupDir, keep: v.settings.keep || 10, onLock: v.settings.onLock });
+    setForm({ gitRemote: v.settings.gitRemote, gitBranch: v.settings.gitBranch || "main", sshKey: v.settings.sshKey ?? "", backupDir: v.settings.backupDir, keep: v.settings.keep || 10, onLock: v.settings.onLock, auto: v.settings.auto ?? false });
     if (v.settings.backupDir) setBackups(await api.listBackups().catch(() => []));
   }, []);
   useEffect(() => {
@@ -103,7 +103,7 @@ export function SyncCard() {
 
   if (!view) return null;
   const s = view.settings;
-  const dirty = form.gitRemote !== s.gitRemote || form.gitBranch !== (s.gitBranch || "main") || form.sshKey !== (s.sshKey ?? "") || form.backupDir !== s.backupDir || form.keep !== (s.keep || 10) || form.onLock !== s.onLock;
+  const dirty = form.gitRemote !== s.gitRemote || form.gitBranch !== (s.gitBranch || "main") || form.sshKey !== (s.sshKey ?? "") || form.backupDir !== s.backupDir || form.keep !== (s.keep || 10) || form.onLock !== s.onLock || form.auto !== (s.auto ?? false);
   const save = async () => {
     setBusy(true);
     setError(null);
@@ -171,6 +171,10 @@ export function SyncCard() {
       </div>
 
       <label className="mt-4 flex items-center gap-2 text-sm text-slate-700">
+        <input type="checkbox" className="h-4 w-4 accent-brand-600" checked={form.auto} onChange={(e) => setForm({ ...form, auto: e.target.checked })} />
+        Save &amp; Sync automatically a minute after changes (yours or an agent's)
+      </label>
+      <label className="mt-2 flex items-center gap-2 text-sm text-slate-700">
         <input type="checkbox" className="h-4 w-4 accent-brand-600" checked={form.onLock} onChange={(e) => setForm({ ...form, onLock: e.target.checked })} />
         Save &amp; Sync automatically when I lock the journal
       </label>

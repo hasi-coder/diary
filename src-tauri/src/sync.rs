@@ -44,6 +44,8 @@ pub struct WorkspaceSync {
     pub keep: u32,
     /// Save & Sync automatically when the journal is locked.
     pub on_lock: bool,
+    /// Save & Sync automatically a minute after changes stop (while unlocked).
+    pub auto: bool,
     /// The commit this device last pushed, to notice snapshots pushed from elsewhere.
     pub last_pushed_commit: String,
     pub last_git_at: Option<i64>,
@@ -144,6 +146,22 @@ fn workspace_dir(data_root: &Path, workspace: &str) -> Result<PathBuf> {
         return Err(Error::NotFound(format!("workspace {workspace}")));
     }
     Ok(dir)
+}
+
+/// A cheap fingerprint of the workspace's files (names, sizes, modification
+/// times). Every write replaces a file atomically, so any change, by the app
+/// or an agent, changes it.
+pub fn fingerprint(data_root: &Path, workspace: &str) -> Result<u64> {
+    use std::hash::{Hash, Hasher};
+    let dir = workspace_dir(data_root, workspace)?;
+    let mut h = std::collections::hash_map::DefaultHasher::new();
+    for rel in workspace_files(&dir)? {
+        let meta = fs::metadata(dir.join(&rel))?;
+        rel.hash(&mut h);
+        meta.len().hash(&mut h);
+        meta.modified().ok().and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok()).map(|d| d.as_nanos()).hash(&mut h);
+    }
+    Ok(h.finish())
 }
 
 // ---- Git: latest version only ----
@@ -677,6 +695,21 @@ mod tests {
         assert_eq!(ws.posts.len(), 1);
         assert_eq!(ws.manifest.owner_profile_id, store::open_workspace(&data, "workspace_personal", "correct horse").unwrap().manifest.owner_profile_id);
         assert!(restore_backup(&data, "workspace_personal", &settings, "../etc").is_err());
+    }
+
+    #[test]
+    fn fingerprint_changes_with_any_write() {
+        let tmp = tempfile::tempdir().unwrap();
+        let data = tmp.path().join("data");
+        fs::create_dir_all(&data).unwrap();
+        store::create_workspace(&data, "", "Personal", "Alex", "correct horse", FAST).unwrap();
+        let before = fingerprint(&data, "workspace_personal").unwrap();
+        assert_eq!(before, fingerprint(&data, "workspace_personal").unwrap(), "stable without changes");
+        fs::create_dir_all(data.join("workspace_personal/.cache")).unwrap();
+        fs::write(data.join("workspace_personal/.cache/x"), "ignored").unwrap();
+        assert_eq!(before, fingerprint(&data, "workspace_personal").unwrap(), "caches don't count");
+        write_post(&data, "hello");
+        assert_ne!(before, fingerprint(&data, "workspace_personal").unwrap());
     }
 
     #[test]

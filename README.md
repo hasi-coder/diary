@@ -288,8 +288,12 @@ anything and needs no key, so it can also run after locking. Set it up in
 - **Restore** puts a snapshot back as a **new** workspace (`workspace_<label>_restored_<time>`),
   never over an existing one. Every file is checked against its hash first.
 
-**Options.** "Save & Sync automatically when I lock the journal" runs it in the background on
-lock. From a terminal, `my-diary --sync <workspace_id> [--force]` does the same with this device's
+**Options.**
+
+- "Save & Sync automatically a minute after changes" checks the workspace's files every 15
+  seconds while it's unlocked. A minute after the last change (yours or an agent's), it syncs, so
+  a burst of edits becomes one push. After a failure it waits five minutes before retrying.
+- "Save & Sync automatically when I lock the journal" runs it in the background on lock. From a terminal, `my-diary --sync <workspace_id> [--force]` does the same with this device's
 settings.
 
 What a copy reveals is what the repository reveals (above). Anyone holding it can try passwords
@@ -356,6 +360,8 @@ it reads the page and calls My Diary's MCP tools.
   The size limit is 25 MB per download, and stored images are capped at 5 MB.
 - **Undo.** Agent deletes go to the Trash; only you can restore from it or empty it.
 - **Activity log.** Recent calls are listed in Settings (in memory only).
+- **Live updates.** Every change an agent makes emits a `journal-changed` event, and the open
+  window refreshes (a burst of calls becomes one reload).
 
 **Skill: publish from a URL.** `.claude/skills/publish-to-my-diary/` (linked at
 `.codex/skills/` for Codex) teaches agents the workflow:

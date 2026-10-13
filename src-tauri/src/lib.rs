@@ -10,11 +10,20 @@ pub mod search;
 pub mod store;
 pub mod sync;
 
-use tauri::Manager;
+use tauri::{Emitter, Manager};
 
 pub fn run() {
     tauri::Builder::default()
         .manage(commands::AppState::new(store::data_root()))
+        .setup(|app| {
+            // Agents change data behind the window's back: tell it to refresh.
+            let handle = app.handle().clone();
+            app.state::<commands::AppState>().set_notifier(move |source| {
+                let _ = handle.emit("journal-changed", source);
+            });
+            commands::spawn_auto_sync(app.handle().clone());
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             commands::list_workspaces,
             commands::create_workspace,

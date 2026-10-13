@@ -95,7 +95,13 @@ pub fn handle_message(state: &AppState, message: &Value) -> Option<Value> {
             let args = params.get("arguments").cloned().unwrap_or_else(|| json!({}));
             let outcome = call_tool(state, &name, &args);
             let (value, ok, summary) = match outcome {
-                Ok((value, summary)) => (value, true, summary),
+                Ok((value, summary)) => {
+                    // Anything but a lookup changed the journal: the open window should show it.
+                    if !matches!(name.as_str(), "list_pages" | "get_page" | "find_by_source_url" | "list_products" | "get_product") {
+                        state.notify_changed("agent");
+                    }
+                    (value, true, summary)
+                }
                 Err(e) => (json!({ "error": e.to_string() }), false, e.to_string()),
             };
             state.agent_log.push(&name, summary, ok);
@@ -785,8 +791,17 @@ mod tests {
         let (_, err) = call(&state, "create_product", json!({ "pageId": owner, "name": "x" }));
         assert!(err);
 
-        // Deleting goes to the Trash.
+        // Deleting goes to the Trash; every change tells the window, lookups don't.
+        let changes = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let seen = changes.clone();
+        state.set_notifier(move |source| {
+            assert_eq!(source, "agent");
+            seen.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        });
+        call(&state, "list_products", json!({}));
+        assert_eq!(changes.load(std::sync::atomic::Ordering::SeqCst), 0);
         let (_, err) = call(&state, "delete_product", json!({ "id": product_id }));
+        assert_eq!(changes.load(std::sync::atomic::Ordering::SeqCst), 1);
         assert!(!err);
         let (listed, _) = call(&state, "list_products", json!({}));
         assert!(listed["products"].as_array().unwrap().is_empty());

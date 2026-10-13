@@ -15,6 +15,8 @@ use crate::mcp;
 use crate::sync;
 use crate::store::{self, Workspace};
 
+type Notifier = Box<dyn Fn(&str) + Send + Sync>;
+
 pub struct AppState {
     pub root: PathBuf,
     pub workspace: Mutex<Option<Workspace>>,
@@ -24,11 +26,27 @@ pub struct AppState {
     pub mcp: Mutex<Option<mcp::McpServer>>,
     /// Per-device settings (Save & Sync), outside any workspace.
     pub config_dir: PathBuf,
+    /// Tells the window that data changed outside it (an agent over MCP), so it refreshes.
+    notifier: Mutex<Option<Notifier>>,
+    /// One Save & Sync at a time (manual, automatic or on lock).
+    pub sync_lock: Mutex<()>,
 }
 
 impl AppState {
     pub fn new(root: PathBuf) -> Self {
-        Self { root, workspace: Mutex::new(None), agent_log: mcp::AgentLog::default(), mcp: Mutex::new(None), config_dir: sync::config_dir() }
+        Self { root, workspace: Mutex::new(None), agent_log: mcp::AgentLog::default(), mcp: Mutex::new(None), config_dir: sync::config_dir(), notifier: Mutex::new(None), sync_lock: Mutex::new(()) }
+    }
+
+    /// Sets what `notify_changed` calls (the app emits a `journal-changed` event).
+    pub fn set_notifier(&self, f: impl Fn(&str) + Send + Sync + 'static) {
+        *self.notifier.lock().unwrap_or_else(|e| e.into_inner()) = Some(Box::new(f));
+    }
+
+    /// Data changed outside the window; `source` says who changed it (e.g. "agent").
+    pub fn notify_changed(&self, source: &str) {
+        if let Some(f) = self.notifier.lock().unwrap_or_else(|e| e.into_inner()).as_ref() {
+            f(source);
+        }
     }
 
     pub(crate) fn with_workspace<T>(&self, f: impl FnOnce(&mut Workspace) -> Result<T>) -> Result<T> {
@@ -372,6 +390,8 @@ pub struct SyncSettingsInput {
     pub backup_dir: String,
     pub keep: u32,
     pub on_lock: bool,
+    #[serde(default)]
+    pub auto: bool,
 }
 
 #[tauri::command]
@@ -392,6 +412,7 @@ pub fn save_sync_settings(state: State<'_, AppState>, input: SyncSettingsInput) 
         s.backup_dir = input.backup_dir.trim().to_string();
         s.keep = input.keep.clamp(1, 1000);
         s.on_lock = input.on_lock;
+        s.auto = input.auto;
     })?;
     Ok(SyncView { workspace: id, settings, git_available: sync::git_available() })
 }
@@ -400,19 +421,68 @@ pub fn save_sync_settings(state: State<'_, AppState>, input: SyncSettingsInput) 
 /// this device didn't push.
 #[tauri::command]
 pub async fn sync_now(app: AppHandle, force: bool) -> Result<sync::SyncReport> {
-    blocking(move || {
-        let state = app.state::<AppState>();
-        let (id, settings, prepared) = {
-            // Hold the workspace still while files are copied and staged.
-            let guard = state.workspace.lock().unwrap_or_else(|e| e.into_inner());
-            let id = guard.as_ref().ok_or(Error::Locked)?.id.clone();
+    blocking(move || sync_open_workspace(&app.state::<AppState>(), force)).await
+}
+
+/// Backs up and pushes the open workspace (holding it still while files are copied).
+fn sync_open_workspace(state: &AppState, force: bool) -> Result<sync::SyncReport> {
+    let _one_at_a_time = state.sync_lock.lock().unwrap_or_else(|e| e.into_inner());
+    let (id, settings, prepared) = {
+        let guard = state.workspace.lock().unwrap_or_else(|e| e.into_inner());
+        let id = guard.as_ref().ok_or(Error::Locked)?.id.clone();
+        let settings = sync::load(&state.config_dir).workspaces.get(&id).cloned().unwrap_or_default();
+        let prepared = sync::prepare(&state.root, &state.config_dir, &id, &settings)?;
+        (id, settings, prepared)
+    };
+    sync::finish(&state.config_dir, &id, &settings, prepared, force)
+}
+
+/// Background Save & Sync for workspaces with "Sync automatically after changes":
+/// checks every 15 s, waits until the files have been unchanged for a minute (so a
+/// burst of edits or agent calls is one sync), then syncs. After a failure it
+/// waits 5 minutes before trying again.
+pub fn spawn_auto_sync(app: AppHandle) {
+    const TICK: std::time::Duration = std::time::Duration::from_secs(15);
+    const SETTLE: std::time::Duration = std::time::Duration::from_secs(60);
+    const BACKOFF: std::time::Duration = std::time::Duration::from_secs(300);
+    std::thread::spawn(move || {
+        let mut seen: Option<(String, u64)> = None; // workspace, fingerprint
+        let mut changed_at = std::time::Instant::now();
+        let mut synced: Option<(String, u64)> = None;
+        let mut retry_at: Option<std::time::Instant> = None;
+        loop {
+            std::thread::sleep(TICK);
+            let state = app.state::<AppState>();
+            let Ok(id) = current_id(&state) else {
+                seen = None;
+                continue;
+            };
             let settings = sync::load(&state.config_dir).workspaces.get(&id).cloned().unwrap_or_default();
-            let prepared = sync::prepare(&state.root, &state.config_dir, &id, &settings)?;
-            (id, settings, prepared)
-        };
-        sync::finish(&state.config_dir, &id, &settings, prepared, force)
-    })
-    .await
+            if !settings.auto || (settings.git_remote.trim().is_empty() && settings.backup_dir.trim().is_empty()) {
+                continue;
+            }
+            let Ok(fp) = sync::fingerprint(&state.root, &id) else { continue };
+            let now = std::time::Instant::now();
+            if seen.as_ref() != Some(&(id.clone(), fp)) {
+                seen = Some((id.clone(), fp));
+                changed_at = now;
+                continue;
+            }
+            let due = synced.as_ref() != Some(&(id.clone(), fp)) && now.duration_since(changed_at) >= SETTLE && retry_at.map_or(true, |t| now >= t);
+            if !due {
+                continue;
+            }
+            match sync_open_workspace(&state, false) {
+                Ok(report) if report.errors.is_empty() => {
+                    synced = Some((id, fp));
+                    retry_at = None;
+                }
+                _ => retry_at = Some(now + BACKOFF),
+            }
+            // The sidebar's Save & Sync status changed.
+            state.notify_changed("sync");
+        }
+    });
 }
 
 #[tauri::command]

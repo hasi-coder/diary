@@ -1,6 +1,7 @@
 // App-wide state for an unlocked workspace: the snapshot, navigation, and refresh.
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
-import { api, errorMessage, type Post, type PostFilter, type Profile, type Snapshot } from "./api";
+import { listen } from "@tauri-apps/api/event";
+import { api, errorMessage, isTauri, type Post, type PostFilter, type Profile, type Snapshot } from "./api";
 
 export type Route =
   | { view: "timeline" }
@@ -43,6 +44,26 @@ export function JournalProvider(props: { initial: Snapshot; onLocked: () => void
     setSnapshot(await api.getSnapshot());
     setVersion((v) => v + 1);
   }, []);
+
+  // Changes made outside this window (an agent over MCP) arrive as `journal-changed`
+  // events: refresh, batching a burst of calls into one reload.
+  useEffect(() => {
+    if (!isTauri()) return;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let unlisten: (() => void) | undefined;
+    let cancelled = false;
+    listen("journal-changed", () => {
+      clearTimeout(timer);
+      timer = setTimeout(() => void refresh().catch(() => {}), 300);
+    })
+      .then((stop) => (cancelled ? stop() : (unlisten = stop)))
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+      unlisten?.();
+    };
+  }, [refresh]);
 
   const replace = useCallback((s: Snapshot) => {
     setSnapshot(s);
