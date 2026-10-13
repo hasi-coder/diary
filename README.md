@@ -274,7 +274,9 @@ anything and needs no key, so it can also run after locking. Set it up in
 - Caches, half-finished key rotations and temp files are left out.
 - If the branch holds a snapshot this device didn't push (another computer), Save & Sync stops
   and asks before **overwriting the remote**.
-- It uses your normal git credentials (keychain, `gh` or SSH) and never prompts.
+- It uses your normal git credentials (keychain, `gh` or SSH) and never prompts. For an SSH
+  remote owned by another GitHub account, set **SSH key** (e.g. `~/.ssh/id_ed25519_hasi_coder`).
+  Sync then uses only that key and ignores `~/.ssh/config` host aliases.
 - Use a **private** repository, and one branch per workspace.
 
 **Backup folder.**

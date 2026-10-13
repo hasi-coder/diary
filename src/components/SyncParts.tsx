@@ -84,7 +84,7 @@ export function SyncButton() {
 /** Settings › Save & Sync. */
 export function SyncCard() {
   const [view, setView] = useState<SyncView | null>(null);
-  const [form, setForm] = useState({ gitRemote: "", gitBranch: "main", backupDir: "", keep: 10, onLock: false });
+  const [form, setForm] = useState({ gitRemote: "", gitBranch: "main", sshKey: "", backupDir: "", keep: 10, onLock: false });
   const [backups, setBackups] = useState<BackupInfo[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -94,7 +94,7 @@ export function SyncCard() {
   const load = useCallback(async () => {
     const v = await api.getSyncSettings();
     setView(v);
-    setForm({ gitRemote: v.settings.gitRemote, gitBranch: v.settings.gitBranch || "main", backupDir: v.settings.backupDir, keep: v.settings.keep || 10, onLock: v.settings.onLock });
+    setForm({ gitRemote: v.settings.gitRemote, gitBranch: v.settings.gitBranch || "main", sshKey: v.settings.sshKey ?? "", backupDir: v.settings.backupDir, keep: v.settings.keep || 10, onLock: v.settings.onLock });
     if (v.settings.backupDir) setBackups(await api.listBackups().catch(() => []));
   }, []);
   useEffect(() => {
@@ -103,7 +103,7 @@ export function SyncCard() {
 
   if (!view) return null;
   const s = view.settings;
-  const dirty = form.gitRemote !== s.gitRemote || form.gitBranch !== (s.gitBranch || "main") || form.backupDir !== s.backupDir || form.keep !== (s.keep || 10) || form.onLock !== s.onLock;
+  const dirty = form.gitRemote !== s.gitRemote || form.gitBranch !== (s.gitBranch || "main") || form.sshKey !== (s.sshKey ?? "") || form.backupDir !== s.backupDir || form.keep !== (s.keep || 10) || form.onLock !== s.onLock;
   const save = async () => {
     setBusy(true);
     setError(null);
@@ -138,10 +138,13 @@ export function SyncCard() {
           </p>
           {!view.gitAvailable && <ErrorText>git isn't installed on this computer.</ErrorText>}
           <Field label="Remote">
-            <input className={inputClass} value={form.gitRemote} onChange={(e) => setForm({ ...form, gitRemote: e.target.value })} placeholder="https://github.com/you/journal-data.git" />
+            <input className={inputClass} value={form.gitRemote} onChange={(e) => setForm({ ...form, gitRemote: e.target.value })} placeholder="git@github.com:you/journal-data.git" />
           </Field>
           <Field label="Branch">
             <input className={inputClass} value={form.gitBranch} onChange={(e) => setForm({ ...form, gitBranch: e.target.value })} placeholder="main" />
+          </Field>
+          <Field label="SSH key (optional)" hint="For git@ remotes: the private key of the account that owns the repository. Leave empty to use your SSH defaults.">
+            <input className={inputClass} value={form.sshKey} onChange={(e) => setForm({ ...form, sshKey: e.target.value })} placeholder="~/.ssh/id_ed25519" />
           </Field>
           <p className="text-xs text-slate-400">
             Last pushed: {ago(s.lastGitAt)}

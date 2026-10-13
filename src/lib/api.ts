@@ -216,6 +216,8 @@ export interface AgentEvent {
 export interface SyncSettings {
   gitRemote: string;
   gitBranch: string;
+  /** Private key for an SSH remote; empty uses ssh's defaults. */
+  sshKey: string;
   backupDir: string;
   keep: number;
   onLock: boolean;
@@ -345,7 +347,7 @@ export const api = {
   setAgentAccess: (enabled: boolean, port?: number) => invoke<AgentAccess>("set_agent_access", { enabled, port }),
   regenerateAgentToken: () => invoke<AgentAccess>("regenerate_agent_token"),
   getSyncSettings: () => invoke<SyncView>("get_sync_settings"),
-  saveSyncSettings: (input: Pick<SyncSettings, "gitRemote" | "gitBranch" | "backupDir" | "keep" | "onLock">) => invoke<SyncView>("save_sync_settings", { input }),
+  saveSyncSettings: (input: Pick<SyncSettings, "gitRemote" | "gitBranch" | "sshKey" | "backupDir" | "keep" | "onLock">) => invoke<SyncView>("save_sync_settings", { input }),
   syncNow: (force = false) => invoke<SyncReport>("sync_now", { force }),
   listBackups: () => invoke<BackupInfo[]>("list_backups"),
   restoreBackup: (name: string) => invoke<string>("restore_backup", { name }),

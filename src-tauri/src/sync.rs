@@ -36,6 +36,8 @@ pub struct WorkspaceSync {
     pub git_remote: String,
     /// Branch holding the snapshot (default `main`). Use one branch per workspace.
     pub git_branch: String,
+    /// Private key for an SSH remote (e.g. `~/.ssh/id_ed25519_work`); empty = ssh's defaults.
+    pub ssh_key: String,
     /// Folder for backups (e.g. inside Google Drive); empty = off.
     pub backup_dir: String,
     /// Backup snapshots to keep (default 10).
@@ -160,6 +162,24 @@ struct Git {
     bin: PathBuf,
     git_dir: PathBuf,
     work_tree: PathBuf,
+    ssh_command: String,
+}
+
+fn expand_home(path: &str) -> PathBuf {
+    match path.trim().strip_prefix("~/") {
+        Some(rest) => std::env::var_os("HOME").map(PathBuf::from).unwrap_or_default().join(rest),
+        None => PathBuf::from(path.trim()),
+    }
+}
+
+/// How git should run ssh: never prompting, and with the workspace's own key
+/// (ignoring ~/.ssh/config host aliases) when one is set.
+fn ssh_command(key: &str) -> String {
+    if key.trim().is_empty() {
+        return "ssh -o BatchMode=yes".into();
+    }
+    let key = expand_home(key).display().to_string().replace('\'', "'\\''");
+    format!("ssh -i '{key}' -o IdentitiesOnly=yes -o BatchMode=yes -F /dev/null")
 }
 
 impl Git {
@@ -171,6 +191,7 @@ impl Git {
             .args(args)
             // Never wait for a password prompt; credential helpers (keychain, gh) still work.
             .env("GIT_TERMINAL_PROMPT", "0")
+            .env("GIT_SSH_COMMAND", &self.ssh_command)
             .env("GIT_AUTHOR_NAME", "My Diary")
             .env("GIT_AUTHOR_EMAIL", "my-diary@localhost")
             .env("GIT_COMMITTER_NAME", "My Diary")
@@ -204,7 +225,10 @@ pub fn stage_git(data_root: &Path, sync_root: &Path, workspace: &str, settings: 
     workspace_dir(data_root, workspace)?;
     let bin = git_binary().ok_or_else(|| Error::Invalid("git isn't installed.".into()))?;
     let git_dir = sync_root.join(format!("{workspace}.git"));
-    let git = Git { bin, git_dir: git_dir.clone(), work_tree: data_root.to_path_buf() };
+    if !settings.ssh_key.trim().is_empty() && !expand_home(&settings.ssh_key).is_file() {
+        return Err(Error::Invalid(format!("SSH key {} not found.", settings.ssh_key.trim())));
+    }
+    let git = Git { bin, git_dir: git_dir.clone(), work_tree: data_root.to_path_buf(), ssh_command: ssh_command(&settings.ssh_key) };
     if !git_dir.exists() {
         fs::create_dir_all(sync_root)?;
         let status = Command::new(&git.bin).args(["init", "-q", "--bare"]).arg(&git_dir).stdin(Stdio::null()).output()?;
@@ -286,10 +310,7 @@ fn backup_root(backup_dir: &str, workspace: &str) -> Result<PathBuf> {
     if dir.is_empty() {
         return Err(Error::Invalid("Choose a backup folder first.".into()));
     }
-    let dir = match dir.strip_prefix("~/") {
-        Some(rest) => std::env::var_os("HOME").map(PathBuf::from).unwrap_or_default().join(rest),
-        None => PathBuf::from(dir),
-    };
+    let dir = expand_home(dir);
     if !dir.is_absolute() {
         return Err(Error::Invalid("Use a full folder path for backups.".into()));
     }
@@ -656,6 +677,14 @@ mod tests {
         assert_eq!(ws.posts.len(), 1);
         assert_eq!(ws.manifest.owner_profile_id, store::open_workspace(&data, "workspace_personal", "correct horse").unwrap().manifest.owner_profile_id);
         assert!(restore_backup(&data, "workspace_personal", &settings, "../etc").is_err());
+    }
+
+    #[test]
+    fn ssh_uses_the_workspace_key() {
+        assert_eq!(ssh_command(""), "ssh -o BatchMode=yes");
+        let home = std::env::var("HOME").unwrap();
+        assert_eq!(ssh_command("~/.ssh/id_work"), format!("ssh -i '{home}/.ssh/id_work' -o IdentitiesOnly=yes -o BatchMode=yes -F /dev/null"));
+        assert_eq!(ssh_command("/k/it's"), "ssh -i '/k/it'\\''s' -o IdentitiesOnly=yes -o BatchMode=yes -F /dev/null");
     }
 
     #[test]

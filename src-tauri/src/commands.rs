@@ -367,6 +367,8 @@ pub fn get_sync_settings(state: State<'_, AppState>) -> Result<SyncView> {
 pub struct SyncSettingsInput {
     pub git_remote: String,
     pub git_branch: String,
+    #[serde(default)]
+    pub ssh_key: String,
     pub backup_dir: String,
     pub keep: u32,
     pub on_lock: bool,
@@ -386,6 +388,7 @@ pub fn save_sync_settings(state: State<'_, AppState>, input: SyncSettingsInput) 
         }
         s.git_remote = remote;
         s.git_branch = input.git_branch.trim().to_string();
+        s.ssh_key = input.ssh_key.trim().to_string();
         s.backup_dir = input.backup_dir.trim().to_string();
         s.keep = input.keep.clamp(1, 1000);
         s.on_lock = input.on_lock;
