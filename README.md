@@ -566,12 +566,18 @@ my-diary/
 data_sources/workspace_<label>/
 ├── workspace.json        plaintext: format version, Argon2id params + salt, wrapped data key
 ├── manifest.enc          workspace name, owner profile id, created time
-├── entities/<uuid>.enc   profiles
-├── posts/<uuid>.enc      posts, articles and albums
-├── items/<uuid>.enc      shop listings
-├── series/<uuid>.enc     series of posts (deleted records stay in their folders, marked trashed)
-└── media/<uuid>.enc      photo and video bytes (Git LFS)
+├── entities/<xx>/<uuid>.enc   profiles
+├── posts/<xx>/<uuid>.enc      posts, articles and albums
+├── items/<xx>/<uuid>.enc      shop listings
+├── series/<xx>/<uuid>.enc     series of posts (deleted records stay in their folders, marked trashed)
+└── media/<xx>/<uuid>.enc      photo and video bytes (Git LFS)
 ```
+
+`<xx>` is the first two characters of the id. Ids are random, so up to 256 subfolders fill
+evenly and no folder grows past a few hundred files, even with tens of thousands of photos.
+Workspaces saved by older versions kept every file directly in its folder. Each file moves into
+its subfolder the next time the workspace is unlocked. The reader accepts both layouts, so an
+interrupted move simply finishes on the next unlock.
 
 **Records:**
 
@@ -716,7 +722,7 @@ git commit -m "Journal update"
 ```
 
 - `data_sources/workspace_demo/`, `*/.cache/`, `*/.rotate/` and `*.enc.tmp` are git-ignored.
-- `.gitattributes` marks every `.enc` file as binary and sends `media/*.enc` through **Git LFS**.
+- `.gitattributes` marks every `.enc` file as binary and sends `media/**/*.enc` through **Git LFS**.
   Run `brew install git-lfs && git lfs install` once per machine **before committing real
   photos**. Without it, media is stored as ordinary git blobs.
 - **Commit author:** this repository has a local git identity (`git config --local user.name`)

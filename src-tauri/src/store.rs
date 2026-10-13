@@ -231,6 +231,9 @@ fn atomic_write(path: &Path, bytes: &[u8]) -> Result<()> {
     let mut tmp = path.as_os_str().to_owned();
     tmp.push(".tmp");
     let tmp = PathBuf::from(tmp);
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent)?;
+    }
     fs::write(&tmp, bytes)?;
     fs::rename(&tmp, path)?;
     Ok(())
@@ -287,12 +290,67 @@ fn write_synced(path: &Path, bytes: &[u8]) -> Result<()> {
     Ok(())
 }
 
+/// Records sit in subfolders named after the first two characters of their id
+/// (`media/3f/3f9a….enc`): ids are random, so 256 folders fill evenly and none
+/// grows past a few hundred files.
+fn shard_of(id: &str) -> String {
+    match id.get(..2) {
+        Some(p) if p.bytes().all(|b| b.is_ascii_alphanumeric()) => p.to_ascii_lowercase(),
+        _ => "_".into(),
+    }
+}
+
 /// Path of a record relative to the workspace folder.
 fn record_rel_path(kind: Kind, id: &str) -> PathBuf {
     match kind {
         Kind::Manifest => PathBuf::from(MANIFEST_FILE),
-        _ => Path::new(kind.dir()).join(format!("{id}.enc")),
+        _ => Path::new(kind.dir()).join(shard_of(id)).join(format!("{id}.enc")),
     }
+}
+
+/// Kinds stored one file per record, in their own folder.
+const FOLDER_KINDS: [Kind; 5] = [Kind::Profile, Kind::Post, Kind::Item, Kind::Series, Kind::Media];
+
+/// Every record file in a kind's folder as `(id, path)`, whether in a subfolder
+/// or (as older versions saved them) directly in the folder.
+fn record_files(dir: &Path) -> Result<Vec<(String, PathBuf)>> {
+    fn push(path: PathBuf, out: &mut Vec<(String, PathBuf)>) {
+        if path.extension().and_then(|e| e.to_str()) == Some("enc") {
+            if let Some(id) = path.file_stem().and_then(|s| s.to_str()).map(str::to_owned) {
+                out.push((id, path));
+            }
+        }
+    }
+    let mut out = Vec::new();
+    if !dir.exists() {
+        return Ok(out);
+    }
+    for entry in fs::read_dir(dir)? {
+        let path = entry?.path();
+        if path.is_dir() {
+            for inner in fs::read_dir(&path)? {
+                push(inner?.path(), &mut out);
+            }
+        } else {
+            push(path, &mut out);
+        }
+    }
+    Ok(out)
+}
+
+/// Moves files saved by older versions (directly in `media/` etc.) into their
+/// subfolder. Each move is a rename, so an interrupted run finishes next time.
+fn shard_flat_files(dir: &Path) -> Result<()> {
+    for kind in FOLDER_KINDS {
+        for (id, path) in record_files(&dir.join(kind.dir()))? {
+            let target = dir.join(record_rel_path(kind, &id));
+            if path != target {
+                fs::create_dir_all(target.parent().unwrap_or(dir))?;
+                fs::rename(&path, &target)?;
+            }
+        }
+    }
+    Ok(())
 }
 
 /// Moves a fully staged rotation into place. Idempotent, so it can be re-run
@@ -300,17 +358,11 @@ fn record_rel_path(kind: Kind, id: &str) -> PathBuf {
 /// the files are read with; recovery always finishes the job first.
 fn commit_rotation(dir: &Path) -> Result<()> {
     let staging = dir.join(ROTATE_DIR);
-    for sub in Kind::RECORDS.iter().chain([Kind::Media].iter()).map(|k| k.dir()) {
-        let from = staging.join(sub);
-        if !from.exists() {
-            continue;
-        }
-        fs::create_dir_all(dir.join(sub))?;
-        for entry in fs::read_dir(&from)? {
-            let path = entry?.path();
-            if let Some(name) = path.file_name() {
-                fs::rename(&path, dir.join(sub).join(name))?;
-            }
+    for kind in FOLDER_KINDS {
+        for (id, path) in record_files(&staging.join(kind.dir()))? {
+            let target = dir.join(record_rel_path(kind, &id));
+            fs::create_dir_all(target.parent().unwrap_or(dir))?;
+            fs::rename(&path, target)?;
         }
     }
     for file in [MANIFEST_FILE, CONFIG_FILE] {
@@ -472,6 +524,8 @@ pub fn open_workspace(root: &Path, id: &str, password: &str) -> Result<Workspace
         stale.insert((Kind::Manifest, MANIFEST_ID.to_string()));
     }
     let manifest: Manifest = serde_json::from_value(migrate::upgrade(Kind::Manifest, decoded.schema, decoded.data)?)?;
+    // Only once the password is known to be right.
+    shard_flat_files(&dir)?;
 
     let mut ws = Workspace {
         id: id.to_string(),
@@ -575,7 +629,7 @@ impl Workspace {
     fn record_path(&self, kind: Kind, id: &str) -> PathBuf {
         match kind {
             Kind::Manifest => self.dir.join(MANIFEST_FILE),
-            _ => self.dir.join(kind.dir()).join(format!("{id}.enc")),
+            _ => self.dir.join(record_rel_path(kind, id)),
         }
     }
 
@@ -745,16 +799,7 @@ impl Workspace {
 
     fn load_all<T: DeserializeOwned>(&mut self, kind: Kind, disk_schema: &mut u32) -> Result<HashMap<String, T>> {
         let mut out = HashMap::new();
-        let dir = self.dir.join(kind.dir());
-        if !dir.exists() {
-            return Ok(out);
-        }
-        for entry in fs::read_dir(&dir)? {
-            let path = entry?.path();
-            if path.extension().and_then(|e| e.to_str()) != Some("enc") {
-                continue;
-            }
-            let Some(id) = path.file_stem().and_then(|s| s.to_str()).map(str::to_owned) else { continue };
+        for (id, path) in record_files(&self.dir.join(kind.dir()))? {
             let decoded = record::decode(&self.key, kind, &id, &fs::read(&path)?).map_err(|e| match e {
                 Error::Invalid(msg) => Error::Invalid(msg),
                 _ => Error::Invalid(format!("Could not decrypt {}", path.display())),
@@ -859,18 +904,10 @@ impl Workspace {
             put(record_rel_path(Kind::Series, &x.id), record::encode(key, Kind::Series, &x.id, serde_json::to_value(x)?, json!({}))?)?;
         }
 
-        let media_dir = self.dir.join(Kind::Media.dir());
-        if media_dir.exists() {
-            for entry in fs::read_dir(&media_dir)? {
-                let path = entry?.path();
-                if path.extension().and_then(|e| e.to_str()) != Some("enc") {
-                    continue;
-                }
-                let Some(id) = path.file_stem().and_then(|s| s.to_str()).map(str::to_owned) else { continue };
-                let plain = record::decode_blob(&self.key, &id, &fs::read(&path)?)
-                    .map_err(|_| Error::Invalid(format!("Could not decrypt {}; nothing was changed.", path.display())))?;
-                put(record_rel_path(Kind::Media, &id), record::encode_blob(key, &id, &plain)?)?;
-            }
+        for (id, path) in record_files(&self.dir.join(Kind::Media.dir()))? {
+            let plain = record::decode_blob(&self.key, &id, &fs::read(&path)?)
+                .map_err(|_| Error::Invalid(format!("Could not decrypt {}; nothing was changed.", path.display())))?;
+            put(record_rel_path(Kind::Media, &id), record::encode_blob(key, &id, &plain)?)?;
         }
 
         put(PathBuf::from(CONFIG_FILE), serde_json::to_vec_pretty(config)?)?;
@@ -1965,6 +2002,11 @@ mod tests {
         out
     }
 
+    /// Record files under a kind's folder, in any subfolder.
+    fn files_in(dir: &Path) -> usize {
+        record_files(dir).map(|f| f.len()).unwrap_or(0)
+    }
+
     /// Asserts that none of `needles` appear anywhere under `root`.
     fn assert_no_plaintext(root: &Path, needles: &[&str]) {
         for path in walk(root) {
@@ -2074,7 +2116,7 @@ mod tests {
 
         // Posts carry pre-built front matter.
         let post = ws.posts.values().find(|p| p.author_id == owner).unwrap();
-        let bytes = fs::read(root.path().join("workspace_personal/posts").join(format!("{}.enc", post.id))).unwrap();
+        let bytes = fs::read(root.path().join("workspace_personal").join(record_rel_path(Kind::Post, &post.id))).unwrap();
         let meta = record::decode(&ws.key, Kind::Post, &post.id, &bytes).unwrap().meta;
         assert_eq!(meta["tags"], json!(["coffee"]));
         assert_eq!(meta["mentions"].as_array().unwrap().len(), 2);
@@ -2173,13 +2215,13 @@ mod tests {
         assert_eq!((a.kind, a.mime.as_str(), a.size), (MediaKind::Image, "image/png", 3000));
         assert_eq!(b.name, "image.jpeg");
         assert!(matches!(ws.media_lookup(&a.id).unwrap().1, MediaSource::Ready(_)), "staged media is servable");
-        assert!(!media_dir.exists() || fs::read_dir(&media_dir).unwrap().count() == 0, "staging writes nothing");
+        assert_eq!(files_in(&media_dir), 0, "staging writes nothing");
 
         assert!(ws.save_post(post(&owner, "", vec![])).is_err(), "empty post");
         assert!(ws.save_post(post(&owner, "x", vec![Uuid::new_v4().to_string()])).is_err(), "unknown attachment");
         let saved = ws.save_post(post(&owner, "", vec![a.id.clone(), b.id.clone(), a.id.clone()])).unwrap();
         assert_eq!(saved.media.iter().map(|m| &m.id).collect::<Vec<_>>(), vec![&a.id, &b.id], "ordered, deduped");
-        assert_eq!(fs::read_dir(&media_dir).unwrap().count(), 2);
+        assert_eq!(files_in(&media_dir), 2);
         assert_no_plaintext(root.path(), &["SECRETPIXELS", "MOREPIXELS", "beach.png"]);
 
         let mut ws = open_workspace(root.path(), "workspace_personal", "correct horse").unwrap();
@@ -2189,7 +2231,7 @@ mod tests {
         // Detaching an attachment deletes its file.
         let edited = PostInput { id: Some(saved.id.clone()), ..post(&owner, "Beach day", vec![a.id.clone()]) };
         ws.save_post(edited).unwrap();
-        assert!(!media_dir.join(format!("{}.enc", b.id)).exists());
+        assert!(!media_dir.join(shard_of(&b.id)).join(format!("{}.enc", b.id)).exists());
         assert!(ws.media_lookup(&b.id).is_err());
 
         // Discarded uploads can't be attached.
@@ -2197,11 +2239,11 @@ mod tests {
         ws.discard_media(std::slice::from_ref(&c.id));
         assert!(ws.save_post(post(&owner, "x", vec![c.id])).is_err());
 
-        let before = fs::read_dir(&media_dir).unwrap().count();
+        let before = files_in(&media_dir);
         ws.delete_post(&saved.id).unwrap();
-        assert_eq!(fs::read_dir(&media_dir).unwrap().count(), before, "a trashed post keeps its media");
+        assert_eq!(files_in(&media_dir), before, "a trashed post keeps its media");
         ws.purge("post", &saved.id).unwrap();
-        assert_eq!(fs::read_dir(&media_dir).unwrap().count(), 0, "deleting it forever deletes its media");
+        assert_eq!(files_in(&media_dir), 0, "deleting it forever deletes its media");
     }
 
     #[test]
@@ -2357,8 +2399,8 @@ mod tests {
         let config = wrap_key(&new_key, "new password", FAST).unwrap();
         ws.stage_rotation(&dir.join(ROTATE_DIR), &new_key, &config).unwrap();
         fs::rename(dir.join(ROTATE_DIR).join(MANIFEST_FILE), dir.join(MANIFEST_FILE)).unwrap();
-        let first_profile = fs::read_dir(dir.join(ROTATE_DIR).join("entities")).unwrap().next().unwrap().unwrap().path();
-        fs::rename(&first_profile, dir.join("entities").join(first_profile.file_name().unwrap())).unwrap();
+        let (id, first_profile) = record_files(&dir.join(ROTATE_DIR).join("entities")).unwrap().remove(0);
+        fs::rename(&first_profile, dir.join(record_rel_path(Kind::Profile, &id))).unwrap();
         drop(ws);
 
         let ws = open_workspace(root.path(), "workspace_personal", "new password").unwrap();
@@ -2400,7 +2442,7 @@ mod tests {
         let album = ws.save_post(reorder).unwrap();
         assert_eq!((album.media[0].id.as_str(), album.media[0].caption.as_str()), (ids[1].as_str(), "New cover"));
         assert_eq!(album.media[1].caption, "Sunrise over the dock");
-        assert_eq!(fs::read_dir(root.path().join("workspace_personal/media")).unwrap().count(), 2, "dropped photos deleted");
+        assert_eq!(files_in(&root.path().join("workspace_personal/media")), 2, "dropped photos deleted");
 
         // Persisted, filterable and searchable.
         let ws = open_workspace(root.path(), "workspace_personal", "correct horse").unwrap();
@@ -2615,14 +2657,14 @@ mod tests {
         // Replacing the avatar deletes the old file; edits keep photos.
         let b = ws.stage_media("me2.png", png(3)).unwrap();
         ws.set_profile_photo(&owner, PhotoSlot::Avatar, Some(b.id.clone())).unwrap();
-        assert!(!media_dir.join(format!("{}.enc", a.id)).exists());
+        assert!(!media_dir.join(shard_of(&a.id)).join(format!("{}.enc", a.id)).exists());
         let me = ws.save_profile(ProfileInput { id: Some(owner.clone()), ..person("Alex", ProfileKind::Me) }).unwrap();
         assert_eq!((me.avatar.unwrap().id, me.cover.unwrap().id, me.cover_position), (b.id.clone(), copy.id.clone(), 100));
 
         let ws2 = open_workspace(root.path(), "workspace_personal", "correct horse").unwrap();
         assert_eq!(ws2.profiles[&owner].avatar.as_ref().unwrap().id, b.id);
         ws.set_profile_photo(&owner, PhotoSlot::Avatar, None).unwrap();
-        assert!(!media_dir.join(format!("{}.enc", b.id)).exists(), "removing deletes the file");
+        assert!(!media_dir.join(shard_of(&b.id)).join(format!("{}.enc", b.id)).exists(), "removing deletes the file");
     }
 
     /// Writes a workspace exactly as Phase 1 (format 1) did.
@@ -2657,6 +2699,39 @@ mod tests {
                        "occurredAt": 5, "createdAt": 5, "updatedAt": 5});
         fs::write(dir.join("posts").join(format!("{post}.enc")), seal(&format!("post:{post}"), p)).unwrap();
         (post, sarah)
+    }
+
+    #[test]
+    fn flat_folders_move_into_subfolders() {
+        let root = tempfile::tempdir().unwrap();
+        let (ws, _, _) = populated(root.path());
+        let (profiles, posts) = (ws.profiles.len(), ws.posts.len());
+        drop(ws);
+        // Lay the files out as older versions did: directly in each folder.
+        let dir = root.path().join("workspace_personal");
+        let flat = |dir: &Path| -> usize {
+            FOLDER_KINDS.iter().map(|k| fs::read_dir(dir.join(k.dir())).map(|d| d.flatten().filter(|e| e.path().is_file()).count()).unwrap_or(0)).sum()
+        };
+        for kind in FOLDER_KINDS {
+            for (id, path) in record_files(&dir.join(kind.dir())).unwrap() {
+                fs::rename(&path, dir.join(kind.dir()).join(format!("{id}.enc"))).unwrap();
+                fs::remove_dir(path.parent().unwrap()).ok();
+            }
+        }
+        let total = flat(&dir);
+        assert!(total > 3);
+
+        // A wrong password moves nothing; unlocking moves everything.
+        assert!(open_workspace(root.path(), "workspace_personal", "wrong password").is_err());
+        assert_eq!(flat(&dir), total);
+        let ws = open_workspace(root.path(), "workspace_personal", "old password").unwrap();
+        assert_eq!(flat(&dir), 0);
+        assert_eq!((ws.profiles.len(), ws.posts.len()), (profiles, posts));
+        let moved: usize = FOLDER_KINDS.iter().map(|k| files_in(&dir.join(k.dir()))).sum();
+        assert_eq!(moved, total);
+        for (id, path) in record_files(&dir.join("posts")).unwrap() {
+            assert_eq!(path, dir.join(record_rel_path(Kind::Post, &id)));
+        }
     }
 
     #[test]
@@ -2702,7 +2777,7 @@ mod tests {
         let shop = ws.save_profile(person("Saree House", ProfileKind::Shop)).unwrap();
         let png = |n: u8| [&b"\x89PNG\r\n\x1a\n"[..], &[n; 64]].concat();
         let media_dir = root.path().join("workspace_personal/media");
-        let count = |dir: &Path| fs::read_dir(dir).map(|d| d.count()).unwrap_or(0);
+        let count = |dir: &Path| files_in(dir);
 
         // A product with a gallery.
         let front = ws.stage_media("front.png", png(1)).unwrap();
@@ -2798,7 +2873,7 @@ mod tests {
         let owner = ws.owner_id().to_string();
         let png = |n: u8| [&b"\x89PNG\r\n\x1a\n"[..], &[n; 64]].concat();
         let media_dir = root.path().join("workspace_personal/media");
-        let files = |dir: &Path| fs::read_dir(dir).map(|d| d.count()).unwrap_or(0);
+        let files = |dir: &Path| files_in(dir);
 
         let shop = ws.save_profile(person("Saree House", ProfileKind::Shop)).unwrap();
         let photo = ws.stage_media("p.png", png(1)).unwrap();
