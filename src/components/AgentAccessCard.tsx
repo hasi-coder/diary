@@ -9,7 +9,7 @@ import { Button, ConfirmDialog, ErrorText } from "./ui";
 type Client = "claude" | "codex" | "vscode" | "stdio";
 const CLIENTS: { id: Client; label: string; where: string }[] = [
   { id: "claude", label: "Claude Code", where: "Run in a terminal" },
-  { id: "codex", label: "Codex", where: "Add the server to ~/.codex/config.toml and the token to your shell profile" },
+  { id: "codex", label: "Codex", where: "Add to ~/.codex/config.toml (works for the CLI, the app and VS Code)" },
   { id: "vscode", label: "VS Code · Copilot", where: "Add to .vscode/mcp.json (or your user mcp.json)" },
   { id: "stdio", label: "Other (stdio)", where: "Any MCP client that launches a command" },
 ];
@@ -19,8 +19,9 @@ function snippet(client: Client, a: AgentAccess, token: string) {
     case "claude":
       return `claude mcp add --transport http my-diary ${a.url} --header "Authorization: Bearer ${token}"`;
     case "codex":
-      // bearer_token_env_var takes the NAME of a variable holding the token, not the token.
-      return `# ~/.codex/config.toml\n[mcp_servers.my-diary]\nurl = "${a.url}"\nbearer_token_env_var = "MY_DIARY_MCP_TOKEN"\n\n# ~/.zshrc (or your shell's profile); restart Codex afterwards\nexport MY_DIARY_MCP_TOKEN="${token}"`;
+      // A static header works in the terminal, the Codex app and VS Code alike (GUI apps don't
+      // read ~/.zshrc). Codex's bearer_token_env_var takes a variable's NAME, not the token.
+      return `# ~/.codex/config.toml (then restart Codex)\n[mcp_servers.my-diary]\nurl = "${a.url}"\nhttp_headers = { Authorization = "Bearer ${token}" }`;
     case "vscode":
       return JSON.stringify({ servers: { "my-diary": { type: "http", url: a.url, headers: { Authorization: `Bearer ${token}` } } } }, null, 2);
     case "stdio":

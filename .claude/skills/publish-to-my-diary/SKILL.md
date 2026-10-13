@@ -36,8 +36,9 @@ You cannot read posts, people or anything else in the journal, and you must not 
   - Connection refused: My Diary isn't running, or uses another port (shown in Settings).
   - `Invalid token` (401): either the token was regenerated (ask for the current one), or the
     agent's config is wrong. For Codex, `bearer_token_env_var` must name an environment
-    variable (e.g. `"MY_DIARY_MCP_TOKEN"`) that holds the token; it must not be the token itself.
-    Point this out instead of retrying.
+    variable that holds the token, not contain the token itself. Codex logs "Environment
+    variable … is not set" and shows no My Diary tools. The simplest setup is
+    `http_headers = { Authorization = "Bearer <token>" }`. Point this out instead of retrying.
 
 ## 2. Extract the product
 
