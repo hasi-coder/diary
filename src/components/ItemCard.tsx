@@ -40,7 +40,7 @@ export function ItemCard({ item, showShop }: { item: Item; showShop?: boolean })
                   <PencilSimpleIcon /> Edit
                 </MenuItem>
                 <MenuItem danger onClick={() => (setConfirming(true), setMenuOpen(false))}>
-                  <TrashIcon /> Delete
+                  <TrashIcon /> Move to Trash
                 </MenuItem>
               </div>
             </>
@@ -64,8 +64,9 @@ export function ItemCard({ item, showShop }: { item: Item; showShop?: boolean })
       {viewing && <ProductViewer item={item} onClose={() => setViewing(false)} />}
       {confirming && (
         <ConfirmDialog
-          title="Delete item?"
-          message={<>Remove <b>{item.name}</b> from {shop?.name ?? "this shop"}?</>}
+          title="Move to the Trash?"
+          message={<>Remove <b>{item.name}</b> from {shop?.name ?? "this shop"}? You can restore it from the Trash.</>}
+          confirmLabel="Move to Trash"
           onConfirm={async () => {
             await api.deleteItem(item.id);
             await refresh();

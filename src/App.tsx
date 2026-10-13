@@ -13,6 +13,7 @@ import { SearchView } from "./views/SearchView";
 import { SeriesView } from "./views/SeriesView";
 import { SettingsView } from "./views/SettingsView";
 import { TimelineView } from "./views/TimelineView";
+import { TrashView } from "./views/TrashView";
 
 export default function App() {
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
@@ -64,6 +65,7 @@ function Workspace() {
       {route.view === "settings" && <SettingsView />}
       {route.view === "gallery" && <GalleryView />}
       {route.view === "series" && <SeriesView key={route.id ?? "all"} id={route.id} />}
+      {route.view === "trash" && <TrashView />}
       {route.view === "search" && <SearchView key={route.query} initial={route.query} />}
       {route.view === "post" && <PostView key={route.id} id={route.id} />}
       {route.view === "profile" && <ProfileView key={route.id} id={route.id} tab={route.tab} />}

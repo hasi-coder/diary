@@ -413,10 +413,13 @@ pub fn create_workspace(
             cover: None,
             cover_position: 50,
             relations: Vec::new(),
+            source_url: String::new(),
+            trashed_at: None,
+            trashed_with: None,
             created_at: now,
             updated_at: now,
         };
-        let manifest = Manifest { format_version: CURRENT_SCHEMA, name, owner_profile_id: owner.id.clone(), created_at: now };
+        let manifest = Manifest { format_version: CURRENT_SCHEMA, name, owner_profile_id: owner.id.clone(), created_at: now, agent: None };
         let mut ws = Workspace {
             id: id.clone(),
             dir: dir.clone(),
@@ -427,6 +430,7 @@ pub fn create_workspace(
             posts: HashMap::new(),
             items: HashMap::new(),
             series: HashMap::new(),
+            trash: Trash::default(),
             stale: HashSet::new(),
             disk_schema: CURRENT_SCHEMA,
             media: MediaState::new(),
@@ -479,6 +483,7 @@ pub fn open_workspace(root: &Path, id: &str, password: &str) -> Result<Workspace
         posts: HashMap::new(),
         items: HashMap::new(),
         series: HashMap::new(),
+        trash: Trash::default(),
         stale,
         disk_schema: CURRENT_SCHEMA,
         media: MediaState::new(),
@@ -488,10 +493,25 @@ pub fn open_workspace(root: &Path, id: &str, password: &str) -> Result<Workspace
     ws.posts = ws.load_all(Kind::Post, &mut disk_schema)?;
     ws.items = ws.load_all(Kind::Item, &mut disk_schema)?;
     ws.series = ws.load_all(Kind::Series, &mut disk_schema)?;
+    // Trashed records load into the Trash, out of every view.
+    let (live, trashed): (HashMap<_, Profile>, _) = ws.profiles.drain().partition(|(_, p)| p.trashed_at.is_none());
+    (ws.profiles, ws.trash.profiles) = (live, trashed);
+    let (live, trashed): (HashMap<_, Post>, _) = ws.posts.drain().partition(|(_, p)| p.trashed_at.is_none());
+    (ws.posts, ws.trash.posts) = (live, trashed);
+    let (live, trashed): (HashMap<_, Item>, _) = ws.items.drain().partition(|(_, i)| i.trashed_at.is_none());
+    (ws.items, ws.trash.items) = (live, trashed);
     ws.disk_schema = disk_schema;
     ws.reindex_media();
     ws.rebuild_index();
     Ok(ws)
+}
+
+/// Deleted records, kept (encrypted, on disk) until restored or deleted forever.
+#[derive(Default)]
+pub struct Trash {
+    pub posts: HashMap<String, Post>,
+    pub profiles: HashMap<String, Profile>,
+    pub items: HashMap<String, Item>,
 }
 
 struct StagedMedia {
@@ -540,6 +560,8 @@ pub struct Workspace {
     pub posts: HashMap<String, Post>,
     pub items: HashMap<String, Item>,
     pub series: HashMap<String, Series>,
+    /// Deleted posts, profiles and products: still on disk, out of every view.
+    pub trash: Trash,
     /// Records still on disk in an older schema.
     stale: HashSet<(Kind, String)>,
     /// Oldest schema found when the workspace was opened.
@@ -824,13 +846,13 @@ impl Workspace {
 
         let manifest = Manifest { format_version: CURRENT_SCHEMA, ..self.manifest.clone() };
         put(record_rel_path(Kind::Manifest, MANIFEST_ID), record::encode(key, Kind::Manifest, MANIFEST_ID, serde_json::to_value(&manifest)?, json!({}))?)?;
-        for p in self.profiles.values() {
+        for p in self.profiles.values().chain(self.trash.profiles.values()) {
             put(record_rel_path(Kind::Profile, &p.id), record::encode(key, Kind::Profile, &p.id, serde_json::to_value(p)?, json!({}))?)?;
         }
-        for p in self.posts.values() {
+        for p in self.posts.values().chain(self.trash.posts.values()) {
             put(record_rel_path(Kind::Post, &p.id), record::encode(key, Kind::Post, &p.id, serde_json::to_value(p)?, post_meta(p))?)?;
         }
-        for i in self.items.values() {
+        for i in self.items.values().chain(self.trash.items.values()) {
             put(record_rel_path(Kind::Item, &i.id), record::encode(key, Kind::Item, &i.id, serde_json::to_value(i)?, json!({}))?)?;
         }
         for x in self.series.values() {
@@ -878,15 +900,15 @@ impl Workspace {
                     self.write_manifest()?
                 }
                 Kind::Profile => {
-                    let p = self.profiles[&id].clone();
+                    let Some(p) = self.profiles.get(&id).or(self.trash.profiles.get(&id)).cloned() else { continue };
                     self.write_record(kind, &id, &p, json!({}))?
                 }
                 Kind::Post => {
-                    let p = self.posts[&id].clone();
+                    let Some(p) = self.posts.get(&id).or(self.trash.posts.get(&id)).cloned() else { continue };
                     self.write_post(&p)?
                 }
                 Kind::Item => {
-                    let i = self.items[&id].clone();
+                    let Some(i) = self.items.get(&id).or(self.trash.items.get(&id)).cloned() else { continue };
                     self.write_record(kind, &id, &i, json!({}))?
                 }
                 Kind::Series => {
@@ -953,7 +975,14 @@ impl Workspace {
             avatar: existing.as_ref().and_then(|p| p.avatar.clone()),
             cover: existing.as_ref().and_then(|p| p.cover.clone()),
             cover_position: existing.as_ref().map_or(50, |p| p.cover_position),
+            // An edit that doesn't mention the source (the UI) keeps it.
+            source_url: match input.source_url.trim() {
+                "" => existing.as_ref().map(|p| p.source_url.clone()).unwrap_or_default(),
+                url => short(url, 2000),
+            },
             relations: existing.map(|p| p.relations).unwrap_or_default(),
+            trashed_at: None,
+            trashed_with: None,
             created_at,
             updated_at: now,
         };
@@ -969,47 +998,45 @@ impl Workspace {
 
     /// Deletes a profile together with the posts it authored and the items it lists.
     /// Mentions of it in other posts are left as-is and render as a deleted profile.
+    /// Moves a profile to the Trash, with the posts it wrote and the products it lists.
+    /// Restoring it brings them back; deleting it forever removes them for good.
     pub fn delete_profile(&mut self, id: &str) -> Result<()> {
         validate_record_id(id)?;
         let profile = self.profiles.get(id).ok_or_else(|| Error::NotFound(format!("profile {id}")))?.clone();
         if profile.kind == ProfileKind::Me {
             return Err(Error::Invalid("The journal owner's profile can't be deleted.".into()));
         }
-
         let posts: Vec<String> = self.posts.values().filter(|p| p.author_id == id).map(|p| p.id.clone()).collect();
         for post_id in posts {
-            self.delete_post(&post_id)?;
+            self.trash_post(&post_id, Some(id))?;
         }
         let items: Vec<String> = self.items.values().filter(|i| i.shop_id == id).map(|i| i.id.clone()).collect();
         for item_id in items {
-            self.delete_item(&item_id)?;
+            self.trash_item(&item_id, Some(id))?;
         }
-        let photos: Vec<String> = [&profile.avatar, &profile.cover].into_iter().flatten().map(|m| m.id.clone()).collect();
-        self.remove_record(Kind::Profile, id)?;
+        let profile = Profile { trashed_at: Some(now_millis()), trashed_with: None, ..profile };
+        self.write_record(Kind::Profile, id, &profile, json!({}))?;
         self.profiles.remove(id);
+        self.trash.profiles.insert(id.to_string(), profile);
         self.reindex_media();
-        for media_id in photos {
-            self.remove_media_file(&media_id)?;
-        }
         self.index.remove(&DocKey::new(DocKind::Profile, id));
-
-        // Drop relationships other profiles declared with it.
-        let related: Vec<Profile> = self
-            .profiles
-            .values()
-            .filter(|p| p.relations.iter().any(|r| r.to_id == id))
-            .cloned()
-            .collect();
-        for mut p in related {
-            p.relations.retain(|r| r.to_id != id);
-            self.put_profile(p)?;
-        }
-        // Posts that referred to it no longer contain its name.
+        // Posts that mention it no longer find it by name.
         let referring: Vec<String> = self.posts.values().filter(|p| involved(p).contains(&id)).map(|p| p.id.clone()).collect();
         for post_id in referring {
             self.index_post(&post_id);
         }
         Ok(())
+    }
+
+    /// Saves the agent access settings (in the encrypted manifest).
+    pub fn save_agent_access(&mut self, access: Option<AgentAccess>) -> Result<()> {
+        self.manifest.agent = access;
+        self.write_manifest()
+    }
+
+    /// A live profile, or one in the Trash: tags of a trashed profile are kept until it's deleted forever.
+    fn profile_known(&self, id: &str) -> bool {
+        self.profiles.contains_key(id) || self.trash.profiles.contains_key(id)
     }
 
     fn put_profile(&mut self, mut profile: Profile) -> Result<Profile> {
@@ -1158,7 +1185,7 @@ impl Workspace {
 
         let mut with_ids: Vec<String> = Vec::new();
         for id in &input.with_ids {
-            if !self.profiles.contains_key(id) {
+            if !self.profile_known(id) {
                 return Err(Error::NotFound(format!("tagged profile {id}")));
             }
             if !with_ids.contains(id) && with_ids.len() < 50 {
@@ -1166,7 +1193,7 @@ impl Workspace {
             }
         }
         if let Some(place) = &input.place_id {
-            let kind = self.profiles.get(place).ok_or_else(|| Error::NotFound(format!("place {place}")))?.kind;
+            let kind = self.profiles.get(place).or(self.trash.profiles.get(place)).ok_or_else(|| Error::NotFound(format!("place {place}")))?.kind;
             if !matches!(kind, ProfileKind::Place | ProfileKind::Shop | ProfileKind::Page) {
                 return Err(Error::Invalid("Check in at a place, shop or page.".into()));
             }
@@ -1180,7 +1207,7 @@ impl Workspace {
         for a in input.activities.iter().filter(|a| !a.object.trim().is_empty()).take(MAX_ACTIVITIES) {
             let mut clause_with: Vec<String> = Vec::new();
             for id in &a.with_ids {
-                if !self.profiles.contains_key(id) {
+                if !self.profile_known(id) {
                     return Err(Error::NotFound(format!("tagged profile {id}")));
                 }
                 if !clause_with.contains(id) && clause_with.len() < 20 {
@@ -1229,6 +1256,8 @@ impl Workspace {
             also_event_types: if input.kind == PostKind::Milestone { also_event_types } else { Vec::new() },
             event_type: if input.kind == PostKind::Milestone { event_type } else { String::new() },
             series_ids,
+            trashed_at: None,
+            trashed_with: None,
             kind: input.kind,
             title: if input.kind == PostKind::Status { String::new() } else { title },
             author_id: input.author_id,
@@ -1255,15 +1284,21 @@ impl Workspace {
         Ok(post)
     }
 
+    /// Moves a post (article, album) to the Trash.
     pub fn delete_post(&mut self, id: &str) -> Result<()> {
         validate_record_id(id)?;
-        let post = self.posts.remove(id).ok_or_else(|| Error::NotFound(format!("post {id}")))?;
-        self.remove_record(Kind::Post, id)?;
+        self.trash_post(id, None)
+    }
+
+    fn trash_post(&mut self, id: &str, with: Option<&str>) -> Result<()> {
+        let mut post = self.posts.get(id).cloned().ok_or_else(|| Error::NotFound(format!("post {id}")))?;
+        post.trashed_at = Some(now_millis());
+        post.trashed_with = with.map(str::to_owned);
+        self.write_post(&post)?;
+        self.posts.remove(id);
+        self.trash.posts.insert(id.to_string(), post);
         self.reindex_media();
         self.index.remove(&DocKey::new(DocKind::Post, id));
-        for m in &post.media {
-            self.remove_media_file(&m.id)?;
-        }
         Ok(())
     }
 
@@ -1273,7 +1308,7 @@ impl Workspace {
         let mut clean: Vec<PhotoTag> = Vec::new();
         for tag in tags {
             match (tag.profile_id.is_empty(), tag.item_id.is_empty()) {
-                (false, true) if !self.profiles.contains_key(&tag.profile_id) => {
+                (false, true) if !self.profile_known(&tag.profile_id) => {
                     return Err(Error::NotFound(format!("profile {}", tag.profile_id)))
                 }
                 (true, false) if !self.items.contains_key(&tag.item_id) => return Err(Error::NotFound(format!("item {}", tag.item_id))),
@@ -1343,6 +1378,10 @@ impl Workspace {
             None => None,
         };
         let created_at = existing.as_ref().map_or(now, |i| i.created_at);
+        let source_url = match input.source_url.trim() {
+            "" => existing.as_ref().map(|i| i.source_url.clone()).unwrap_or_default(),
+            url => short(url, 2000),
+        };
         let previous: Vec<MediaRef> = existing.map(|i| i.media).unwrap_or_default();
         let media = self.resolve_media(&input.media_ids, &previous, MAX_MEDIA_PER_ITEM, "item")?;
         let item = Item {
@@ -1354,6 +1393,9 @@ impl Workspace {
             currency,
             status: input.status,
             media,
+            source_url,
+            trashed_at: None,
+            trashed_with: None,
             created_at,
             updated_at: now,
         };
@@ -1370,30 +1412,237 @@ impl Workspace {
         Ok(item)
     }
 
+    /// Moves a product to the Trash. Photos it's tagged in keep the tag (hidden
+    /// while it's trashed) until it's deleted forever.
     pub fn delete_item(&mut self, id: &str) -> Result<()> {
         validate_record_id(id)?;
-        let item = self.items.remove(id).ok_or_else(|| Error::NotFound(format!("item {id}")))?;
+        self.trash_item(id, None)
+    }
+
+    fn trash_item(&mut self, id: &str, with: Option<&str>) -> Result<()> {
+        let mut item = self.items.get(id).cloned().ok_or_else(|| Error::NotFound(format!("item {id}")))?;
+        item.trashed_at = Some(now_millis());
+        item.trashed_with = with.map(str::to_owned);
+        self.write_record(Kind::Item, id, &item, json!({}))?;
+        self.items.remove(id);
+        self.trash.items.insert(id.to_string(), item);
+        self.reindex_media();
         self.index.remove(&DocKey::new(DocKind::Item, id));
-        self.remove_record(Kind::Item, id)?;
-        // Photos it was tagged in lose the tag.
-        let tagged: Vec<Post> = self
-            .posts
-            .values()
-            .filter(|p| p.media.iter().any(|m| m.tags.iter().any(|t| t.item_id == id)))
-            .cloned()
-            .collect();
-        for mut post in tagged {
-            for m in &mut post.media {
-                m.tags.retain(|t| t.item_id != id);
+        Ok(())
+    }
+
+    // ---- Trash ----
+
+    /// What's in the Trash: deleted posts, profiles and products, newest first.
+    /// Posts and products that went with a deleted profile are counted under it.
+    pub fn list_trash(&self) -> Vec<TrashEntry> {
+        let with_count = |id: &str| {
+            self.trash.posts.values().filter(|p| p.trashed_with.as_deref() == Some(id)).count()
+                + self.trash.items.values().filter(|i| i.trashed_with.as_deref() == Some(id)).count()
+        };
+        let mut out: Vec<TrashEntry> = Vec::new();
+        for p in self.trash.profiles.values() {
+            let subtitle = serde_json::to_value(p.kind).ok().and_then(|v| v.as_str().map(str::to_owned)).unwrap_or_default();
+            out.push(TrashEntry { kind: "profile".into(), id: p.id.clone(), title: p.name.clone(), subtitle, trashed_at: p.trashed_at.unwrap_or(0), with_count: with_count(&p.id) });
+        }
+        for p in self.trash.posts.values().filter(|p| p.trashed_with.is_none()) {
+            let title = if p.title.is_empty() {
+                let text = search::markdown_to_plain(&p.content);
+                let short: String = text.chars().take(80).collect();
+                if short.is_empty() { format!("{} photo(s)", p.media.len()) } else { short }
+            } else {
+                p.title.clone()
+            };
+            let subtitle = serde_json::to_value(p.kind).ok().and_then(|v| v.as_str().map(str::to_owned)).unwrap_or_default();
+            out.push(TrashEntry { kind: "post".into(), id: p.id.clone(), title, subtitle, trashed_at: p.trashed_at.unwrap_or(0), with_count: 0 });
+        }
+        for i in self.trash.items.values().filter(|i| i.trashed_with.is_none()) {
+            out.push(TrashEntry { kind: "item".into(), id: i.id.clone(), title: i.name.clone(), subtitle: "product".into(), trashed_at: i.trashed_at.unwrap_or(0), with_count: 0 });
+        }
+        out.sort_by_key(|e| std::cmp::Reverse(e.trashed_at));
+        out
+    }
+
+    /// Takes something out of the Trash. A profile brings back its posts and products.
+    pub fn restore(&mut self, kind: &str, id: &str) -> Result<()> {
+        validate_record_id(id)?;
+        match kind {
+            "post" => {
+                let post = self.trash.posts.get(id).ok_or_else(|| Error::NotFound(format!("post {id} in the Trash")))?;
+                if !self.profiles.contains_key(&post.author_id) {
+                    return Err(Error::Invalid("Its author is in the Trash. Restore the author first.".into()));
+                }
+                self.untrash_post(id)
             }
-            self.write_post(&post)?;
-            self.posts.insert(post.id.clone(), post);
+            "item" => {
+                let item = self.trash.items.get(id).ok_or_else(|| Error::NotFound(format!("item {id} in the Trash")))?;
+                if !self.profiles.contains_key(&item.shop_id) {
+                    return Err(Error::Invalid("Its shop is in the Trash. Restore the shop first.".into()));
+                }
+                self.untrash_item(id)
+            }
+            "profile" => {
+                let mut profile = self.trash.profiles.get(id).cloned().ok_or_else(|| Error::NotFound(format!("profile {id} in the Trash")))?;
+                profile.trashed_at = None;
+                profile.trashed_with = None;
+                self.write_record(Kind::Profile, id, &profile, json!({}))?;
+                self.trash.profiles.remove(id);
+                self.profiles.insert(id.to_string(), profile);
+                self.index_profile(id);
+                let posts: Vec<String> = self.trash.posts.values().filter(|p| p.trashed_with.as_deref() == Some(id)).map(|p| p.id.clone()).collect();
+                for post_id in posts {
+                    self.untrash_post(&post_id)?;
+                }
+                let items: Vec<String> = self.trash.items.values().filter(|i| i.trashed_with.as_deref() == Some(id)).map(|i| i.id.clone()).collect();
+                for item_id in items {
+                    self.untrash_item(&item_id)?;
+                }
+                // Posts that mention it find it by name again.
+                let referring: Vec<String> = self.posts.values().filter(|p| involved(p).contains(&id)).map(|p| p.id.clone()).collect();
+                for post_id in referring {
+                    self.index_post(&post_id);
+                }
+                self.reindex_media();
+                Ok(())
+            }
+            _ => Err(Error::Invalid(format!("Unknown kind {kind}."))),
+        }
+    }
+
+    fn untrash_post(&mut self, id: &str) -> Result<()> {
+        let mut post = self.trash.posts.get(id).cloned().ok_or_else(|| Error::NotFound(format!("post {id}")))?;
+        post.trashed_at = None;
+        post.trashed_with = None;
+        // Series deleted in the meantime are gone.
+        post.series_ids.retain(|s| self.series.contains_key(s));
+        self.write_post(&post)?;
+        self.trash.posts.remove(id);
+        self.posts.insert(id.to_string(), post);
+        self.reindex_media();
+        self.index_post(id);
+        Ok(())
+    }
+
+    fn untrash_item(&mut self, id: &str) -> Result<()> {
+        let mut item = self.trash.items.get(id).cloned().ok_or_else(|| Error::NotFound(format!("item {id}")))?;
+        item.trashed_at = None;
+        item.trashed_with = None;
+        self.write_record(Kind::Item, id, &item, json!({}))?;
+        self.trash.items.remove(id);
+        self.items.insert(id.to_string(), item);
+        self.reindex_media();
+        self.index_item(id);
+        Ok(())
+    }
+
+    /// Deletes something in the Trash for good: its record and its photos and videos.
+    pub fn purge(&mut self, kind: &str, id: &str) -> Result<()> {
+        validate_record_id(id)?;
+        match kind {
+            "post" => {
+                let post = self.trash.posts.remove(id).ok_or_else(|| Error::NotFound(format!("post {id} in the Trash")))?;
+                self.remove_record(Kind::Post, id)?;
+                for m in &post.media {
+                    self.remove_media_file(&m.id)?;
+                }
+            }
+            "item" => {
+                let item = self.trash.items.remove(id).ok_or_else(|| Error::NotFound(format!("item {id} in the Trash")))?;
+                self.remove_record(Kind::Item, id)?;
+                self.strip_references(|t| t.item_id == id, None)?;
+                for m in &item.media {
+                    self.remove_media_file(&m.id)?;
+                }
+            }
+            "profile" => {
+                let profile = self.trash.profiles.get(id).cloned().ok_or_else(|| Error::NotFound(format!("profile {id} in the Trash")))?;
+                let posts: Vec<String> = self.trash.posts.values().filter(|p| p.trashed_with.as_deref() == Some(id)).map(|p| p.id.clone()).collect();
+                for post_id in posts {
+                    self.purge("post", &post_id)?;
+                }
+                let items: Vec<String> = self.trash.items.values().filter(|i| i.trashed_with.as_deref() == Some(id)).map(|i| i.id.clone()).collect();
+                for item_id in items {
+                    self.purge("item", &item_id)?;
+                }
+                self.remove_record(Kind::Profile, id)?;
+                self.trash.profiles.remove(id);
+                for m in [&profile.avatar, &profile.cover].into_iter().flatten() {
+                    self.remove_media_file(&m.id)?;
+                }
+                // Relationships with it, and tags of it in posts, go too.
+                let related: Vec<Profile> = self.profiles.values().filter(|p| p.relations.iter().any(|r| r.to_id == id)).cloned().collect();
+                for mut p in related {
+                    p.relations.retain(|r| r.to_id != id);
+                    self.put_profile(p)?;
+                }
+                self.strip_references(|t| t.profile_id == id, Some(id))?;
+            }
+            _ => return Err(Error::Invalid(format!("Unknown kind {kind}."))),
         }
         self.reindex_media();
-        for m in &item.media {
-            self.remove_media_file(&m.id)?;
+        Ok(())
+    }
+
+    /// Removes photo tags matching `tag`, and (for a profile) "with" tags and
+    /// check-ins of `profile`, from every post, live or trashed.
+    fn strip_references(&mut self, tag: impl Fn(&PhotoTag) -> bool, profile: Option<&str>) -> Result<()> {
+        let touches = |p: &Post| {
+            p.media.iter().any(|m| m.tags.iter().any(&tag))
+                || profile.is_some_and(|id| p.with_ids.iter().any(|w| w == id) || p.place_id.as_deref() == Some(id) || p.activities.iter().any(|a| a.with_ids.iter().any(|w| w == id)))
+        };
+        let affected: Vec<(bool, Post)> = self
+            .posts
+            .values()
+            .map(|p| (true, p))
+            .chain(self.trash.posts.values().map(|p| (false, p)))
+            .filter(|(_, p)| touches(p))
+            .map(|(live, p)| (live, p.clone()))
+            .collect();
+        for (live, mut post) in affected {
+            for m in &mut post.media {
+                m.tags.retain(|t| !tag(t));
+            }
+            if let Some(id) = profile {
+                post.with_ids.retain(|w| w != id);
+                if post.place_id.as_deref() == Some(id) {
+                    post.place_id = None;
+                }
+                for a in &mut post.activities {
+                    a.with_ids.retain(|w| w != id);
+                }
+            }
+            self.write_post(&post)?;
+            let id = post.id.clone();
+            if live {
+                self.posts.insert(id.clone(), post);
+                self.index_post(&id);
+            } else {
+                self.trash.posts.insert(id, post);
+            }
         }
         Ok(())
+    }
+
+    /// Deletes everything in the Trash for good. Returns how many entries went.
+    pub fn empty_trash(&mut self) -> Result<usize> {
+        let entries = self.list_trash();
+        for e in &entries {
+            // An entry may already have gone with its profile.
+            match self.purge(&e.kind, &e.id) {
+                Ok(()) | Err(Error::NotFound(_)) => {}
+                Err(err) => return Err(err),
+            }
+        }
+        // Anything left over (e.g. a post whose profile was restored, then deleted again separately).
+        let posts: Vec<String> = self.trash.posts.keys().cloned().collect();
+        for id in posts {
+            self.purge("post", &id)?;
+        }
+        let items: Vec<String> = self.trash.items.keys().cloned().collect();
+        for id in items {
+            self.purge("item", &id)?;
+        }
+        Ok(entries.len())
     }
 
     // ---- Series ----
@@ -1451,6 +1700,12 @@ impl Workspace {
         }
         self.remove_record(Kind::Series, id)?;
         let members: Vec<Post> = self.posts.values().filter(|p| p.series_ids.iter().any(|s| s == id)).cloned().collect();
+        let trashed: Vec<Post> = self.trash.posts.values().filter(|p| p.series_ids.iter().any(|s| s == id)).cloned().collect();
+        for mut post in trashed {
+            post.series_ids.retain(|s| s != id);
+            self.write_post(&post)?;
+            self.trash.posts.insert(post.id.clone(), post);
+        }
         for mut post in members {
             post.series_ids.retain(|s| s != id);
             self.write_post(&post)?;
@@ -1654,6 +1909,7 @@ impl Workspace {
             profiles,
             items,
             series: self.series_summaries(),
+            trash_count: self.list_trash().len(),
             stats,
             post_dates: self.posts.values().map(|p| p.occurred_at).collect(),
             migration: self.migration_status(),
@@ -1678,6 +1934,7 @@ mod tests {
 
     fn person(name: &str, kind: ProfileKind) -> ProfileInput {
         ProfileInput {
+            source_url: String::new(),
             id: None,
             kind,
             name: name.into(),
@@ -1792,6 +2049,7 @@ mod tests {
         ws.save_post(PostInput { kind: Default::default(), title: String::new(), captions: Default::default(), id: None, author_id: sarah.id.clone(), content: "Hi from Sarah".into(), occurred_at: Some(2_000), media_ids: vec![], ..Default::default() })
             .unwrap();
         ws.save_item(ItemInput {
+            source_url: String::new(),
             media_ids: Vec::new(),
             id: None,
             shop_id: shop.id.clone(),
@@ -1846,6 +2104,7 @@ mod tests {
 
         let page = ws.save_profile(person("Book Club", ProfileKind::Page)).unwrap();
         let item = ItemInput {
+            source_url: String::new(),
             media_ids: Vec::new(),
             id: None,
             shop_id: page.id.clone(),
@@ -1938,8 +2197,11 @@ mod tests {
         ws.discard_media(std::slice::from_ref(&c.id));
         assert!(ws.save_post(post(&owner, "x", vec![c.id])).is_err());
 
+        let before = fs::read_dir(&media_dir).unwrap().count();
         ws.delete_post(&saved.id).unwrap();
-        assert_eq!(fs::read_dir(&media_dir).unwrap().count(), 0, "deleting a post deletes its media");
+        assert_eq!(fs::read_dir(&media_dir).unwrap().count(), before, "a trashed post keeps its media");
+        ws.purge("post", &saved.id).unwrap();
+        assert_eq!(fs::read_dir(&media_dir).unwrap().count(), 0, "deleting it forever deletes its media");
     }
 
     #[test]
@@ -1953,6 +2215,7 @@ mod tests {
             .save_post(post(&owner, &format!("Had a **latte** at @[profile:{}] with @[profile:{}] #Coffee", shop.id, sarah.id), vec![]))
             .unwrap();
         ws.save_item(ItemInput {
+            source_url: String::new(),
             media_ids: Vec::new(),
             id: None,
             shop_id: shop.id.clone(),
@@ -2277,8 +2540,10 @@ mod tests {
         let me = ws.save_profile(ProfileInput { id: Some(owner.clone()), ..person("Alex M", ProfileKind::Me) }).unwrap();
         assert_eq!(me.relations.len(), 2);
 
-        // Deleting a profile removes relationships pointing at it.
+        // Deleting a profile forever removes relationships pointing at it.
         ws.delete_profile(&shop.id).unwrap();
+        assert_eq!(ws.profiles[&owner].relations.len(), 2, "kept while it's in the Trash");
+        ws.purge("profile", &shop.id).unwrap();
         assert_eq!(ws.profiles[&owner].relations.len(), 1);
         let id = ws.profiles[&owner].relations[0].id.clone();
         ws.delete_relation(&owner, &id).unwrap();
@@ -2443,6 +2708,7 @@ mod tests {
         let front = ws.stage_media("front.png", png(1)).unwrap();
         let back = ws.stage_media("back.png", png(2)).unwrap();
         let input = |media_ids: Vec<String>, id: Option<String>| ItemInput {
+            source_url: String::new(),
             media_ids,
             id,
             shop_id: shop.id.clone(),
@@ -2475,8 +2741,10 @@ mod tests {
         assert_eq!(tagged.media[0].tags.len(), 2, "one tag per product");
         assert_eq!(ws.search("kandyan", 10).totals.posts, 1, "tagged products find the look");
 
-        // Deleting the product removes its tags and photos.
+        // Deleting the product forever removes its tags and photos.
         ws.delete_item(&item.id).unwrap();
+        assert_eq!(ws.posts[&p.id].media[0].tags.len(), 2, "kept while it's in the Trash");
+        ws.purge("item", &item.id).unwrap();
         assert_eq!(ws.posts[&p.id].media[0].tags.len(), 1);
         assert_eq!(count(&media_dir), 1, "only the look's photo is left");
         let ws = open_workspace(root.path(), "workspace_personal", "correct horse").unwrap();
@@ -2521,5 +2789,69 @@ mod tests {
         ws.change_password("correct horse", "battery staple", true, FAST).unwrap();
         let ws = open_workspace(root.path(), "workspace_personal", "battery staple").unwrap();
         assert_eq!(ws.series.len(), 1);
+    }
+
+    #[test]
+    fn trash_restore_and_purge() {
+        let root = tempfile::tempdir().unwrap();
+        let mut ws = create_workspace(root.path(), "", "Personal", "Alex", "correct horse", FAST).unwrap();
+        let owner = ws.owner_id().to_string();
+        let png = |n: u8| [&b"\x89PNG\r\n\x1a\n"[..], &[n; 64]].concat();
+        let media_dir = root.path().join("workspace_personal/media");
+        let files = |dir: &Path| fs::read_dir(dir).map(|d| d.count()).unwrap_or(0);
+
+        let shop = ws.save_profile(person("Saree House", ProfileKind::Shop)).unwrap();
+        let photo = ws.stage_media("p.png", png(1)).unwrap();
+        let item = ws
+            .save_item(ItemInput {
+                id: None,
+                shop_id: shop.id.clone(),
+                name: "Silk saree".into(),
+                description: String::new(),
+                price_cents: None,
+                currency: String::new(),
+                status: ItemStatus::Available,
+                media_ids: vec![photo.id.clone()],
+                source_url: "https://example.com/saree".into(),
+            })
+            .unwrap();
+        let by_shop = ws.save_post(post(&shop.id, "New arrivals #silk", vec![])).unwrap();
+        let mine = ws.save_post(post(&owner, "Bought one from the shop", vec![])).unwrap();
+
+        // A post on its own.
+        ws.delete_post(&mine.id).unwrap();
+        assert!(!ws.posts.contains_key(&mine.id) && ws.trash.posts.contains_key(&mine.id));
+        assert_eq!(ws.search("bought", 10).totals.posts, 0, "out of search");
+        ws.restore("post", &mine.id).unwrap();
+        assert_eq!(ws.search("bought", 10).totals.posts, 1);
+
+        // A shop goes with its posts and products, and comes back with them.
+        ws.delete_profile(&shop.id).unwrap();
+        assert!(ws.items.is_empty() && !ws.posts.contains_key(&by_shop.id));
+        let trash = ws.list_trash();
+        assert_eq!(trash.len(), 1, "one entry for the shop");
+        assert_eq!((trash[0].kind.as_str(), trash[0].with_count), ("profile", 2));
+        assert!(ws.restore("post", &by_shop.id).is_err(), "its author is in the Trash");
+        assert!(ws.media_lookup(&photo.id).is_err(), "trashed photos aren't served");
+
+        // The Trash survives a reopen, encrypted like everything else.
+        assert_no_plaintext(&root.path().join("workspace_personal"), &["Saree House", "New arrivals"]);
+        let mut ws = open_workspace(root.path(), "workspace_personal", "correct horse").unwrap();
+        assert_eq!(ws.list_trash().len(), 1);
+        assert!(!ws.snapshot().profiles.iter().any(|p| p.id == shop.id));
+        ws.restore("profile", &shop.id).unwrap();
+        assert_eq!(ws.items[&item.id].source_url, "https://example.com/saree");
+        assert!(ws.posts.contains_key(&by_shop.id));
+        assert!(ws.media_lookup(&photo.id).is_ok());
+
+        // Deleting forever removes records and media; emptying clears the rest.
+        ws.delete_profile(&shop.id).unwrap();
+        ws.delete_post(&mine.id).unwrap();
+        assert_eq!(ws.empty_trash().unwrap(), 2);
+        assert!(ws.list_trash().is_empty() && ws.trash.posts.is_empty() && ws.trash.items.is_empty());
+        assert_eq!(files(&media_dir), 0);
+        assert_eq!(files(&root.path().join("workspace_personal/items")), 0);
+        let ws = open_workspace(root.path(), "workspace_personal", "correct horse").unwrap();
+        assert_eq!(ws.posts.len(), 0);
     }
 }

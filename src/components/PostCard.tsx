@@ -163,15 +163,16 @@ export function PostMenu({ post, onEdit, onDeleted }: { post: Post; onEdit: () =
               <PencilSimpleIcon /> Edit {noun}
             </MenuItem>
             <MenuItem danger onClick={() => (setConfirming(true), setMenuOpen(false))}>
-              <TrashIcon /> Delete {noun}
+              <TrashIcon /> Move to Trash
             </MenuItem>
           </div>
         </>
       )}
       {confirming && (
         <ConfirmDialog
-          title={`Delete ${noun}?`}
-          message={`This permanently removes the encrypted ${noun}${files ? ` and its ${files} photo${files > 1 ? "s and videos" : " or video"}` : ""} from the workspace.`}
+          title={`Move this ${noun} to the Trash?`}
+          message={`You can restore it from the Trash${files ? `, with its ${files} photo${files > 1 ? "s and videos" : " or video"}` : ""}, until you delete it forever.`}
+          confirmLabel="Move to Trash"
           onConfirm={async () => {
             await api.deletePost(post.id);
             onDeleted?.();

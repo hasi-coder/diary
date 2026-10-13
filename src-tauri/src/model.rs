@@ -38,6 +38,20 @@ pub struct Manifest {
     pub name: String,
     pub owner_profile_id: String,
     pub created_at: i64,
+    /// Agent access (MCP) settings. Stored here, encrypted, like everything else.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub agent: Option<AgentAccess>,
+}
+
+/// Lets coding agents (Codex, Claude, Copilot) manage pages and products over MCP
+/// while the journal is unlocked. See `mcp.rs`.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentAccess {
+    pub enabled: bool,
+    pub port: u16,
+    /// Bearer token agents must send. Random; regenerating it revokes old configs.
+    pub token: String,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -100,6 +114,15 @@ pub struct Profile {
     /// with the inverse label on the other side.
     #[serde(default)]
     pub relations: Vec<Relation>,
+    /// Where a page or shop was imported from (agent "publish from URL").
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub source_url: String,
+    /// In the Trash since then (unix millis); `None` while live.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub trashed_at: Option<i64>,
+    /// Trashed together with this profile (its posts and products), and restored with it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub trashed_with: Option<String>,
     pub created_at: i64,
     pub updated_at: i64,
 }
@@ -184,6 +207,8 @@ pub struct ProfileInput {
     pub terms: String,
     #[serde(default)]
     pub relationship_status: String,
+    #[serde(default)]
+    pub source_url: String,
 }
 
 /// What kind of entry a post is. Older records without a kind are statuses.
@@ -327,6 +352,12 @@ pub struct Post {
     /// Attached images and videos, in display order. Bytes live in `media/<id>.enc`.
     #[serde(default)]
     pub media: Vec<MediaRef>,
+    /// In the Trash since then (unix millis); `None` while live.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub trashed_at: Option<i64>,
+    /// Trashed together with this profile (its posts and products), and restored with it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub trashed_with: Option<String>,
     pub created_at: i64,
     pub updated_at: i64,
 }
@@ -413,6 +444,15 @@ pub struct Item {
     /// Product photos and videos, in display order (the first is the main one).
     #[serde(default)]
     pub media: Vec<MediaRef>,
+    /// The product page it was imported from.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub source_url: String,
+    /// In the Trash since then (unix millis); `None` while live.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub trashed_at: Option<i64>,
+    /// Trashed together with this profile (its posts and products), and restored with it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub trashed_with: Option<String>,
     pub created_at: i64,
     pub updated_at: i64,
 }
@@ -432,6 +472,8 @@ pub struct ItemInput {
     /// Staged uploads or photos already on the item, in display order.
     #[serde(default)]
     pub media_ids: Vec<String>,
+    #[serde(default)]
+    pub source_url: String,
 }
 
 #[derive(Clone, Debug, Default, Deserialize)]
@@ -474,6 +516,8 @@ pub struct Snapshot {
     pub profiles: Vec<Profile>,
     pub items: Vec<Item>,
     pub series: Vec<SeriesSummary>,
+    /// Entries in the Trash.
+    pub trash_count: usize,
     pub stats: HashMap<String, ProfileStats>,
     /// `occurred_at` of every post, so the UI can build the year/month scrubber
     /// in the viewer's local time zone.
@@ -542,4 +586,19 @@ pub struct PasswordChange {
     /// Whether a new data key was generated and every file re-encrypted.
     pub rotated: bool,
     pub files_rewritten: usize,
+}
+
+/// Something in the Trash, as the Trash view lists it.
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TrashEntry {
+    /// "post", "profile" or "item".
+    pub kind: String,
+    pub id: String,
+    pub title: String,
+    /// Post kind, profile kind, or "item".
+    pub subtitle: String,
+    pub trashed_at: i64,
+    /// Posts and products that went with it (a deleted profile's).
+    pub with_count: usize,
 }

@@ -11,16 +11,21 @@ use zeroize::Zeroizing;
 
 use crate::error::{Error, Result};
 use crate::model::*;
+use crate::mcp;
 use crate::store::{self, Workspace};
 
 pub struct AppState {
     pub root: PathBuf,
     pub workspace: Mutex<Option<Workspace>>,
+    /// Recent agent (MCP) calls, for Settings. Memory only.
+    pub agent_log: mcp::AgentLog,
+    /// The agent endpoint, while agent access is on and the journal unlocked.
+    pub mcp: Mutex<Option<mcp::McpServer>>,
 }
 
 impl AppState {
     pub fn new(root: PathBuf) -> Self {
-        Self { root, workspace: Mutex::new(None) }
+        Self { root, workspace: Mutex::new(None), agent_log: mcp::AgentLog::default(), mcp: Mutex::new(None) }
     }
 
     pub(crate) fn with_workspace<T>(&self, f: impl FnOnce(&mut Workspace) -> Result<T>) -> Result<T> {
@@ -63,17 +68,23 @@ pub async fn create_workspace(
 }
 
 #[tauri::command]
-pub async fn unlock_workspace(state: State<'_, AppState>, id: String, password: String) -> Result<Snapshot> {
+pub async fn unlock_workspace(app: AppHandle, state: State<'_, AppState>, id: String, password: String) -> Result<Snapshot> {
     let password = Zeroizing::new(password);
     let root = state.root.clone();
     let ws = blocking(move || store::open_workspace(&root, &id, &password)).await?;
-    Ok(state.install(ws))
+    let snapshot = state.install(ws);
+    // Agents can't connect until the journal is unlocked; a busy port isn't fatal here.
+    if let Err(e) = sync_agent_server(&app) {
+        state.agent_log.push("server", e.to_string(), false);
+    }
+    Ok(snapshot)
 }
 
 /// Drops the decrypted cache; the data key is zeroized on drop.
 #[tauri::command]
 pub fn lock_workspace(state: State<'_, AppState>) {
     *state.workspace.lock().unwrap_or_else(|e| e.into_inner()) = None;
+    *state.mcp.lock().unwrap_or_else(|e| e.into_inner()) = None;
 }
 
 #[tauri::command]
@@ -212,4 +223,105 @@ pub fn delete_relation(state: State<'_, AppState>, profile_id: String, relation_
 #[tauri::command]
 pub fn set_photo_tags(state: State<'_, AppState>, post_id: String, media_id: String, tags: Vec<PhotoTag>) -> Result<Post> {
     state.with_workspace(|ws| ws.set_photo_tags(&post_id, &media_id, tags))
+}
+
+// ---- Trash ----
+
+#[tauri::command]
+pub fn list_trash(state: State<'_, AppState>) -> Result<Vec<TrashEntry>> {
+    state.with_workspace(|ws| Ok(ws.list_trash()))
+}
+
+#[tauri::command]
+pub fn restore_from_trash(state: State<'_, AppState>, kind: String, id: String) -> Result<()> {
+    state.with_workspace(|ws| ws.restore(&kind, &id))
+}
+
+#[tauri::command]
+pub fn purge_from_trash(state: State<'_, AppState>, kind: String, id: String) -> Result<()> {
+    state.with_workspace(|ws| ws.purge(&kind, &id))
+}
+
+#[tauri::command]
+pub fn empty_trash(state: State<'_, AppState>) -> Result<usize> {
+    state.with_workspace(|ws| ws.empty_trash())
+}
+
+// ---- Agent access (MCP) ----
+
+/// Agent access as Settings shows it.
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentAccessView {
+    pub enabled: bool,
+    pub port: u16,
+    pub token: String,
+    pub running: bool,
+    pub url: String,
+    /// This app's executable, for the stdio bridge (`--mcp-stdio`).
+    pub executable: String,
+    pub log: Vec<mcp::AgentEvent>,
+}
+
+fn agent_view(state: &AppState) -> Result<AgentAccessView> {
+    let access = state.with_workspace(|ws| Ok(ws.manifest.agent.clone()))?;
+    let running = state.mcp.lock().unwrap_or_else(|e| e.into_inner()).as_ref().map(|s| s.port);
+    let port = access.as_ref().map_or(mcp::DEFAULT_PORT, |a| a.port);
+    Ok(AgentAccessView {
+        enabled: access.as_ref().is_some_and(|a| a.enabled),
+        port,
+        token: access.map(|a| a.token).unwrap_or_default(),
+        running: running == Some(port),
+        url: format!("http://127.0.0.1:{port}/mcp"),
+        executable: std::env::current_exe().map(|p| p.display().to_string()).unwrap_or_default(),
+        log: state.agent_log.recent(),
+    })
+}
+
+/// Starts, restarts or stops the endpoint to match the workspace's settings.
+pub(crate) fn sync_agent_server(app: &AppHandle) -> Result<()> {
+    let state = app.state::<AppState>();
+    let wanted = state.with_workspace(|ws| Ok(ws.manifest.agent.clone().filter(|a| a.enabled))).ok().flatten();
+    let mut slot = state.mcp.lock().unwrap_or_else(|e| e.into_inner());
+    match wanted {
+        None => *slot = None,
+        Some(access) if slot.as_ref().map(|s| s.port) != Some(access.port) => {
+            *slot = None;
+            let handle = app.clone();
+            *slot = Some(mcp::start(access.port, Box::new(move |f| f(&handle.state::<AppState>())))?);
+        }
+        Some(_) => {}
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub fn get_agent_access(state: State<'_, AppState>) -> Result<AgentAccessView> {
+    agent_view(&state)
+}
+
+/// Turns agent access on or off (and sets its port). The first time, a token is made.
+#[tauri::command]
+pub fn set_agent_access(app: AppHandle, state: State<'_, AppState>, enabled: bool, port: Option<u16>) -> Result<AgentAccessView> {
+    state.with_workspace(|ws| {
+        let current = ws.manifest.agent.clone();
+        let access = AgentAccess {
+            enabled,
+            port: port.filter(|p| *p >= 1024).or(current.as_ref().map(|a| a.port)).unwrap_or(mcp::DEFAULT_PORT),
+            token: current.map(|a| a.token).filter(|t| !t.is_empty()).unwrap_or_else(mcp::new_token),
+        };
+        ws.save_agent_access(Some(access))
+    })?;
+    sync_agent_server(&app)?;
+    agent_view(&state)
+}
+
+/// A new token: agents configured with the old one stop working.
+#[tauri::command]
+pub fn regenerate_agent_token(state: State<'_, AppState>) -> Result<AgentAccessView> {
+    state.with_workspace(|ws| {
+        let access = ws.manifest.agent.clone().map(|a| AgentAccess { token: mcp::new_token(), ..a });
+        ws.save_agent_access(access)
+    })?;
+    agent_view(&state)
 }

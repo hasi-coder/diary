@@ -220,7 +220,8 @@ export function ProfileView({ id, tab }: { id: string; tab?: Tab }) {
       {photo && <PhotoDialog profile={profile} slot={photo} onClose={() => setPhoto(null)} />}
       {deleting && (
         <ConfirmDialog
-          title={`Delete ${profile.name}?`}
+          title={`Move ${profile.name} to the Trash?`}
+          confirmLabel="Move to Trash"
           message={
             <>
               This deletes the profile, the <b>{stats.posts}</b> posts written as {profile.name}
@@ -229,7 +230,7 @@ export function ProfileView({ id, tab }: { id: string; tab?: Tab }) {
                   , and <b>{items.length}</b> listed items
                 </>
               )}
-              . Mentions in other posts will show as a deleted profile.
+              move to the Trash with it. Restoring the profile brings them all back.
             </>
           }
           onConfirm={async () => {
@@ -291,6 +292,7 @@ function AboutCard({ profile }: { profile: Profile }) {
     { label: "Relationship status", value: profile.relationshipStatus },
     { label: "Category", value: profile.category },
     { label: "Location", value: profile.location },
+    { label: "Imported from", value: profile.sourceUrl ?? "" },
     { label: "Added", value: new Date(profile.createdAt).toLocaleDateString(undefined, { dateStyle: "long" }) },
   ].filter((r) => r.value);
   return (

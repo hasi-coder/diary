@@ -9,6 +9,7 @@ export type Route =
   | { view: "settings" }
   | { view: "gallery" }
   | { view: "series"; id?: string }
+  | { view: "trash" }
   | { view: "search"; query: string }
   | { view: "post"; id: string }
   | { view: "profile"; id: string; tab?: "posts" | "about" | "media" | "shop" };

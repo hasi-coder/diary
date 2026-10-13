@@ -256,6 +256,73 @@ Old ids keep working:
   `alsoEventTypes`) display as stories: their title becomes the first clause. Editing one saves it
   as an ordinary post with event clauses.
 
+### Trash
+
+Deleting a post, article, album, profile or product moves it to the **Trash** (sidebar):
+
+- It stays on disk, encrypted and with its photos, but disappears from every view and from search.
+- A deleted profile takes its posts and products with it, and **Restore** brings them all back.
+- A post can't be restored while its author is in the Trash, nor a product while its shop is.
+- **Delete forever** removes the record and its media files, along with relationships, photo
+  tags and "with" tags pointing at it. **Empty trash** does that for everything.
+- Trashed records are marked inside the encrypted record (`trashedAt`, `trashedWith`), so the
+  Trash survives restarts, migrations and key rotation.
+
+### Agent access (MCP): publish pages and products from a URL
+
+Coding agents (Claude Code, Codex, GitHub Copilot, or any MCP client) can populate **pages,
+shops and products**. Give the agent a URL ("publish the shop at https://… and its products");
+it reads the page and calls My Diary's MCP tools.
+
+**Turn it on** in Settings › Agent access (MCP). The card shows:
+
+- the token;
+- ready-to-paste setup for each agent;
+- a log of recent agent calls.
+
+| Agent | Setup |
+| --- | --- |
+| Claude Code | `claude mcp add --transport http my-diary http://127.0.0.1:47615/mcp --header "Authorization: Bearer <token>"` |
+| Codex | `~/.codex/config.toml`: `[mcp_servers.my-diary]` with `command = "<app executable>"`, `args = ["--mcp-stdio"]`, `env = { MY_DIARY_MCP_TOKEN = "<token>" }` |
+| VS Code · Copilot | `.vscode/mcp.json`: `{"servers": {"my-diary": {"type": "http", "url": "http://127.0.0.1:47615/mcp", "headers": {"Authorization": "Bearer <token>"}}}}` |
+| Any stdio client | command `<app executable> --mcp-stdio`, env `MY_DIARY_MCP_TOKEN` (and `MY_DIARY_MCP_URL` for another port) |
+
+**Tools:**
+
+| Tool | Does |
+| --- | --- |
+| `list_pages`, `get_page` | Page and shop metadata (name, category, tagline, bio, location, source URL, photos, product summary) |
+| `find_by_source_url` | Pages and products already imported from a URL, so re-publishing updates instead of duplicating |
+| `create_page`, `update_page` | Create or edit a page or shop (optionally with a profile picture and cover from URLs) |
+| `set_page_photo` | Set or remove a profile picture or cover (image URL or base64) |
+| `list_products`, `get_product` | Product metadata, including photo metadata |
+| `create_product`, `update_product`, `add_product_photos` | Products with price, currency, status, source URL and up to 20 photos (image URLs or base64) |
+| `delete_page`, `delete_product` | Move to the Trash (a page goes with its products and posts) |
+
+**Security model:**
+
+- **In the app, not beside it.**
+  - The endpoint runs inside the unlocked app, on `127.0.0.1` only.
+  - Agents never see the password or the data key.
+  - When the journal is locked, requests are refused (HTTP 503).
+- **Token.** Every request needs `Authorization: Bearer <token>`. The token is random, stored in
+  the encrypted manifest, and revoked by **New token**.
+- **DNS-rebinding guard.** Requests must name `127.0.0.1`/`localhost` and the port as their host.
+- **Scope.** Only pages, shops and products:
+  - posts, people, the owner's profile, series and the Trash have no tools;
+  - id-based tools refuse anything that isn't a page/shop or product.
+- **Image downloads.** Image URLs are fetched by the app over http(s) only. Every hop, redirects
+  included, must resolve to a public address (no loopback, private, link-local or metadata IPs).
+  The size limit is 25 MB per download, and stored images are capped at 5 MB.
+- **Undo.** Agent deletes go to the Trash; only you can restore from it or empty it.
+- **Activity log.** Recent calls are listed in Settings (in memory only).
+
+**Transports:**
+
+- Streamable HTTP: `POST /mcp`, JSON responses, protocol `2025-06-18`.
+- stdio: the same app binary run with `--mcp-stdio` relays JSON-RPC lines to the HTTP endpoint,
+  so it needs the app running.
+
 ### Photo uploads and pasting
 
 - **Paste images** with ⌘V / Ctrl+V, or the clipboard (📋) button, anywhere photos are added:
@@ -444,7 +511,7 @@ data_sources/workspace_<label>/
 ├── entities/<uuid>.enc   profiles
 ├── posts/<uuid>.enc      posts, articles and albums
 ├── items/<uuid>.enc      shop listings
-├── series/<uuid>.enc     series of posts
+├── series/<uuid>.enc     series of posts (deleted records stay in their folders, marked trashed)
 └── media/<uuid>.enc      photo and video bytes (Git LFS)
 ```
 
@@ -662,7 +729,8 @@ Where the build deliberately differs from `system_architecture_proposal.md`:
 | `54c8325` | **Password change:** re-wrap or full key rotation with crash-safe staging |
 | `1ef207d` | **Articles and albums:** post kinds, per-photo captions, album editor, the photo viewer, article reader, album pages |
 | `2d2a6c1` | **Facebook social features:** tag people, check-ins, feelings/activities, life events, photo tagging, relationships, profile pictures and cover photos |
-| *latest* | **Uploads:** paste images from the clipboard everywhere; convert photos to JPEG/PNG and resize on upload |
+| *latest* | **Agents and Trash:** an MCP endpoint (HTTP + stdio bridge) for coding agents to publish pages and products from URLs, with photos; Trash for posts, profiles and products |
+| `0be29b8` | **Uploads:** paste images from the clipboard everywhere; convert photos to JPEG/PNG and resize on upload |
 | `cd891d2` | **Looks and series:** product photos; product tags on photos with side-by-side (dressing room) and overlay views and an album Lookbook; series of posts with overlapping timelines |
 | `f3ec012` | **Life for everyone:** stories: every post tells an ordered sentence of clauses (feelings, doing, ~5,400 life events, *as* roles), each with is/was, its own people and words, replacing the separate life-event post; shared vocabularies; life events by category, sub-group, life stage and tone (spicy, hard); ~100 modern relationship kinds with gendered labels; non-binary gender identities, pronouns and relationship status |
 

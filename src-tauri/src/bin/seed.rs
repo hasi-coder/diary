@@ -18,6 +18,7 @@ const HOUR: i64 = 60 * 60 * 1000;
 
 fn profile(kind: ProfileKind, name: &str, color: &str) -> ProfileInput {
     ProfileInput {
+        source_url: String::new(),
         id: None,
         kind,
         name: name.into(),
@@ -126,6 +127,7 @@ fn seed(ws: &mut Workspace) -> Result<(), Box<dyn std::error::Error>> {
         ("Holiday blend", "Seasonal; back next December.", 1600, ItemStatus::Sold),
     ] {
         ws.save_item(ItemInput {
+            source_url: String::new(),
             media_ids: Vec::new(),
             id: None,
             shop_id: bean.id.clone(),
@@ -137,6 +139,7 @@ fn seed(ws: &mut Workspace) -> Result<(), Box<dyn std::error::Error>> {
         })?;
     }
     ws.save_item(ItemInput {
+        source_url: String::new(),
         media_ids: Vec::new(),
         id: None,
         shop_id: club.id.clone(),
@@ -335,6 +338,7 @@ fn seed(ws: &mut Workspace) -> Result<(), Box<dyn std::error::Error>> {
             .map(|&pattern| ws.stage_media("product.png", png(320, 320, |x, y| fabric(base, accent, pattern, x, y))).map(|m| m.id))
             .collect::<Result<Vec<_>, _>>()?;
         products.push(ws.save_item(ItemInput {
+            source_url: String::new(),
             media_ids,
             id: None,
             shop_id: boutique.id.clone(),

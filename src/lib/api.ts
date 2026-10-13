@@ -25,6 +25,8 @@ export interface Profile {
   /** Vertical focus of the cover, 0 (top) to 100 (bottom). */
   coverPosition: number;
   relations: Relation[];
+  /** Where a page or shop was imported from by an agent; absent when none. */
+  sourceUrl?: string;
   createdAt: number;
   updatedAt: number;
 }
@@ -41,7 +43,7 @@ export interface Relation {
 
 export type RelationInput = Omit<Relation, "id"> & { id?: string };
 
-export type ProfileInput = Omit<Profile, "id" | "createdAt" | "updatedAt" | "avatar" | "cover" | "coverPosition" | "relations"> & { id?: string };
+export type ProfileInput = Omit<Profile, "id" | "createdAt" | "updatedAt" | "avatar" | "cover" | "coverPosition" | "relations" | "sourceUrl"> & { id?: string };
 
 export type PostKind = "status" | "article" | "album" | "milestone";
 
@@ -184,11 +186,43 @@ export interface Item {
   status: ItemStatus;
   /** Product photos and videos; the first is the main one. */
   media: MediaRef[];
+  /** The product page it was imported from; absent when none. */
+  sourceUrl?: string;
   createdAt: number;
   updatedAt: number;
 }
 
-export type ItemInput = Omit<Item, "id" | "createdAt" | "updatedAt" | "media"> & { id?: string; mediaIds: string[] };
+export type ItemInput = Omit<Item, "id" | "createdAt" | "updatedAt" | "media" | "sourceUrl"> & { id?: string; mediaIds: string[] };
+
+/** Something in the Trash. */
+export interface TrashEntry {
+  kind: "post" | "profile" | "item";
+  id: string;
+  title: string;
+  subtitle: string;
+  trashedAt: number;
+  /** Posts and products that went with a deleted profile. */
+  withCount: number;
+}
+
+export interface AgentEvent {
+  at: number;
+  tool: string;
+  summary: string;
+  ok: boolean;
+}
+
+/** Agent access (MCP) as Settings shows it. */
+export interface AgentAccess {
+  enabled: boolean;
+  port: number;
+  token: string;
+  running: boolean;
+  url: string;
+  /** This app's executable, for the stdio bridge (`--mcp-stdio`). */
+  executable: string;
+  log: AgentEvent[];
+}
 
 export interface PostFilter {
   profileId?: string;
@@ -233,6 +267,7 @@ export interface Snapshot {
   profiles: Profile[];
   items: Item[];
   series: SeriesSummary[];
+  trashCount: number;
   stats: Record<string, ProfileStats>;
   postDates: number[];
   migration: MigrationStatus;
@@ -270,6 +305,13 @@ export const api = {
   saveItem: (input: ItemInput) => invoke<Item>("save_item", { input }),
   deleteItem: (id: string) => invoke<void>("delete_item", { id }),
   saveSeries: (input: SeriesInput) => invoke<Series>("save_series", { input }),
+  listTrash: () => invoke<TrashEntry[]>("list_trash"),
+  restoreFromTrash: (kind: TrashEntry["kind"], id: string) => invoke<void>("restore_from_trash", { kind, id }),
+  purgeFromTrash: (kind: TrashEntry["kind"], id: string) => invoke<void>("purge_from_trash", { kind, id }),
+  emptyTrash: () => invoke<number>("empty_trash"),
+  getAgentAccess: () => invoke<AgentAccess>("get_agent_access"),
+  setAgentAccess: (enabled: boolean, port?: number) => invoke<AgentAccess>("set_agent_access", { enabled, port }),
+  regenerateAgentToken: () => invoke<AgentAccess>("regenerate_agent_token"),
   deleteSeries: (id: string) => invoke<void>("delete_series", { id }),
   runMigration: () => invoke<Snapshot>("run_migration"),
   /** Uploads a file as a raw binary body; it stays in memory until a post references it. */

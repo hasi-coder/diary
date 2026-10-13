@@ -1,6 +1,7 @@
 pub mod commands;
 pub mod crypto;
 pub mod error;
+pub mod mcp;
 pub mod media;
 pub mod migrate;
 pub mod model;
@@ -40,6 +41,13 @@ pub fn run() {
             commands::save_relation,
             commands::delete_relation,
             commands::set_photo_tags,
+            commands::list_trash,
+            commands::restore_from_trash,
+            commands::purge_from_trash,
+            commands::empty_trash,
+            commands::get_agent_access,
+            commands::set_agent_access,
+            commands::regenerate_agent_token,
         ])
         // Serves decrypted attachments to the webview; see media.rs.
         .register_asynchronous_uri_scheme_protocol("journal", |ctx, request, responder| {

@@ -30,6 +30,9 @@ uuid = { version = "1", features = ["v4"] }
 zeroize = "1"
 unicode-normalization = "0.1"
 unicode-segmentation = "1"
+# Agent access (MCP): a localhost-only HTTP endpoint, and fetching images from URLs.
+tiny_http = "0.12"
+ureq = "2"
 
 [dev-dependencies]
 tempfile = "3"

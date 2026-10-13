@@ -4,6 +4,7 @@ import { ArrowsClockwiseIcon, CheckCircleIcon, EyeIcon, EyeSlashIcon, GearIcon, 
 import { loadPrefs, savePrefs, type UploadFormat, type UploadPrefs } from "../lib/uploads";
 import { api, errorMessage } from "../lib/api";
 import { useJournal } from "../lib/journal";
+import { AgentAccessCard } from "../components/AgentAccessCard";
 import { ChangePasswordDialog } from "../components/ChangePassword";
 import { Page } from "../components/Shell";
 import { Button, ErrorText } from "../components/ui";
@@ -25,6 +26,8 @@ export function SettingsView() {
         <MigrationCard />
 
         <UploadsCard />
+
+        <AgentAccessCard />
 
         <Card title="Workspace">
           <Rows

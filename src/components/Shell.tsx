@@ -10,6 +10,7 @@ import {
   ShieldCheckIcon,
   ShoppingBagIcon,
   TimerIcon,
+  TrashIcon,
   UsersThreeIcon,
   type Icon,
 } from "@phosphor-icons/react";
@@ -83,6 +84,15 @@ export function Sidebar({ onSearch }: { onSearch: () => void }) {
       </nav>
 
       <div className="space-y-2 border-t border-slate-100 p-4">
+        <button
+          onClick={() => navigate({ view: "trash" })}
+          className={`flex w-full items-center gap-3 rounded-lg px-4 py-2 text-sm transition-colors ${
+            route.view === "trash" ? "bg-brand-50 text-brand-600" : "text-slate-500 hover:text-slate-800"
+          }`}
+        >
+          <TrashIcon size={18} /> Trash
+          {snapshot.trashCount > 0 && <span className="ml-auto rounded-full bg-slate-100 px-2 text-xs text-slate-500">{snapshot.trashCount}</span>}
+        </button>
         <button
           onClick={() => navigate({ view: "settings" })}
           className={`flex w-full items-center gap-3 rounded-lg px-4 py-2 text-sm transition-colors ${

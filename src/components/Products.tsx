@@ -55,6 +55,11 @@ export function ProductCard({ item, row, onOpenShop }: { item: Item; row?: boole
       <div className="text-sm font-bold text-slate-800">{formatPrice(item.priceCents, item.currency)}</div>
       <div className="text-sm font-medium text-slate-700">{item.name}</div>
       {item.description && <p className="mt-0.5 line-clamp-3 text-xs text-slate-500">{item.description}</p>}
+      {item.sourceUrl && (
+        <p className="mt-0.5 truncate text-[11px] text-slate-400" title={item.sourceUrl}>
+          From {item.sourceUrl.replace(/^https?:\/\//, "").split("/")[0]}
+        </p>
+      )}
       <div className="mt-1.5 flex flex-wrap items-center gap-2">
         <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ring-1 ${status.className}`}>{status.label}</span>
         {shop && (
