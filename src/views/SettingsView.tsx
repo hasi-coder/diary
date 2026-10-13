@@ -5,6 +5,7 @@ import { loadPrefs, savePrefs, type UploadFormat, type UploadPrefs } from "../li
 import { api, errorMessage } from "../lib/api";
 import { useJournal } from "../lib/journal";
 import { AgentAccessCard } from "../components/AgentAccessCard";
+import { SyncCard } from "../components/SyncParts";
 import { ChangePasswordDialog } from "../components/ChangePassword";
 import { Page } from "../components/Shell";
 import { Button, ErrorText } from "../components/ui";
@@ -26,6 +27,8 @@ export function SettingsView() {
         <MigrationCard />
 
         <UploadsCard />
+
+        <SyncCard />
 
         <AgentAccessCard />
 

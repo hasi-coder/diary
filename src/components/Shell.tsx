@@ -15,6 +15,7 @@ import {
   type Icon,
 } from "@phosphor-icons/react";
 import { useJournal, type Route } from "../lib/journal";
+import { SyncButton } from "./SyncParts";
 import { Avatar } from "./ui";
 
 export function Sidebar({ onSearch }: { onSearch: () => void }) {
@@ -84,6 +85,7 @@ export function Sidebar({ onSearch }: { onSearch: () => void }) {
       </nav>
 
       <div className="space-y-2 border-t border-slate-100 p-4">
+        <SyncButton />
         <button
           onClick={() => navigate({ view: "trash" })}
           className={`flex w-full items-center gap-3 rounded-lg px-4 py-2 text-sm transition-colors ${

@@ -212,6 +212,38 @@ export interface AgentEvent {
   ok: boolean;
 }
 
+/** Save & Sync settings for a workspace, on this device. */
+export interface SyncSettings {
+  gitRemote: string;
+  gitBranch: string;
+  backupDir: string;
+  keep: number;
+  onLock: boolean;
+  lastPushedCommit: string;
+  lastGitAt: number | null;
+  lastBackupAt: number | null;
+  lastError: string;
+}
+
+export interface SyncView {
+  workspace: string;
+  settings: SyncSettings;
+  gitAvailable: boolean;
+}
+
+export interface SyncReport {
+  backup: { snapshot: string | null; newFiles: number; pruned: number } | null;
+  git: { commit: string; pushed: boolean } | null;
+  errors: string[];
+}
+
+export interface BackupInfo {
+  name: string;
+  createdAt: number;
+  files: number;
+  bytes: number;
+}
+
 /** Agent access (MCP) as Settings shows it. */
 export interface AgentAccess {
   enabled: boolean;
@@ -312,6 +344,11 @@ export const api = {
   getAgentAccess: () => invoke<AgentAccess>("get_agent_access"),
   setAgentAccess: (enabled: boolean, port?: number) => invoke<AgentAccess>("set_agent_access", { enabled, port }),
   regenerateAgentToken: () => invoke<AgentAccess>("regenerate_agent_token"),
+  getSyncSettings: () => invoke<SyncView>("get_sync_settings"),
+  saveSyncSettings: (input: Pick<SyncSettings, "gitRemote" | "gitBranch" | "backupDir" | "keep" | "onLock">) => invoke<SyncView>("save_sync_settings", { input }),
+  syncNow: (force = false) => invoke<SyncReport>("sync_now", { force }),
+  listBackups: () => invoke<BackupInfo[]>("list_backups"),
+  restoreBackup: (name: string) => invoke<string>("restore_backup", { name }),
   deleteSeries: (id: string) => invoke<void>("delete_series", { id }),
   runMigration: () => invoke<Snapshot>("run_migration"),
   /** Uploads a file as a raw binary body; it stays in memory until a post references it. */

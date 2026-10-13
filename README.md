@@ -256,6 +256,44 @@ Old ids keep working:
   `alsoEventTypes`) display as stories: their title becomes the first clause. Editing one saves it
   as an ordinary post with event clauses.
 
+### Save & Sync: git (latest version only) and backup folders
+
+**Save & Sync** (sidebar) copies the current workspace's encrypted files. It never decrypts
+anything and needs no key, so it can also run after locking. Set it up in
+**Settings › Save & Sync**; settings are per device, in the app's config folder
+(`~/Library/Application Support/com.hasi-coder.mydiary/sync.json` on macOS).
+
+**Git, latest version only.**
+
+- Each sync stages `workspace_<label>/`, makes one commit with **no parent**, and force-pushes it
+  to the branch, so the remote only ever holds the current state.
+- There's no history of edits, and no growth from re-encrypted files: each save re-encrypts with
+  a new nonce, so git couldn't compress older versions anyway.
+- The staging repository lives in the app's config folder (`sync/<workspace>.git`), never in the
+  workspace; its old objects are pruned after each push.
+- Caches, half-finished key rotations and temp files are left out.
+- If the branch holds a snapshot this device didn't push (another computer), Save & Sync stops
+  and asks before **overwriting the remote**.
+- It uses your normal git credentials (keychain, `gh` or SSH) and never prompts.
+- Use a **private** repository, and one branch per workspace.
+
+**Backup folder.**
+
+- Snapshots go to any folder, for example one synced by Google Drive, iCloud or Dropbox:
+  `<folder>/my-diary-<workspace>/{objects,snapshots}`.
+- Files are stored once by SHA-256, so unchanged records and photos cost nothing.
+- Only the newest *N* snapshots are kept.
+- **Restore** puts a snapshot back as a **new** workspace (`workspace_<label>_restored_<time>`),
+  never over an existing one. Every file is checked against its hash first.
+
+**Options.** "Save & Sync automatically when I lock the journal" runs it in the background on
+lock. From a terminal, `my-diary --sync <workspace_id> [--force]` does the same with this device's
+settings.
+
+What a copy reveals is what the repository reveals (above). Anyone holding it can try passwords
+offline against `workspace.json`, so the password's strength is what protects a cloud or GitHub
+copy.
+
 ### Trash
 
 Deleting a post, article, album, profile or product moves it to the **Trash** (sidebar):
@@ -729,7 +767,8 @@ Where the build deliberately differs from `system_architecture_proposal.md`:
 | `54c8325` | **Password change:** re-wrap or full key rotation with crash-safe staging |
 | `1ef207d` | **Articles and albums:** post kinds, per-photo captions, album editor, the photo viewer, article reader, album pages |
 | `2d2a6c1` | **Facebook social features:** tag people, check-ins, feelings/activities, life events, photo tagging, relationships, profile pictures and cover photos |
-| *latest* | **Agents and Trash:** an MCP endpoint (HTTP + stdio bridge) for coding agents to publish pages and products from URLs, with photos; Trash for posts, profiles and products |
+| *latest* | **Save & Sync:** git snapshots with latest-version-only history, de-duplicated backup folders with restore, sync on lock and from the command line |
+| `1e3c55f` | **Agents and Trash:** an MCP endpoint (HTTP + stdio bridge) for coding agents to publish pages and products from URLs, with photos; Trash for posts, profiles and products |
 | `0be29b8` | **Uploads:** paste images from the clipboard everywhere; convert photos to JPEG/PNG and resize on upload |
 | `cd891d2` | **Looks and series:** product photos; product tags on photos with side-by-side (dressing room) and overlay views and an album Lookbook; series of posts with overlapping timelines |
 | `f3ec012` | **Life for everyone:** stories: every post tells an ordered sentence of clauses (feelings, doing, ~5,400 life events, *as* roles), each with is/was, its own people and words, replacing the separate life-event post; shared vocabularies; life events by category, sub-group, life stage and tone (spicy, hard); ~100 modern relationship kinds with gendered labels; non-binary gender identities, pronouns and relationship status |

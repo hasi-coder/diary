@@ -204,7 +204,7 @@ fn kind_label(kind: MediaKind) -> &'static str {
     }
 }
 
-fn validate_workspace_id(id: &str) -> Result<()> {
+pub(crate) fn validate_workspace_id(id: &str) -> Result<()> {
     let ok = !id.is_empty() && id.chars().all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-');
     if ok {
         Ok(())

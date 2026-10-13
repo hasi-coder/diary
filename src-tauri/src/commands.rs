@@ -12,6 +12,7 @@ use zeroize::Zeroizing;
 use crate::error::{Error, Result};
 use crate::model::*;
 use crate::mcp;
+use crate::sync;
 use crate::store::{self, Workspace};
 
 pub struct AppState {
@@ -21,11 +22,13 @@ pub struct AppState {
     pub agent_log: mcp::AgentLog,
     /// The agent endpoint, while agent access is on and the journal unlocked.
     pub mcp: Mutex<Option<mcp::McpServer>>,
+    /// Per-device settings (Save & Sync), outside any workspace.
+    pub config_dir: PathBuf,
 }
 
 impl AppState {
     pub fn new(root: PathBuf) -> Self {
-        Self { root, workspace: Mutex::new(None), agent_log: mcp::AgentLog::default(), mcp: Mutex::new(None) }
+        Self { root, workspace: Mutex::new(None), agent_log: mcp::AgentLog::default(), mcp: Mutex::new(None), config_dir: sync::config_dir() }
     }
 
     pub(crate) fn with_workspace<T>(&self, f: impl FnOnce(&mut Workspace) -> Result<T>) -> Result<T> {
@@ -83,8 +86,20 @@ pub async fn unlock_workspace(app: AppHandle, state: State<'_, AppState>, id: St
 /// Drops the decrypted cache; the data key is zeroized on drop.
 #[tauri::command]
 pub fn lock_workspace(state: State<'_, AppState>) {
-    *state.workspace.lock().unwrap_or_else(|e| e.into_inner()) = None;
+    let closed = state.workspace.lock().unwrap_or_else(|e| e.into_inner()).take().map(|ws| ws.id.clone());
     *state.mcp.lock().unwrap_or_else(|e| e.into_inner()) = None;
+    // Save & Sync on lock, in the background: once locked nothing writes, and no key is needed.
+    if let Some(id) = closed {
+        let settings = sync::load(&state.config_dir).workspaces.get(&id).cloned().unwrap_or_default();
+        if settings.on_lock && (!settings.backup_dir.trim().is_empty() || !settings.git_remote.trim().is_empty()) {
+            let (root, config) = (state.root.clone(), state.config_dir.clone());
+            std::thread::spawn(move || {
+                if let Err(e) = sync::run(&root, &config, &id, &settings, false) {
+                    let _ = sync::update(&config, &id, |s| s.last_error = e.to_string());
+                }
+            });
+        }
+    }
 }
 
 #[tauri::command]
@@ -324,4 +339,90 @@ pub fn regenerate_agent_token(state: State<'_, AppState>) -> Result<AgentAccessV
         ws.save_agent_access(access)
     })?;
     agent_view(&state)
+}
+
+// ---- Save & Sync ----
+
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SyncView {
+    pub workspace: String,
+    pub settings: sync::WorkspaceSync,
+    pub git_available: bool,
+}
+
+fn current_id(state: &AppState) -> Result<String> {
+    state.with_workspace(|ws| Ok(ws.id.clone()))
+}
+
+#[tauri::command]
+pub fn get_sync_settings(state: State<'_, AppState>) -> Result<SyncView> {
+    let id = current_id(&state)?;
+    let settings = sync::load(&state.config_dir).workspaces.get(&id).cloned().unwrap_or_default();
+    Ok(SyncView { workspace: id, settings, git_available: sync::git_available() })
+}
+
+#[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SyncSettingsInput {
+    pub git_remote: String,
+    pub git_branch: String,
+    pub backup_dir: String,
+    pub keep: u32,
+    pub on_lock: bool,
+}
+
+#[tauri::command]
+pub fn save_sync_settings(state: State<'_, AppState>, input: SyncSettingsInput) -> Result<SyncView> {
+    let id = current_id(&state)?;
+    let remote = input.git_remote.trim().to_string();
+    if !(remote.is_empty() || remote.starts_with("https://") || remote.starts_with("git@") || remote.starts_with("ssh://") || remote.starts_with('/') || remote.starts_with("file://")) {
+        return Err(Error::Invalid("Use an https://, git@ or ssh:// remote.".into()));
+    }
+    let settings = sync::update(&state.config_dir, &id, |s| {
+        // A different remote or branch: whatever this device pushed before doesn't count there.
+        if s.git_remote != remote || s.git_branch.trim() != input.git_branch.trim() {
+            s.last_pushed_commit.clear();
+        }
+        s.git_remote = remote;
+        s.git_branch = input.git_branch.trim().to_string();
+        s.backup_dir = input.backup_dir.trim().to_string();
+        s.keep = input.keep.clamp(1, 1000);
+        s.on_lock = input.on_lock;
+    })?;
+    Ok(SyncView { workspace: id, settings, git_available: sync::git_available() })
+}
+
+/// Save & Sync now: backup folder, then git. `force` overwrites a remote snapshot
+/// this device didn't push.
+#[tauri::command]
+pub async fn sync_now(app: AppHandle, force: bool) -> Result<sync::SyncReport> {
+    blocking(move || {
+        let state = app.state::<AppState>();
+        let (id, settings, prepared) = {
+            // Hold the workspace still while files are copied and staged.
+            let guard = state.workspace.lock().unwrap_or_else(|e| e.into_inner());
+            let id = guard.as_ref().ok_or(Error::Locked)?.id.clone();
+            let settings = sync::load(&state.config_dir).workspaces.get(&id).cloned().unwrap_or_default();
+            let prepared = sync::prepare(&state.root, &state.config_dir, &id, &settings)?;
+            (id, settings, prepared)
+        };
+        sync::finish(&state.config_dir, &id, &settings, prepared, force)
+    })
+    .await
+}
+
+#[tauri::command]
+pub fn list_backups(state: State<'_, AppState>) -> Result<Vec<sync::BackupInfo>> {
+    let id = current_id(&state)?;
+    let settings = sync::load(&state.config_dir).workspaces.get(&id).cloned().unwrap_or_default();
+    sync::list_backups(&settings.backup_dir, &id)
+}
+
+/// Restores a backup as a new workspace; returns its id (open it from the unlock screen).
+#[tauri::command]
+pub fn restore_backup(state: State<'_, AppState>, name: String) -> Result<String> {
+    let id = current_id(&state)?;
+    let settings = sync::load(&state.config_dir).workspaces.get(&id).cloned().unwrap_or_default();
+    sync::restore_backup(&state.root, &id, &settings, &name)
 }

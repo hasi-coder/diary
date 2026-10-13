@@ -8,6 +8,7 @@ pub mod model;
 pub mod record;
 pub mod search;
 pub mod store;
+pub mod sync;
 
 use tauri::Manager;
 
@@ -48,6 +49,11 @@ pub fn run() {
             commands::get_agent_access,
             commands::set_agent_access,
             commands::regenerate_agent_token,
+            commands::get_sync_settings,
+            commands::save_sync_settings,
+            commands::sync_now,
+            commands::list_backups,
+            commands::restore_backup,
         ])
         // Serves decrypted attachments to the webview; see media.rs.
         .register_asynchronous_uri_scheme_protocol("journal", |ctx, request, responder| {
