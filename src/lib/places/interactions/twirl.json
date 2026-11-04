@@ -1,0 +1,29 @@
+{
+  "id": "twirl",
+  "label": "Twirl",
+  "emoji": "🌀",
+  "description": "One holds a hand up, the other spins under it.",
+  "people": {"min": 2, "max": 2},
+  "beat": 0.45,
+  "length": 8,
+  "loop": false,
+  "formation": {"type": "spots", "spots": [{"role": "lead", "at": [0, 0], "facing": 0}, {"role": "spinner", "at": [0, 0.7], "facing": 180}]},
+  "roles": {
+    "lead": [
+      {"beat": 0},
+      {"beat": 1, "armR": [165, 20]},
+      {"beat": 6, "armR": [165, 20], "emote": "✨"},
+      {"beat": 7, "armR": [30, 10]},
+      {"beat": 8, "emote": ""}
+    ],
+    "spinner": [
+      {"beat": 0},
+      {"beat": 1, "armL": [160, -10]},
+      {"beat": 2, "armL": [160, -10], "turn": 0},
+      {"beat": 5, "armL": [160, -10], "turn": 360, "bob": 0.05, "emote": "✨"},
+      {"beat": 6, "armL": [160, -10], "turn": 360},
+      {"beat": 7, "turn": 360},
+      {"beat": 8, "turn": 360, "emote": ""}
+    ]
+  }
+}

@@ -16,7 +16,8 @@ export interface UploadPrefs {
   keepSmaller: boolean;
 }
 
-export const DEFAULT_PREFS: UploadPrefs = { format: "jpeg", quality: 0.88, maxDimension: 0, keepSmaller: true };
+/** Full HD (1920 px on the long side) by default, to save space. */
+export const DEFAULT_PREFS: UploadPrefs = { format: "jpeg", quality: 0.88, maxDimension: 1920, keepSmaller: true };
 const KEY = "my-diary.upload-prefs";
 
 // A per-device preference: it holds no journal content, so browser storage is fine.

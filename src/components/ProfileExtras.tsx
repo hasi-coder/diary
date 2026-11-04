@@ -1,7 +1,7 @@
 // Profile page extras: changing the profile/cover photo, relationships, and life events.
 import { useMemo, useRef, useState } from "react";
 import { CircleNotchIcon, FlagBannerIcon, PencilSimpleIcon, PlusIcon, TrashIcon, UploadSimpleIcon, UsersIcon } from "@phosphor-icons/react";
-import { api, errorMessage, type Profile, type Relation } from "../lib/api";
+import { api, errorMessage, type PhotoSlot, type Profile, type Relation } from "../lib/api";
 import { useJournal, usePosts } from "../lib/journal";
 import { KINDS } from "../lib/format";
 import { RELATION_GROUPS, RELATION_KINDS, relationLabel, relationsOf } from "../lib/catalog";
@@ -15,14 +15,23 @@ import { Avatar, Button, ErrorText, Field, inputClass, Modal } from "./ui";
 // ---- Profile and cover photos ----
 
 /** Upload a photo, pick one already in the journal, or remove the current one. */
-export function PhotoDialog({ profile, slot, onClose }: { profile: Profile; slot: "avatar" | "cover"; onClose: () => void }) {
+const PHOTO_NOUNS: Record<PhotoSlot, string> = {
+  avatar: "profile picture",
+  cover: "cover photo",
+  face_front: "front face view",
+  face_left: "left face view",
+  face_right: "right face view",
+  face_back: "back-of-head view",
+};
+
+export function PhotoDialog({ profile, slot, onClose }: { profile: Profile; slot: PhotoSlot; onClose: () => void }) {
   const { refresh } = useJournal();
   const { posts } = usePosts({});
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const file = useRef<HTMLInputElement>(null);
-  const current = slot === "avatar" ? profile.avatar : profile.cover;
-  const noun = slot === "avatar" ? "profile picture" : "cover photo";
+  const current = slot === "avatar" ? profile.avatar : slot === "cover" ? profile.cover : profile.faces?.[slot.slice(5) as "front" | "left" | "right" | "back"];
+  const noun = PHOTO_NOUNS[slot];
 
   const photos = useMemo(() => {
     const seen = new Set<string>();

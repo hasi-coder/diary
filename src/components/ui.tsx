@@ -5,6 +5,7 @@ import { mediaUrl, type Profile } from "../lib/api";
 import { colorOf, initials, KINDS } from "../lib/format";
 
 const AVATAR_SIZES = {
+  xs: "w-5 h-5 text-[9px]",
   sm: "w-8 h-8 text-xs",
   md: "w-10 h-10 text-sm",
   lg: "w-14 h-14 text-lg",

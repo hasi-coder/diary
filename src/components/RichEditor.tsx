@@ -1,9 +1,18 @@
 // WYSIWYG editor for posts. Content goes in and out as Markdown, so stored
 // entries stay readable and independent of the editor. Mentions round-trip as
-// `@[profile:<uuid>]` and are displayed with the profile's current name.
-import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
-import { EditorContent, useEditor, useEditorState, type Editor } from "@tiptap/react";
-import { Extension, mergeAttributes } from "@tiptap/core";
+// `@[profile:<uuid>]` and are displayed with the profile's current name. Articles
+// place photos in the text as `![caption](media:<id>)` (see lib/inlinePhotos.ts).
+import { createContext, forwardRef, useContext, useEffect, useImperativeHandle, useRef, useState } from "react";
+import {
+  EditorContent,
+  NodeViewWrapper,
+  ReactNodeViewRenderer,
+  useEditor,
+  useEditorState,
+  type Editor,
+  type ReactNodeViewProps,
+} from "@tiptap/react";
+import { Extension, mergeAttributes, Node } from "@tiptap/core";
 import StarterKit from "@tiptap/starter-kit";
 import { filesFromPaste } from "../lib/uploads";
 import { Markdown } from "@tiptap/markdown";
@@ -17,9 +26,11 @@ import {
   ArrowCounterClockwiseIcon,
   ArrowsInSimpleIcon,
   ArrowsOutSimpleIcon,
+  CircleNotchIcon,
   CodeBlockIcon,
   CodeIcon,
   ColumnsPlusRightIcon,
+  ImageIcon,
   LinkIcon,
   ListBulletsIcon,
   ListChecksIcon,
@@ -35,10 +46,13 @@ import {
   TextItalicIcon,
   TextStrikethroughIcon,
   TrashIcon,
+  WarningIcon,
   type Icon,
 } from "@phosphor-icons/react";
-import type { Profile } from "../lib/api";
+import { mediaUrl, type Profile } from "../lib/api";
 import { subtitle } from "../lib/format";
+import { INLINE_PHOTO_RE, photoMarkdown, unescapeCaption } from "../lib/inlinePhotos";
+import type { Attachment } from "./Attachments";
 import { Avatar } from "./ui";
 
 const MENTION_TOKEN = /^@\[profile:([0-9a-fA-F-]{36})\]/;
@@ -48,6 +62,8 @@ export interface RichEditorHandle {
   clear: () => void;
   /** Types "@" at the cursor, opening the mention picker. */
   startMention: () => void;
+  /** Articles: attaches `files` and places them at the cursor. */
+  insertPhotos: (files: File[]) => void;
 }
 
 interface Props {
@@ -58,6 +74,8 @@ interface Props {
   onChange: (markdown: string) => void;
   onSubmit?: () => void;
   onFiles?: (files: File[]) => void;
+  /** Articles: photos go into the text. `add` attaches files and returns their attachment keys. */
+  photos?: { items: Attachment[]; add: (files: File[]) => string[] };
   autoFocus?: boolean;
   expanded?: boolean;
   onToggleExpand?: () => void;
@@ -77,6 +95,7 @@ export const RichEditor = forwardRef<RichEditorHandle, Props>(function RichEdito
   const [suggest, setSuggest] = useState<SuggestState | null>(null);
   const suggestRef = useRef(suggest);
   suggestRef.current = suggest;
+  const insertRef = useRef<(files: File[], pos?: number) => void>(() => {});
 
   const editor = useEditor({
     extensions: [
@@ -89,6 +108,7 @@ export const RichEditor = forwardRef<RichEditorHandle, Props>(function RichEdito
       TaskItem.configure({ nested: true }),
       TableKit.configure({ table: { resizable: false } }),
       Placeholder.configure({ placeholder: () => latest.current.placeholder }),
+      InlinePhoto.configure({ idOf: (key) => latest.current.photos?.items.find((x) => x.key === key)?.media?.id }),
       JournalMention.configure({
         HTMLAttributes: { class: "entity-tag" },
         renderText: ({ node }) => `@${nameOf(latest.current.profiles, node.attrs.id)}`,
@@ -154,22 +174,55 @@ export const RichEditor = forwardRef<RichEditorHandle, Props>(function RichEdito
         const files = filesFromPaste(event);
         if (files.length > 0) {
           event.preventDefault();
-          latest.current.onFiles?.(files);
+          if (latest.current.photos) insertRef.current(files);
+          else latest.current.onFiles?.(files);
           return true;
         }
         return false;
       },
-      // Dropped files bubble up to the composer, which attaches them.
-      handleDrop: (_view, event) => !!(event as DragEvent).dataTransfer?.files?.length,
+      // Dropped files go into the text where they land (articles), or bubble up to the composer, which attaches them.
+      handleDrop: (view, event) => {
+        const files = [...((event as DragEvent).dataTransfer?.files ?? [])];
+        if (files.length === 0) return false;
+        if (latest.current.photos) insertRef.current(files, view.posAtCoords({ left: event.clientX, top: event.clientY })?.pos);
+        return true;
+      },
     },
     onUpdate: ({ editor }) => latest.current.onChange(editor.isEmpty ? "" : editor.getMarkdown()),
   });
+
+  /** Attaches `files` and puts a photo for each at `pos` (default: the cursor); they show once uploaded. */
+  function insertPhotos(files: File[], pos?: number) {
+    if (!editor || !latest.current.photos) return;
+    const nodes = latest.current.photos.add(files).map((key) => ({ type: InlinePhoto.name, attrs: { key } }));
+    const chain = editor.chain().focus();
+    (pos === undefined ? chain.insertContent(nodes) : chain.insertContentAt(pos, nodes)).run();
+  }
+  insertRef.current = insertPhotos;
+
+  // Follow the attachments: uploaded photos get their media id, and photos removed from the post leave the text.
+  const items = props.photos?.items;
+  useEffect(() => {
+    if (!editor || editor.isDestroyed || !items) return;
+    const tr = editor.state.tr;
+    const gone: { pos: number; size: number }[] = [];
+    editor.state.doc.descendants((node, pos) => {
+      if (node.type.name !== InlinePhoto.name) return;
+      const { id, key } = node.attrs;
+      const a = items.find((x) => (key && x.key === key) || (id && x.media?.id === id));
+      if (!a) gone.push({ pos, size: node.nodeSize });
+      else if (!id && a.media) tr.setNodeMarkup(pos, undefined, { ...node.attrs, id: a.media.id });
+    });
+    for (const g of gone.reverse()) tr.delete(tr.mapping.map(g.pos), tr.mapping.map(g.pos + g.size));
+    if (tr.docChanged) editor.view.dispatch(tr.setMeta("addToHistory", false));
+  }, [editor, items]);
 
   useImperativeHandle(
     ref,
     () => ({
       focus: () => editor?.commands.focus(),
       clear: () => editor?.commands.clearContent(true),
+      insertPhotos: (files: File[]) => insertPhotos(files),
       startMention: () => {
         if (!editor) return;
         const { from } = editor.state.selection;
@@ -188,8 +241,20 @@ export const RichEditor = forwardRef<RichEditorHandle, Props>(function RichEdito
   if (!editor) return null;
   return (
     <div className={props.expanded ? "flex min-h-0 flex-1 flex-col" : ""}>
-      <Toolbar editor={editor} expanded={props.expanded} onToggleExpand={props.onToggleExpand} />
-      <EditorContent editor={editor} className={props.expanded ? "thin-scroll min-h-0 flex-1 overflow-y-auto py-2" : "py-2"} />
+      <Toolbar
+        editor={editor}
+        expanded={props.expanded}
+        onToggleExpand={props.onToggleExpand}
+        onInsertPhotos={props.photos ? insertPhotos : undefined}
+      />
+      <PhotosContext.Provider value={items ?? []}>
+        <EditorContent
+          editor={editor}
+          className={props.expanded ? "thin-scroll min-h-0 flex-1 overflow-y-auto py-2" : "py-2"}
+          // The editor placed the dropped photos itself: don't attach them again.
+          onDrop={(e) => props.photos && e.dataTransfer.files.length > 0 && e.stopPropagation()}
+        />
+      </PhotosContext.Provider>
       {suggest && suggest.items.length > 0 && suggest.rect && <MentionMenu state={suggest} />}
     </div>
   );
@@ -210,6 +275,72 @@ const JournalMention = Mention.extend({
   parseMarkdown: (token, helpers) => helpers.createNode("mention", { id: token.id, label: null }),
   renderMarkdown: (node) => `@[profile:${node.attrs?.id}]`,
 });
+
+const PhotosContext = createContext<Attachment[]>([]);
+
+/** A photo on a line of its own, pointing at one of the post's attachments. */
+const InlinePhoto = Node.create<{ idOf: (key: string) => string | undefined }>({
+  name: "inlinePhoto",
+  group: "block",
+  atom: true,
+  draggable: true,
+  addOptions: () => ({ idOf: () => undefined }),
+  addAttributes: () => ({ id: { default: null }, key: { default: null }, caption: { default: "" } }),
+  parseHTML: () => [{ tag: "figure[data-inline-photo]" }],
+  renderHTML: ({ HTMLAttributes }) => ["figure", mergeAttributes({ "data-inline-photo": "" }, HTMLAttributes)],
+  addNodeView: () => ReactNodeViewRenderer(PhotoView),
+  markdownTokenName: "inlinePhoto",
+  markdownTokenizer: {
+    name: "inlinePhoto",
+    level: "block",
+    start: (src: string) => src.indexOf("!["),
+    tokenize: (src: string) => {
+      const m = INLINE_PHOTO_RE.exec(src);
+      return m ? { type: "inlinePhoto", raw: m[0], id: m[2], caption: unescapeCaption(m[1]) } : undefined;
+    },
+  },
+  parseMarkdown: (token, helpers) => helpers.createNode("inlinePhoto", { id: token.id, caption: token.caption }),
+  // Still uploading (or failed): nothing to point at yet.
+  renderMarkdown(node) {
+    const id = node.attrs?.id ?? (node.attrs?.key && this.options.idOf(node.attrs.key));
+    return id ? photoMarkdown(id, node.attrs?.caption ?? "") : "";
+  },
+});
+
+function PhotoView({ node, updateAttributes, selected }: ReactNodeViewProps) {
+  const items = useContext(PhotosContext);
+  const { id, key, caption } = node.attrs as { id: string | null; key: string | null; caption: string };
+  const a = items.find((x) => (key && x.key === key) || (id && x.media?.id === id));
+  const media = a?.media;
+  return (
+    <NodeViewWrapper as="figure" className="my-4">
+      <div
+        data-drag-handle
+        className={`flex min-h-24 items-center justify-center overflow-hidden rounded-xl bg-slate-50 ${selected ? "ring-2 ring-brand-500" : ""}`}
+      >
+        {media ? (
+          media.kind === "image" ? (
+            <img src={mediaUrl(media.id)} alt={caption} draggable={false} className="max-h-[28rem]" />
+          ) : (
+            <video src={`${mediaUrl(media.id)}#t=0.1`} preload="metadata" muted playsInline className="max-h-[28rem]" />
+          )
+        ) : a?.status === "error" ? (
+          <span className="flex items-center gap-1.5 p-4 text-xs text-rose-600">
+            <WarningIcon size={16} /> {a.error}
+          </span>
+        ) : (
+          <CircleNotchIcon size={24} className="animate-spin text-brand-500" />
+        )}
+      </div>
+      <input
+        value={caption}
+        onChange={(e) => updateAttributes({ caption: e.target.value })}
+        placeholder="Write a caption…"
+        className="mt-1.5 w-full bg-transparent text-center text-xs text-slate-500 placeholder-slate-300 outline-none"
+      />
+    </NodeViewWrapper>
+  );
+}
 
 function nameOf(profiles: Profile[], id: string): string {
   return profiles.find((p) => p.id === id)?.name ?? "deleted profile";
@@ -253,7 +384,8 @@ function MentionMenu({ state }: { state: SuggestState }) {
   );
 }
 
-function Toolbar({ editor, expanded, onToggleExpand }: { editor: Editor; expanded?: boolean; onToggleExpand?: () => void }) {
+function Toolbar(props: { editor: Editor; expanded?: boolean; onToggleExpand?: () => void; onInsertPhotos?: (files: File[]) => void }) {
+  const { editor, expanded, onToggleExpand, onInsertPhotos } = props;
   const s = useEditorState({
     editor,
     selector: ({ editor: e }) => ({
@@ -276,6 +408,7 @@ function Toolbar({ editor, expanded, onToggleExpand }: { editor: Editor; expande
     }),
   });
   const [linkOpen, setLinkOpen] = useState(false);
+  const fileInput = useRef<HTMLInputElement>(null);
   const run = () => editor.chain().focus();
 
   return (
@@ -298,6 +431,22 @@ function Toolbar({ editor, expanded, onToggleExpand }: { editor: Editor; expande
       <Sep />
       <Btn icon={LinkIcon} title="Link" active={s.link || linkOpen} onClick={() => setLinkOpen((o) => !o)} />
       <Btn icon={TableIcon} title="Insert table" active={s.table} onClick={() => run().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()} />
+      {onInsertPhotos && (
+        <>
+          <Btn icon={ImageIcon} title="Insert photo (or paste, or drop it in the text)" onClick={() => fileInput.current?.click()} />
+          <input
+            ref={fileInput}
+            type="file"
+            accept="image/*,video/*"
+            multiple
+            hidden
+            onChange={(e) => {
+              if (e.target.files) onInsertPhotos([...e.target.files]);
+              e.target.value = "";
+            }}
+          />
+        </>
+      )}
       {s.table && (
         <>
           <Btn icon={RowsPlusBottomIcon} title="Add row" onClick={() => run().addRowAfter().run()} />

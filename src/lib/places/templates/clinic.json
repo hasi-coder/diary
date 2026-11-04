@@ -1,0 +1,82 @@
+{
+  "version": 2,
+  "name": "Clinic",
+  "floors": [
+    {
+      "name": "Ground floor",
+      "width": 16,
+      "depth": 12,
+      "entrance": [3, 11],
+      "spawn": {"at": [3, 11], "facing": "NE"},
+      "rooms": [
+        {"name": "Staff room", "rect": [0, 0, 8, 4], "floor": "#d6e4cf"},
+        {"name": "Waiting room", "rect": [0, 4, 8, 12], "floor": "#ebe6dc", "checker": true},
+        {"name": "Corridor", "rect": [8, 0, 10, 12], "floor": "#d8d2c6"},
+        {"name": "Consulting 1", "rect": [10, 0, 16, 5], "floor": "#d5e5f0"},
+        {"name": "Consulting 2", "rect": [10, 5, 16, 8], "floor": "#d5e5f0"},
+        {"name": "Toilets", "rect": [10, 8, 16, 12], "floor": "#c9e3ec", "checker": true}
+      ],
+      "doors": [
+        {"edge": "h:3:12", "name": "Entrance"},
+        {"edge": "h:6:4", "locked": true, "name": "Staff only"},
+        {"edge": "v:8:2"},
+        {"edge": "v:8:6", "kind": "arch"},
+        {"edge": "v:8:7", "kind": "arch"},
+        {"edge": "v:10:3"},
+        {"edge": "v:10:7"},
+        {"edge": "v:10:10"},
+        {"edge": "h:12:10", "partition": true, "cubicle": [12, 8], "name": "Cubicle"},
+        {"edge": "h:14:10", "partition": true, "cubicle": [15, 8], "name": "Family cubicle"}
+      ],
+      "items": [
+        {"kind": "table", "x": 3, "y": 1, "w": 2},
+        {"kind": "chair", "x": 3, "y": 0, "facing": "S"},
+        {"kind": "chair", "x": 4, "y": 0, "facing": "S"},
+        {"kind": "chair", "x": 3, "y": 2, "facing": "N"},
+        {"kind": "chair", "x": 4, "y": 2, "facing": "N"},
+        {"kind": "fridge", "x": 7, "y": 0, "facing": "S"},
+        {"kind": "sofa", "x": 0, "y": 3, "w": 2, "facing": "N", "color": "#64748b"},
+        {"kind": "plant", "x": 7, "y": 3},
+        {"kind": "counter", "x": 1, "y": 5, "w": 3, "facing": "N"},
+        {"kind": "chair", "x": 2, "y": 4, "facing": "S", "color": "#334155"},
+        {"kind": "cooler", "x": 7, "y": 5},
+        {"kind": "plant", "x": 0, "y": 11},
+        {"kind": "plant", "x": 7, "y": 11},
+        {"kind": "chair", "x": 3, "y": 8, "facing": "N", "color": "#0284c7"},
+        {"kind": "chair", "x": 4, "y": 8, "facing": "N", "color": "#0284c7"},
+        {"kind": "chair", "x": 5, "y": 8, "facing": "N", "color": "#0284c7"},
+        {"kind": "chair", "x": 6, "y": 8, "facing": "N", "color": "#0284c7"},
+        {"kind": "chair", "x": 3, "y": 10, "facing": "N", "color": "#0284c7"},
+        {"kind": "chair", "x": 4, "y": 10, "facing": "N", "color": "#0284c7"},
+        {"kind": "chair", "x": 5, "y": 10, "facing": "N", "color": "#0284c7"},
+        {"kind": "chair", "x": 6, "y": 10, "facing": "N", "color": "#0284c7"},
+        {"kind": "coffee", "x": 0, "y": 8},
+        {"kind": "desk", "x": 12, "y": 2, "w": 2, "facing": "N"},
+        {"kind": "chair", "x": 12, "y": 1, "facing": "S", "color": "#334155"},
+        {"kind": "chair", "x": 12, "y": 3, "facing": "N"},
+        {"kind": "chair", "x": 13, "y": 3, "facing": "N"},
+        {"kind": "couch", "x": 15, "y": 1, "h": 3, "facing": "W"},
+        {"kind": "sink", "x": 11, "y": 0, "facing": "S"},
+        {"kind": "cabinet", "x": 14, "y": 0, "facing": "S"},
+        {"kind": "desk", "x": 12, "y": 6, "w": 2, "facing": "N"},
+        {"kind": "chair", "x": 12, "y": 5, "facing": "S", "color": "#334155"},
+        {"kind": "chair", "x": 12, "y": 7, "facing": "N"},
+        {"kind": "chair", "x": 13, "y": 7, "facing": "N"},
+        {"kind": "couch", "x": 15, "y": 5, "h": 3, "facing": "W"},
+        {"kind": "sink", "x": 11, "y": 5, "facing": "S"},
+        {"kind": "sink", "x": 10, "y": 8, "facing": "S"},
+        {"kind": "sink", "x": 11, "y": 8, "facing": "S"},
+        {"kind": "toilet", "x": 12, "y": 8, "facing": "S"},
+        {"kind": "toilet", "x": 15, "y": 8, "facing": "S"},
+        {"kind": "bench", "x": 13, "y": 11, "w": 2, "facing": "N"},
+        {"kind": "plant", "x": 15, "y": 11}
+      ],
+      "partitions": ["v:12:8", "v:12:9", "v:14:8", "v:14:9", "h:13:10", "h:15:10"],
+      "spots": {
+        "home": [],
+        "work": [{"seat": [12, 1]}, {"seat": [2, 4]}, {"seat": [12, 5]}],
+        "visit": [{"seat": [3, 8]}, {"seat": [4, 8]}, {"seat": [5, 8]}, {"seat": [6, 8]}, {"seat": [3, 10]}, {"seat": [4, 10]}, {"seat": [5, 10]}, {"seat": [6, 10]}]
+      }
+    }
+  ]
+}

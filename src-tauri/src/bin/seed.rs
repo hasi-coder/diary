@@ -8,6 +8,8 @@
 
 use std::fs;
 
+use serde_json::json;
+
 use my_diary_lib::model::*;
 use my_diary_lib::store::{self, now_millis, Workspace};
 
@@ -212,7 +214,7 @@ fn seed(ws: &mut Workspace) -> Result<(), Box<dyn std::error::Error>> {
     let me = ws.profiles[&me_id].clone();
     // Series: posts can be in several, so these two overlap (kayaking is in both).
     let series = |ws: &mut Workspace, title: &str, description: &str, color: &str| {
-        ws.save_series(SeriesInput { id: None, title: title.into(), description: description.into(), color: color.into() }).map(|s| s.id)
+        ws.save_series(SeriesInput { id: None, title: title.into(), description: description.into(), color: color.into(), newest_first: None }).map(|s| s.id)
     };
     let moving = series(ws, "Moving to Minneapolis", "A new city, a new job, a new lake.", "sky")?;
     let firsts = series(ws, "A year of firsts", "Everything I tried for the first time this year.", "amber")?;
@@ -369,6 +371,26 @@ fn seed(ws: &mut Workspace) -> Result<(), Box<dyn std::error::Error>> {
     ws.set_photo_tags(&look.id, &look.media[0].id, vec![tag(&products[0], 0.5, 0.62), tag(&products[1], 0.57, 0.2), tag(&products[2], 0.3, 0.55)])?;
     ws.set_photo_tags(&look.id, &look.media[1].id, vec![tag(&products[2], 0.68, 0.5)])?;
 
+    // A poll with a photo per option, answered by friends.
+    let mut options = Vec::new();
+    for (text, scene) in [("Sunrise paddle", Scene::Sunrise), ("Sunset paddle", Scene::Sunset), ("Coffee first, then decide", Scene::Coffee)] {
+        let image_id = ws.stage_media("option.png", png(320, 320, |x, y| scene.pixel(x, y)))?.id;
+        options.push(PollOptionInput { id: None, text: text.into(), image_id: Some(image_id) });
+    }
+    let poll = ws.save_post(PostInput {
+        author_id: me_id.clone(),
+        content: "Kayaking this weekend: when should we go? #lakelife".into(),
+        occurred_at: Some(now - 2 * DAY),
+        poll: Some(PollInput { options, multiple: false }),
+        ..Default::default()
+    })?;
+    let choices: Vec<String> = poll.poll.as_ref().map(|p| p.options.iter().map(|o| o.id.clone()).collect()).unwrap_or_default();
+    for (voter, choice) in [(&me_id, 0), (&sarah.id, 2), (&dev.id, 0), (&robin.id, 1)] {
+        ws.vote_poll(&poll.id, voter, &[choices[choice].clone()])?;
+    }
+
+    places(ws, &me_id, &sarah, &dev, &robin, &bean, &boutique, now)?;
+
     let cover = ws.stage_media("cover.png", png(480, 320, |x, y| Scene::Sunset.pixel(x, y)))?.id;
     ws.save_post(PostInput {
         id: None,
@@ -394,6 +416,99 @@ fn seed(ws: &mut Workspace) -> Result<(), Box<dyn std::error::Error>> {
         media_ids: vec![cover],
             ..Default::default()
         })?;
+    Ok(())
+}
+
+/// The Places world: a city of walkable places, people with characters (one of
+/// each age), and group visits that open the place with the people who were there.
+#[allow(clippy::too_many_arguments)]
+fn places(ws: &mut Workspace, me_id: &str, sarah: &Profile, dev: &Profile, robin: &Profile, bean: &Profile, boutique: &Profile, now: i64) -> Result<(), Box<dyn std::error::Error>> {
+    let person = |name: &str, relationship: &str, pronouns: &str, terms: &str, birthday: &str, color: &str| ProfileInput {
+        relationship: relationship.into(),
+        pronouns: pronouns.into(),
+        terms: terms.into(),
+        birthday: birthday.into(),
+        ..profile(ProfileKind::Person, name, color)
+    };
+    let june = ws.save_profile(ProfileInput { bio: "Runs Saree House. Never misses a check-up.".into(), ..person("June Morgan", "Mother", "she/her", "feminine", "1956-03-14", "rose") })?;
+    let maya = ws.save_profile(ProfileInput { bio: "Reads everything, out loud.".into(), ..person("Maya Jenkins", "Niece", "she/her", "feminine", "2018-06-02", "amber") })?;
+    let theo = ws.save_profile(ProfileInput { bio: "Fifteen. Headphones on.".into(), ..person("Theo Jenkins", "Nephew", "he/him", "masculine", "2010-09-20", "indigo") })?;
+
+    let place = |kind: ProfileKind, name: &str, category: &str, tagline: &str, color: &str| ProfileInput {
+        category: category.into(),
+        tagline: tagline.into(),
+        location: "Minneapolis".into(),
+        ..profile(kind, name, color)
+    };
+    let city = ws.save_profile(ProfileInput { location: "Minnesota".into(), ..place(ProfileKind::Place, "Minneapolis", "City", "Lakes, coffee and family.", "sky") })?;
+    let home = ws.save_profile(place(ProfileKind::Place, "Home", "Home", "Where the sourdough lives.", "teal"))?;
+    let clinic = ws.save_profile(place(ProfileKind::Place, "Sunrise Clinic", "Clinic", "Family doctors, open early.", "sky"))?;
+    let hospital = ws.save_profile(place(ProfileKind::Place, "Lakeside General Hospital", "Hospital", "Two floors, one very long corridor.", "slate"))?;
+    let library = ws.save_profile(place(ProfileKind::Place, "Northside Library", "Library", "Quiet, mostly. Story time on Saturdays.", "emerald"))?;
+    let layout = |json: &str| serde_json::from_str::<serde_json::Value>(json).expect("layout template is valid");
+    ws.set_profile_layout(&home.id, Some(layout(include_str!("../../../src/lib/places/templates/home.json"))))?;
+    ws.set_profile_layout(&clinic.id, Some(layout(include_str!("../../../src/lib/places/templates/clinic.json"))))?;
+    ws.set_profile_layout(&bean.id, Some(layout(include_str!("../../../src/lib/places/templates/cafe.json"))))?;
+    ws.set_profile_layout(&boutique.id, Some(layout(include_str!("../../../src/lib/places/templates/shop.json"))))?;
+    ws.set_profile_layout(&library.id, Some(layout(include_str!("../../../src/lib/places/templates/library.json"))))?;
+
+    let relate = |to: &Profile, kind: &str| RelationInput {
+        id: None,
+        to_id: to.id.clone(),
+        kind: kind.into(),
+        label: String::new(),
+        inverse_label: String::new(),
+        since: String::new(),
+    };
+    for p in [&home, &clinic, &hospital, &library, bean, boutique] {
+        ws.save_relation(&p.id, relate(&city, "city"))?;
+    }
+    for (who, to, kind) in [
+        (me_id, &home, "home"),
+        (&robin.id, &home, "home"),
+        (&sarah.id, &clinic, "workplace"),
+        (&dev.id, bean, "workplace"),
+        (&june.id, boutique, "workplace"),
+        (&june.id, &clinic, "favourite"),
+        (&robin.id, &library, "workplace"),
+        (&maya.id, &library, "favourite"),
+        (me_id, &june, "parent"),
+        (&sarah.id, &maya, "child"),
+        (&sarah.id, &theo, "child"),
+    ] {
+        ws.save_relation(who, relate(to, kind))?;
+    }
+
+    // How each person looks in the world (see src/lib/places/character.ts).
+    let looks = [
+        (me_id, json!({ "age": "adult", "figure": "neutral", "build": "average", "skin": "#c68e64", "hair": { "style": "short", "color": "#1f1a17" }, "top": "#2563eb", "bottom": "#334155", "glasses": true })),
+        (&sarah.id, json!({ "age": "adult", "figure": "feminine", "build": "slim", "skin": "#e0ac85", "hair": { "style": "long", "color": "#6b3f1d" }, "top": "#0ea5e9", "bottom": "#1e3a8a" })),
+        (&dev.id, json!({ "age": "adult", "figure": "masculine", "build": "broad", "skin": "#a5683f", "hair": { "style": "short", "color": "#171412" }, "top": "#16a34a", "bottom": "#1e293b", "beard": true })),
+        (&robin.id, json!({ "age": "adult", "figure": "neutral", "build": "slim", "skin": "#6f4429", "hair": { "style": "curly", "color": "#0c0a09" }, "top": "#10b981", "bottom": "#475569" })),
+        (&june.id, json!({ "age": "elder", "figure": "feminine", "build": "average", "skin": "#e8b796", "hair": { "style": "bun", "color": "#d4d4d4" }, "top": "#9333ea", "bottom": "#7e22ce", "skirt": true, "glasses": true })),
+        (&maya.id, json!({ "age": "child", "figure": "feminine", "build": "average", "skin": "#e0ac85", "hair": { "style": "long", "color": "#a16207" }, "top": "#f59e0b", "bottom": "#db2777", "skirt": true })),
+        (&theo.id, json!({ "age": "teen", "figure": "masculine", "build": "slim", "skin": "#e0ac85", "hair": { "style": "short", "color": "#6b3f1d" }, "top": "#ef4444", "bottom": "#0f766e" })),
+    ];
+    for (id, look) in looks {
+        ws.set_profile_character(id, Some(look))?;
+    }
+
+    // Group visits: "Open place" puts the tagged people where it happened.
+    for (ago, place_id, with, content) in [
+        (4 * DAY + 3 * HOUR, &clinic.id, vec![&june, &maya], format!("Took {} for her check-up at {}. {} came along and read to her in the waiting room.", mention(&june), mention(&clinic), mention(&maya))),
+        (12 * DAY + 2 * HOUR, &boutique.id, vec![sarah, &maya], format!("Saree shopping at {} for Avurudu. {} tried on three; {} helped in the fitting room and picked the maroon one.", mention(boutique), mention(sarah), mention(&maya))),
+        (7 * DAY + 5 * HOUR, &library.id, vec![robin, &maya, &theo], format!("Story time at {}. {} did the voices, {} read the last page herself, and {} pretended not to listen.", mention(&library), mention(robin), mention(&maya), mention(&theo))),
+        (16 * DAY, &home.id, vec![dev, sarah, &theo], format!("Sunday lunch at home with {}, {} and {}. Theo would not leave the TV.", mention(dev), mention(sarah), mention(&theo))),
+    ] {
+        ws.save_post(PostInput {
+            author_id: me_id.to_string(),
+            content,
+            occurred_at: Some(now - ago),
+            with_ids: with.iter().map(|p| p.id.clone()).collect(),
+            place_id: Some(place_id.clone()),
+            ..Default::default()
+        })?;
+    }
     Ok(())
 }
 

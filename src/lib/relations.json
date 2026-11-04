@@ -105,6 +105,8 @@
     { "kind": "resident", "inverse": "home", "group": "Places & groups", "label": ["Resident", "Resident", "Resident"] },
     { "kind": "hometown", "inverse": "native", "group": "Places & groups", "label": ["Hometown", "Hometown", "Hometown"], "intro": "From" },
     { "kind": "native", "inverse": "hometown", "group": "Places & groups", "label": ["From here", "From here", "From here"] },
+    { "kind": "city", "inverse": "city_place", "group": "Places & groups", "label": ["City", "City", "City"], "intro": "In" },
+    { "kind": "city_place", "inverse": "city", "group": "Places & groups", "label": ["Place in this city", "Place in this city", "Place in this city"] },
     { "kind": "favourite", "inverse": "regular", "group": "Places & groups", "label": ["Favourite spot", "Favourite spot", "Favourite spot"], "intro": "Regular at" },
     { "kind": "regular", "inverse": "favourite", "group": "Places & groups", "label": ["Regular", "Regular", "Regular"] },
 

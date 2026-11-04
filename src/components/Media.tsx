@@ -19,15 +19,34 @@ import { formatBytes, formatPostDate } from "../lib/format";
 import { LookProducts, ProductCard } from "./Products";
 import { Avatar, EmptyState } from "./ui";
 
-/** The image, or a video's first frame with a play badge. Not interactive. */
-export function MediaPreview({ media, className = "" }: { media: MediaRef; className?: string }) {
+/**
+ * The image, or a video's first frame with a play badge. Not interactive.
+ * `cover` fills the box and crops; `contain` shows all of it, over a blurred
+ * copy of itself where it doesn't fill the box.
+ */
+export function MediaPreview(props: { media: MediaRef; className?: string; fit?: "cover" | "contain"; onAspect?: (ratio: number) => void }) {
+  const { media, className = "", fit = "cover", onAspect } = props;
+  const url = mediaUrl(media.id);
+  const fill = fit === "contain" && (
+    <img src={url} aria-hidden alt="" draggable={false} className="absolute inset-0 h-full w-full scale-110 object-cover opacity-70 blur-2xl" />
+  );
   if (media.kind === "image") {
-    return <img src={mediaUrl(media.id)} alt={media.caption || media.name} loading="lazy" draggable={false} className={`h-full w-full object-cover ${className}`} />;
+    const img = (
+      <img
+        src={url}
+        alt={media.caption || media.name}
+        loading="lazy"
+        draggable={false}
+        onLoad={onAspect && ((e) => e.currentTarget.naturalHeight && onAspect(e.currentTarget.naturalWidth / e.currentTarget.naturalHeight))}
+        className={`h-full w-full ${fit === "contain" ? "relative object-contain" : "object-cover"} ${className}`}
+      />
+    );
+    return fill ? <span className="relative block h-full w-full overflow-hidden bg-slate-100">{fill}{img}</span> : img;
   }
   return (
-    <span className="relative block h-full w-full">
+    <span className={`relative block h-full w-full ${fit === "contain" ? "bg-black" : ""}`}>
       {/* #t= nudges WebKit into rendering the first frame as a poster. */}
-      <video src={`${mediaUrl(media.id)}#t=0.1`} preload="metadata" muted playsInline className={`h-full w-full object-cover ${className}`} />
+      <video src={`${url}#t=0.1`} preload="metadata" muted playsInline className={`h-full w-full ${fit === "contain" ? "object-contain" : "object-cover"} ${className}`} />
       <span className="absolute inset-0 flex items-center justify-center">
         <span className="flex h-10 w-10 items-center justify-center rounded-full bg-black/50 text-white backdrop-blur-sm">
           <PlayIcon size={18} weight="fill" />
@@ -38,24 +57,46 @@ export function MediaPreview({ media, className = "" }: { media: MediaRef; class
 }
 
 /** A clickable tile. */
-export function MediaTile(props: { media: MediaRef; onClick?: () => void; className?: string; overlay?: ReactNode }) {
+export function MediaTile(props: {
+  media: MediaRef;
+  onClick?: () => void;
+  className?: string;
+  style?: React.CSSProperties;
+  overlay?: ReactNode;
+  fit?: "cover" | "contain";
+  onAspect?: (ratio: number) => void;
+}) {
   return (
     <button
       type="button"
       onClick={props.onClick}
       className={`group relative block overflow-hidden bg-slate-100 ${props.className ?? ""}`}
+      style={props.style}
       title={props.media.caption || props.media.name}
     >
-      <MediaPreview media={props.media} className="transition-transform duration-500 group-hover:scale-105" />
+      <MediaPreview
+        media={props.media}
+        fit={props.fit}
+        onAspect={props.onAspect}
+        // Zooming a whole (contained) photo on hover would crop it after all.
+        className={props.fit === "contain" ? "" : "transition-transform duration-500 group-hover:scale-105"}
+      />
       <span className="absolute inset-0 bg-black/0 transition-colors group-hover:bg-black/10" />
       {props.overlay}
     </button>
   );
 }
 
-/** Facebook-style layout for a post's attachments (up to four tiles, then "+N"). */
+/** A single photo takes its own shape within these (width / height): portrait 4:5 to panorama 2:1. */
+const SINGLE_ASPECT: [number, number] = [4 / 5, 2];
+
+/**
+ * Facebook-style layout for a post's attachments (up to four tiles, then "+N").
+ * Tiles show whole photos, never cropped; a single photo is shaped like itself.
+ */
 export function MediaGrid({ post, media = post.media }: { post: Post; media?: MediaRef[] }) {
   const [open, setOpen] = useState<number | null>(null);
+  const [aspect, setAspect] = useState<number | null>(null);
   if (media.length === 0) return null;
 
   const single = media.length === 1;
@@ -76,10 +117,13 @@ export function MediaGrid({ post, media = post.media }: { post: Post; media?: Me
             <MediaTile
               key={m.id}
               media={m}
+              fit="contain"
               onClick={() => setOpen(i)}
+              onAspect={single ? setAspect : undefined}
+              style={single ? { aspectRatio: Math.min(Math.max(aspect ?? 4 / 3, SINGLE_ASPECT[0]), SINGLE_ASPECT[1]) } : undefined}
               className={
                 single
-                  ? "max-h-[28rem] aspect-video"
+                  ? "max-h-[36rem] w-full"
                   : shown.length === 3
                     ? `h-full ${i === 0 ? "row-span-2" : ""}`
                     : shown.length === 2
@@ -486,10 +530,17 @@ export function Theater(props: { items: TheaterItem[]; index: number; onClose: (
 }
 
 /** Search-and-pick list shown under a new tag on a photo: a person, or a product from a shop. */
-function TagChooser(props: { exclude: string[]; onPick: (who: { profileId: string } | { itemId: string }) => void; onCancel: () => void }) {
+export function TagChooser(props: {
+  exclude: string[];
+  onPick: (who: { profileId: string } | { itemId: string }) => void;
+  onCancel: () => void;
+  tab?: "people" | "products";
+  /** Where it opens; by default just under the spot being tagged. */
+  className?: string;
+}) {
   const { snapshot, profiles } = useJournal();
   const [query, setQuery] = useState("");
-  const [tab, setTab] = useState<"people" | "products">("people");
+  const [tab, setTab] = useState<"people" | "products">(props.tab ?? "people");
   const q = query.trim().toLowerCase();
   const people = snapshot.profiles
     .filter((p) => (p.kind === "me" || p.kind === "person" || p.kind === "page") && !props.exclude.includes(p.id))
@@ -501,7 +552,7 @@ function TagChooser(props: { exclude: string[]; onPick: (who: { profileId: strin
     .slice(0, 8);
   const first = tab === "people" ? people[0] && { profileId: people[0].id } : products[0] && { itemId: products[0].id };
   return (
-    <div className="absolute left-1/2 top-10 w-64 -translate-x-1/2 overflow-hidden rounded-xl bg-white shadow-2xl">
+    <div className={`w-64 overflow-hidden rounded-xl bg-white shadow-2xl ${props.className ?? "absolute left-1/2 top-10 -translate-x-1/2"}`}>
       <div className="flex gap-1 border-b border-slate-100 p-1.5">
         {(["people", "products"] as const).map((t) => (
           <button

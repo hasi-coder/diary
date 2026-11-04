@@ -1,0 +1,9 @@
+{
+  "label": "Weekend",
+  "description": "Fitted T-shirt, slim jeans and white shoes",
+  "wearing": [
+    { "garment": "fitted_tee", "color": "#f59e0b" },
+    { "garment": "slim_jeans", "color": "#334155" },
+    { "garment": "shoes", "color": "#f5f5f4" }
+  ]
+}

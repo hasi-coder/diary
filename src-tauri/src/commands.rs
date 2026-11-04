@@ -141,6 +141,11 @@ pub fn delete_profile(state: State<'_, AppState>, id: String) -> Result<()> {
 }
 
 #[tauri::command]
+pub fn merge_pages(state: State<'_, AppState>, source_id: String, target_id: String) -> Result<PageMerge> {
+    state.with_workspace(|ws| ws.merge_pages(&source_id, &target_id))
+}
+
+#[tauri::command]
 pub fn save_post(state: State<'_, AppState>, input: PostInput) -> Result<Post> {
     state.with_workspace(|ws| ws.save_post(input))
 }
@@ -163,6 +168,16 @@ pub fn delete_item(state: State<'_, AppState>, id: String) -> Result<()> {
 #[tauri::command]
 pub fn save_series(state: State<'_, AppState>, input: SeriesInput) -> Result<Series> {
     state.with_workspace(|ws| ws.save_series(input))
+}
+
+#[tauri::command]
+pub fn set_series_order(state: State<'_, AppState>, id: String, post_ids: Vec<String>) -> Result<Series> {
+    state.with_workspace(|ws| ws.set_series_order(&id, &post_ids))
+}
+
+#[tauri::command]
+pub fn set_in_series(state: State<'_, AppState>, post_id: String, series_id: String, member: bool) -> Result<Post> {
+    state.with_workspace(|ws| ws.set_in_series(&post_id, &series_id, member))
 }
 
 #[tauri::command]
@@ -253,8 +268,23 @@ pub fn set_reaction(state: State<'_, AppState>, post_id: String, profile_id: Str
 }
 
 #[tauri::command]
+pub fn vote_poll(state: State<'_, AppState>, post_id: String, profile_id: String, option_ids: Vec<String>) -> Result<Post> {
+    state.with_workspace(|ws| ws.vote_poll(&post_id, &profile_id, &option_ids))
+}
+
+#[tauri::command]
 pub fn set_cover_position(state: State<'_, AppState>, profile_id: String, position: u8) -> Result<Profile> {
     state.with_workspace(|ws| ws.set_cover_position(&profile_id, position))
+}
+
+#[tauri::command]
+pub fn set_profile_layout(state: State<'_, AppState>, profile_id: String, layout: Option<serde_json::Value>) -> Result<Profile> {
+    state.with_workspace(|ws| ws.set_profile_layout(&profile_id, layout))
+}
+
+#[tauri::command]
+pub fn set_profile_character(state: State<'_, AppState>, profile_id: String, character: Option<serde_json::Value>) -> Result<Profile> {
+    state.with_workspace(|ws| ws.set_profile_character(&profile_id, character))
 }
 
 /// Stages a copy of a photo already in the journal, e.g. to use as a profile picture.
@@ -290,6 +320,11 @@ pub fn set_product_photo_size(state: State<'_, AppState>, profile_id: String, ma
     state.with_workspace(|ws| ws.set_product_photo_size(&profile_id, max))
 }
 
+#[tauri::command]
+pub fn set_product_photo_jpeg(state: State<'_, AppState>, profile_id: String, on: bool) -> Result<Profile> {
+    state.with_workspace(|ws| ws.set_product_photo_jpeg(&profile_id, on))
+}
+
 /// Shrinks a page's existing product photos to its size, one product at a
 /// time (so the journal stays usable), reporting `photo-shrink-progress`.
 #[tauri::command]
@@ -300,6 +335,27 @@ pub async fn shrink_product_photos(app: AppHandle, shop_id: String) -> Result<Sh
         let mut report = ShrinkReport::default();
         for (done, id) in ids.iter().enumerate() {
             match state.with_workspace(|ws| ws.shrink_product_photos(id, &mut report)) {
+                // Deleted meanwhile: nothing to shrink.
+                Ok(()) | Err(Error::NotFound(_)) => {}
+                Err(e) => return Err(e),
+            }
+            let _ = app.emit("photo-shrink-progress", (done + 1, ids.len()));
+        }
+        Ok(report)
+    })
+    .await
+}
+
+/// Shrinks every post's photos to fit `max` pixels, one post at a time,
+/// reporting `photo-shrink-progress`.
+#[tauri::command]
+pub async fn shrink_journal_photos(app: AppHandle, max: u32) -> Result<ShrinkReport> {
+    blocking(move || {
+        let state = app.state::<AppState>();
+        let ids = state.with_workspace(|ws| Ok(ws.post_ids_with_photos()))?;
+        let mut report = ShrinkReport::default();
+        for (done, id) in ids.iter().enumerate() {
+            match state.with_workspace(|ws| ws.shrink_post_photos(id, max, &mut report)) {
                 // Deleted meanwhile: nothing to shrink.
                 Ok(()) | Err(Error::NotFound(_)) => {}
                 Err(e) => return Err(e),

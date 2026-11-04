@@ -1,0 +1,9 @@
+{
+  "label": "School uniform (skirt)",
+  "description": "White top, navy skirt, black shoes",
+  "wearing": [
+    { "garment": "fitted_tee", "color": "#f8fafc" },
+    { "garment": "a_line_skirt", "color": "#1e3a8a" },
+    { "garment": "shoes", "color": "#292524" }
+  ]
+}

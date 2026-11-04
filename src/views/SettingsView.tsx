@@ -1,8 +1,9 @@
 // Workspace details, what's visible in the repository, and storage migrations.
 import { useEffect, useState, type ReactNode } from "react";
-import { ArrowsClockwiseIcon, CheckCircleIcon, HardDrivesIcon, EyeIcon, EyeSlashIcon, GearIcon, ImageIcon, KeyIcon, ShieldCheckIcon, WarningIcon } from "@phosphor-icons/react";
+import { ArrowsClockwiseIcon, ArrowsInIcon, CheckCircleIcon, CircleNotchIcon, HardDrivesIcon, EyeIcon, EyeSlashIcon, GearIcon, ImageIcon, KeyIcon, ShieldCheckIcon, WarningIcon } from "@phosphor-icons/react";
 import { loadPrefs, savePrefs, type UploadFormat, type UploadPrefs } from "../lib/uploads";
-import { api, errorMessage, type StorageUsage } from "../lib/api";
+import { listen } from "@tauri-apps/api/event";
+import { api, errorMessage, isTauri, type StorageUsage } from "../lib/api";
 import { formatBytes } from "../lib/format";
 import { useJournal } from "../lib/journal";
 import { AgentAccessCard } from "../components/AgentAccessCard";
@@ -238,8 +239,58 @@ function UploadsCard() {
         <input type="checkbox" checked={prefs.keepSmaller} onChange={(e) => set({ keepSmaller: e.target.checked })} className="h-4 w-4 accent-brand-600" />
         Keep the original when converting would make it bigger (flat-colour screenshots are often smaller as PNG)
       </label>
-      <p className="mt-3 text-xs text-slate-400">Saved on this device. Photos already in the journal are not changed.</p>
+      <p className="mt-3 text-xs text-slate-400">Saved on this device. Photos already in the journal change only when you shrink them below.</p>
+      <ShrinkPhotos max={prefs.maxDimension} />
     </Card>
+  );
+}
+
+/** Re-saves photos already in posts, articles and albums at the chosen size. */
+function ShrinkPhotos({ max }: { max: number }) {
+  const { refresh } = useJournal();
+  const [progress, setProgress] = useState<[number, number] | null>(null);
+  const [result, setResult] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!isTauri()) return;
+    const off = listen<[number, number]>("photo-shrink-progress", (e) => setProgress(e.payload));
+    return () => void off.then((f) => f());
+  }, []);
+
+  const shrink = async () => {
+    setResult(null);
+    setProgress([0, 0]);
+    try {
+      const r = await api.shrinkJournalPhotos(max);
+      setResult(
+        r.shrunk === 0
+          ? `All ${r.photos} photos already fit in ${max} px.`
+          : `Shrank ${r.shrunk} of ${r.photos} photos: ${formatBytes(r.bytesBefore)} → ${formatBytes(r.bytesAfter)}.`,
+      );
+    } catch (e) {
+      setResult(errorMessage(e));
+    } finally {
+      setProgress(null);
+      await refresh();
+    }
+  };
+
+  return (
+    <div className="mt-4 flex flex-wrap items-center gap-3 border-t border-slate-100 pt-4">
+      <div className="min-w-0 flex-1 text-sm">
+        <div className="font-medium text-slate-700">Shrink existing photos</div>
+        <div className="text-xs text-slate-500">
+          {result ??
+            (max
+              ? `Re-saves photos in posts, articles and albums that are larger than ${max} px as JPEG. Smaller photos, videos and GIFs stay as they are. It can't be undone.`
+              : "Choose a size to resize to first.")}
+        </div>
+      </div>
+      <Button variant="outline" disabled={!max || !!progress} onClick={() => void shrink()}>
+        {progress ? <CircleNotchIcon className="animate-spin" /> : <ArrowsInIcon />}
+        {progress ? `Shrinking ${progress[0]}/${progress[1] || "…"}` : `Shrink to ${max || "…"} px`}
+      </Button>
+    </div>
   );
 }
 

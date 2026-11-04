@@ -117,6 +117,29 @@ profile's page, the composer posts as that profile by default.
 **Deleting a profile** also deletes the posts it wrote and the items it lists. Mentions of it in
 other posts show as "deleted profile".
 
+**Places: a walkable world.** Places, shops and pages can have a *layout*: rooms on a 1 m grid,
+doors, cubicles and furniture. **Places** in the menu lists them by city (a city is a place
+profile with category "City"; a place joins it with the "City" relationship), each with a picture.
+**Enter** opens the place full window as a smooth low-poly isometric model (three.js): you walk as
+the diary author (click, or W A S D), doors open as people pass and close behind them, you sit on
+chairs, sofas and toilets, and a cubicle or fitting room locks with everyone inside. Walls between
+you and the camera drop; Q / E turn the view, T switches to a top view, and a minimap sits in the
+corner. People who live or work there (the *Home* and *Workplace* relationships) are already in;
+**Invite** brings in anyone from the journal, who follows you and sits nearby. A post checked in
+at a place gets **Open place**, which puts the post's tagged people where it happened; **Save
+moment** posts the view as a check-in with everyone tagged. **Together** has people do things
+with you (dance, slow dance, hug, high five, twirl, circle dance, cheer, wave, bow): each is a
+JSON file in [src/lib/places/interactions/](src/lib/places/interactions/README.md) that says where
+everyone stands and how each role moves, as keyframed poses, so new ones are just new files. Each person has a **Character** on
+their About tab (age group, body, hair, outfit) and four **face views** (front, left, right,
+back) that their head turns between; without photos, a drawn face is used. The
+[generate-face-views](.claude/skills/generate-face-views/SKILL.md) skill makes the four views from
+one photo with Codex and uploads them over MCP. A layout starts from a template (home, clinic,
+clothing shop, cafe) on the place's *Place* tab and is JSON underneath; the schema is in
+[src/lib/places/layout.ts](src/lib/places/layout.ts) and the templates in
+[src/lib/places/templates/](src/lib/places/templates/). See
+[places_world_proposal.md](places_world_proposal.md) for the design and sizing rules.
+
 ### Posts, articles and albums
 
 The composer has three modes:
@@ -126,6 +149,33 @@ The composer has three modes:
 | **Post** | Everyday entries: text plus up to 20 photos/videos. | Inline in the feed with a photo grid. |
 | **Article** | Long-form writing with a title. The first image is the cover. | A teaser card in the feed (cover, title, excerpt, reading time) that opens a reading view. |
 | **Album** | A titled collection of up to 500 photos and videos, each with its own caption. Drag to add; reorder; mark the cover. | A teaser with a grid in the feed, opening an album page with captioned tiles. |
+
+**Converting:** editing a post, article or album shows the same three tabs, so any of them can
+become another. The post keeps its id, date, photos and captions, story, series, comments and
+reactions. A note says what changes before you save:
+- An article needs a title and text, and its first photo becomes the cover.
+- An album needs a name, and its text becomes the description.
+- A post has no title, so the title is dropped.
+- Layers stay with albums only, and a poll stays with posts only.
+
+Posts and articles take up to 20 photos and videos, so a bigger album stays an album until you
+remove some.
+
+An album can be shown as **Layers** instead of photos (the toggle above its tiles): its photos
+are layers of one subject, such as before and after, or a product from the outside in. They stack in
+album order behind a horizontal slider with a stop per layer, named by its caption ("Layer 2" when
+blank). Dragging the slider, clicking a stop, the arrow keys or scrolling over the photo move through
+them, and between two stops the upper layer fades in over the lower one, so you can see one through
+the other. At the first or last layer, scrolling carries on down the page. Layers are photos only,
+two or more. The feed and the album page show the slider; the album page keeps **Grid** and
+**Lookbook** as other layouts.
+
+Each layer has its own **product tags**. **Tag products** on the photo settles on the nearest
+layer; click a spot on it and pick a product (or a person). Its shopping-bag dots show while the
+slider is at that layer and fade out as you move on, so each layer can name what's in it, such as
+the case on the outside and the movement inside. A dot opens the product's card, stops with tagged
+products have a small bag by their name, and the album page lists the current layer's products
+under the slider. While tagging, × on a tag removes it.
 
 There is no separate "life event" post: life events are part of a post's **story** (below). A
 post whose story has life events shows them big in the feed and in the profile's **Life
@@ -346,7 +396,10 @@ it reads the page and calls My Diary's MCP tools.
 | `list_pages`, `get_page` | Page and shop metadata (name, category, tagline, bio, location, source URL, photos, product summary) |
 | `find_by_source_url` | Pages and products already imported from a URL, so re-publishing updates instead of duplicating |
 | `create_page`, `update_page` | Create or edit a page or shop (optionally with a profile picture and cover from URLs) |
+| `merge_pages` | Merge `sourceId` into `targetId`, preserving products, photos and references; only the source profile goes to Trash |
 | `set_page_photo` | Set or remove a profile picture or cover (image URL or base64) |
+| `set_place_layout` | Set or remove the walkable layout of a place, shop or page (the Places world) |
+| `set_person_faces` | Set a person's four face views (front, left, right, back), by profile id or exact name; returns only what was set |
 | `list_products`, `get_product` | Product metadata, including photo metadata |
 | `create_product`, `update_product`, `add_product_photos` | Products with price, currency, status, source URL and up to 20 photos (image URLs or base64) |
 | `delete_page`, `delete_product` | Move to the Trash (a page goes with its products and posts) |
@@ -367,6 +420,15 @@ it reads the page and calls My Diary's MCP tools.
   included, must resolve to a public address (no loopback, private, link-local or metadata IPs).
   The size limit is 25 MB per download, and stored images are capped at 5 MB.
 - **Undo.** Agent deletes go to the Trash; only you can restore from it or empty it.
+- **Merging duplicate shops/pages.** Open the duplicate profile and choose **Merge…**, then select
+  the page to keep, or ask an agent to use `merge_pages`. The destination keeps its details and
+  photos; empty fields are filled from the source. Product IDs, prices, currencies, source URLs
+  and photos stay intact. Listings are not deduplicated. Posts, mentions, tags and relationships
+  point to the destination, including records restored later from Trash. Old page links and source
+  URLs resolve to the destination. If both pages reacted or voted in a single-choice poll, the
+  destination's choice wins; multiple-choice votes are combined. Only the old profile goes to
+  Trash; restoring it does not undo the merge. Writes are atomic per record and the old profile
+  is retired last, so a failed merge can be retried safely.
 - **Activity log.** Recent calls are listed in Settings (in memory only).
 - **Live updates.** Every change an agent makes emits a `journal-changed` event, and the open
   window refreshes (a burst of calls becomes one reload).
@@ -432,11 +494,24 @@ Posts, articles and albums can belong to **series** ("Moving to Minneapolis", "A
 
 - **Add a post to a series** with 📚 in the composer: pick a series, or type a name to start one.
   A post can be in up to 10 series.
+- **From the series page:** **New part** opens the full-screen composer on an article, already in
+  the series (switch to an album or post if you like). **Add existing** picks posts, articles and
+  albums you've already written, searchable and filterable by type. While reordering, × takes a part
+  out of the series, and the post stays in your journal.
 - **Badges and navigation:** the post shows each series with its part number ("Part 2 of 5",
   ordered by date), and its page has **Previous / Next** links within each series.
 - **Series page** (sidebar): every series on one timeline, each bar running from its first post to
   its last, so overlaps are easy to see. Each series also has its own page with its parts in
   order and the other series that ran **at the same time**.
+- **Reading a series:** its page lays the parts along a timeline, with each part's date, part
+  number and the time since the one before ("3 weeks later"), and a heading at each new month.
+  Read it **Oldest first**, like a story, or **Latest first**, like a feed; the choice is saved
+  with the series. On wide screens a **side timeline** lists every part; it follows along as you
+  scroll, and clicking a part goes to it.
+- **Your own order:** for entries with rough dates ("diary entry 1, 2"), **Reorder** lets you move
+  parts up and down, on the page or in the side timeline. Part numbers, badges and Previous / Next
+  follow your order. Parts added later go in by date: before the first part you placed that is later
+  than them. **By date** goes back to date order.
 - **Deleting a series** keeps its posts. Series titles are searchable on their posts.
 
 Series are their own encrypted records (`series/<uuid>.enc`).
@@ -478,12 +553,19 @@ Series are their own encrypted records (`series/<uuid>.enc`).
   - Adding comments or reactions doesn't mark the post as edited.
   - Comments are encrypted with the post and are found by search.
   - Purging a profile from the Trash removes its comments and reactions.
+- **Polls:** a post can ask a question (its text) with 2 to 10 options. Click the poll button in the composer.
+  - Each option has text, a photo, or both. When any option has a photo, the poll shows as a grid of pictures.
+  - Polls take one answer each unless "Allow multiple answers" is on.
+  - Vote as you or as any of your people (click the avatar under the poll). Each option shows its share of voters and their faces.
+  - Editing the poll keeps the votes on the options you kept. Removing an option deletes its photo and its votes.
+  - Voting doesn't mark the post as edited. Option text is found by search. Purging a profile removes its votes.
 - **Marketplace:** shows every listing in the workspace, with search and a "show sold" toggle.
 - **Product photo size (per page):** a shop's Shop tab sets how large its product photos are stored (Original, 2048, 1600, 1280, 1080 or 720 px on the long side).
   - New product photos are resized when the product is saved, whether you or an agent added them.
   - "Shrink existing photos" re-saves larger ones, one product at a time.
   - Resized photos are re-encoded as JPEG (quality 85): the camera's rotation is applied, transparency is flattened onto white, and metadata is dropped.
   - A photo is only replaced when the result is smaller. A JPEG that already fits is never re-encoded, so running it again loses nothing.
+  - **Save as JPEG 80%** (per page, works with any size, including Original) saves every product photo as an 80% JPEG, new ones and existing ones on "Shrink existing photos". A JPEG that fits is only re-saved if that cuts its size by at least a tenth, so an already-compact photo isn't degraded again.
 
 ### Search
 

@@ -1,0 +1,9 @@
+{
+  "label": "Casual",
+  "description": "T-shirt, jeans and shoes",
+  "wearing": [
+    { "garment": "tee", "color": "#2563eb" },
+    { "garment": "jeans", "color": "#334155" },
+    { "garment": "shoes", "color": "#292524" }
+  ]
+}

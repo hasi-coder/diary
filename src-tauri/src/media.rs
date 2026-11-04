@@ -31,18 +31,21 @@ pub type Bytes = Arc<Zeroizing<Vec<u8>>>;
 
 /// JPEG quality for resized photos: no visible loss at normal viewing sizes.
 const PHOTO_QUALITY: u8 = 85;
+/// JPEG quality when a page saves every product photo as JPEG to save space.
+const COMPACT_QUALITY: u8 = 80;
 
 /// Long-side sizes a page can choose for its product photos (0 keeps originals).
 pub const PHOTO_SIZES: [u32; 6] = [0, 2048, 1600, 1280, 1080, 720];
 
-/// Re-encodes a photo as JPEG that fits in `max` × `max` pixels, honouring
-/// the camera's rotation and dropping metadata (EXIF, location). `None` when
-/// that wouldn't make it smaller, or for formats kept as they are (GIF, HEIC,
-/// AVIF, video), so callers keep the original.
-pub fn fit_photo(bytes: &[u8], max: u32) -> Option<Vec<u8>> {
+/// Re-encodes a photo as JPEG that fits in `max` × `max` pixels (0: any
+/// size), honouring the camera's rotation and dropping metadata (EXIF,
+/// location). With `compact`, every photo is saved as an 80% JPEG, even one
+/// that already fits. `None` when that wouldn't make it smaller, or for
+/// formats kept as they are (GIF, HEIC, AVIF, video), so callers keep the original.
+pub fn fit_photo(bytes: &[u8], max: u32, compact: bool) -> Option<Vec<u8>> {
     use image::{codecs::jpeg::JpegEncoder, imageops::FilterType, DynamicImage, ImageDecoder, ImageReader};
     let mime = match sniff(bytes) {
-        Some((MediaKind::Image, mime @ ("image/jpeg" | "image/png" | "image/webp"))) if max > 0 => mime,
+        Some((MediaKind::Image, mime @ ("image/jpeg" | "image/png" | "image/webp"))) if max > 0 || compact => mime,
         _ => return None,
     };
     let mut decoder = ImageReader::new(std::io::Cursor::new(bytes)).with_guessed_format().ok()?.into_decoder().ok()?;
@@ -51,9 +54,10 @@ pub fn fit_photo(bytes: &[u8], max: u32) -> Option<Vec<u8>> {
     if let Some(o) = orientation {
         img.apply_orientation(o);
     }
-    if img.width().max(img.height()) > max {
+    let resized = max > 0 && img.width().max(img.height()) > max;
+    if resized {
         img = img.resize(max, max, FilterType::Lanczos3);
-    } else if mime == "image/jpeg" {
+    } else if mime == "image/jpeg" && !compact {
         // Already fits: re-encoding would only lose quality, every time it ran.
         return None;
     }
@@ -71,8 +75,12 @@ pub fn fit_photo(bytes: &[u8], max: u32) -> Option<Vec<u8>> {
         img.to_rgb8()
     };
     let mut out = Vec::new();
-    JpegEncoder::new_with_quality(&mut out, PHOTO_QUALITY).encode_image(&rgb).ok()?;
-    (out.len() < bytes.len()).then_some(out)
+    let quality = if compact { COMPACT_QUALITY } else { PHOTO_QUALITY };
+    JpegEncoder::new_with_quality(&mut out, quality).encode_image(&rgb).ok()?;
+    // A JPEG re-saved at the same size must save at least a tenth, so
+    // shrinking again never wears an already-compact photo down for nothing.
+    let worth = if mime == "image/jpeg" && !resized { out.len() < bytes.len() / 10 * 9 } else { out.len() < bytes.len() };
+    worth.then_some(out)
 }
 
 /// `photo.png` -> `photo.jpg`, after re-encoding.
@@ -244,7 +252,10 @@ pub fn serve(state: &AppState, request: &Request<Vec<u8>>) -> Response<Vec<u8>> 
     let builder = Response::builder()
         .header(header::CONTENT_TYPE, mime)
         .header(header::ACCEPT_RANGES, "bytes")
-        .header(header::CACHE_CONTROL, "no-store");
+        .header(header::CACHE_CONTROL, "no-store")
+        // The Places world draws face photos into WebGL textures, which needs a
+        // CORS-clean image. Only this app's webview can reach the scheme.
+        .header(header::ACCESS_CONTROL_ALLOW_ORIGIN, "*");
     match parse_range(range, len) {
         Ok(Some((start, end))) => builder
             .status(StatusCode::PARTIAL_CONTENT)
@@ -275,18 +286,30 @@ pub(crate) mod tests {
     #[test]
     fn fit_photo_shrinks_or_keeps() {
         let big = photo_png(1600, 800);
-        let out = fit_photo(&big, 1080).expect("smaller");
+        let out = fit_photo(&big, 1080, false).expect("smaller");
         assert_eq!(sniff(&out), Some((MediaKind::Image, "image/jpeg")));
         let img = image::load_from_memory(&out).unwrap();
         assert_eq!((img.width(), img.height()), (1080, 540));
         assert!(out.len() < big.len());
 
-        assert_eq!(fit_photo(&big, 0), None, "0 keeps originals");
-        assert_eq!(fit_photo(&out, 1080), None, "a JPEG that fits is never re-encoded");
+        assert_eq!(fit_photo(&big, 0, false), None, "0 keeps originals");
+        assert_eq!(fit_photo(&out, 1080, false), None, "a JPEG that fits is never re-encoded");
         let small = photo_png(600, 400);
-        assert_eq!(sniff(&fit_photo(&small, 1080).expect("PNG that fits still becomes a smaller JPEG")), Some((MediaKind::Image, "image/jpeg")));
-        assert_eq!(fit_photo(&[b"GIF89a".as_slice(), &[0; 64]].concat(), 720), None, "GIFs are kept");
-        assert_eq!(fit_photo(&[b"\x89PNG\r\n\x1a\n".as_slice(), &[0; 64]].concat(), 720), None, "undecodable files are kept");
+        assert_eq!(sniff(&fit_photo(&small, 1080, false).expect("PNG that fits still becomes a smaller JPEG")), Some((MediaKind::Image, "image/jpeg")));
+        assert_eq!(fit_photo(&[b"GIF89a".as_slice(), &[0; 64]].concat(), 720, false), None, "GIFs are kept");
+        assert_eq!(fit_photo(&[b"\x89PNG\r\n\x1a\n".as_slice(), &[0; 64]].concat(), 720, false), None, "undecodable files are kept");
+
+        // Compact: any size, 80% JPEG, and an 80% JPEG isn't worn down again.
+        let compact = fit_photo(&big, 0, true).expect("PNG becomes a JPEG at its own size");
+        let img = image::load_from_memory(&compact).unwrap();
+        assert_eq!((img.width(), img.height()), (1600, 800));
+        let fine = {
+            let mut v = Vec::new();
+            image::codecs::jpeg::JpegEncoder::new_with_quality(&mut v, 100).encode_image(&img.to_rgb8()).unwrap();
+            v
+        };
+        assert!(fit_photo(&fine, 0, true).expect("a 100% JPEG gets smaller").len() < fine.len());
+        assert_eq!(fit_photo(&compact, 0, true), None, "already compact");
         assert_eq!(jpeg_name("front.png"), "front.jpg");
         assert_eq!(jpeg_name("noext"), "noext.jpg");
     }

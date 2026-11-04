@@ -1,9 +1,10 @@
 // Facebook's Memories ("On this day") and the birthday/anniversary reminders on Home.
 import { useMemo, useState } from "react";
-import { CaretDownIcon, ClockCounterClockwiseIcon, GiftIcon } from "@phosphor-icons/react";
-import type { Profile } from "../lib/api";
+import { CaretDownIcon, ClockCounterClockwiseIcon, GiftIcon, ShareFatIcon } from "@phosphor-icons/react";
+import type { Post, Profile } from "../lib/api";
 import { useJournal, usePosts } from "../lib/journal";
 import { inDays, nextOccurrence, ordinal, sameDayInEarlierYears } from "../lib/dates";
+import { Composer } from "./Composer";
 import { PostCard } from "./PostCard";
 import { Avatar } from "./ui";
 
@@ -12,6 +13,7 @@ export function OnThisDay() {
   const { snapshot } = useJournal();
   const years = useMemo(() => sameDayInEarlierYears(snapshot.postDates), [snapshot.postDates]);
   const [all, setAll] = useState(false);
+  const [sharing, setSharing] = useState<Post | null>(null);
   if (years.length === 0) return null;
   const shown = all ? years : years.slice(0, 1);
   const today = new Date().toLocaleDateString(undefined, { day: "numeric", month: "long" });
@@ -29,7 +31,7 @@ export function OnThisDay() {
       </header>
       <div className="space-y-4 bg-slate-50 px-3 py-3">
         {shown.map((y) => (
-          <MemoryYear key={y.year} {...y} />
+          <MemoryYear key={y.year} {...y} onShare={setSharing} />
         ))}
       </div>
       {years.length > 1 && (
@@ -41,11 +43,12 @@ export function OnThisDay() {
           {all ? "Show fewer" : `See ${years.length - 1} more ${years.length === 2 ? "year" : "years"}`}
         </button>
       )}
+      {sharing && <Composer key={sharing.id} sharing={sharing} onCancel={() => setSharing(null)} onDone={() => setSharing(null)} />}
     </section>
   );
 }
 
-function MemoryYear({ year, from, to }: { year: number; from: number; to: number }) {
+function MemoryYear({ year, from, to, onShare }: { year: number; from: number; to: number; onShare: (post: Post) => void }) {
   const { posts } = usePosts({ from, to });
   const ago = new Date().getFullYear() - year;
   return (
@@ -53,7 +56,19 @@ function MemoryYear({ year, from, to }: { year: number; from: number; to: number
       <h3 className="mb-2 px-1 text-[15px] font-semibold text-slate-800">
         {ago} {ago === 1 ? "year" : "years"} ago <span className="font-normal text-slate-500">· {year}</span>
       </h3>
-      <div className="space-y-3">{posts?.map((p) => <PostCard key={p.id} post={p} />)}</div>
+      <div className="space-y-3">
+        {posts?.map((p) => (
+          <div key={p.id}>
+            <PostCard post={p} />
+            <button
+              onClick={() => onShare(p)}
+              className="mt-1.5 flex w-full items-center justify-center gap-2 rounded-lg bg-brand-50 py-2 text-[15px] font-semibold text-brand-700 hover:bg-brand-100"
+            >
+              <ShareFatIcon size={18} weight="bold" /> Share memory
+            </button>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

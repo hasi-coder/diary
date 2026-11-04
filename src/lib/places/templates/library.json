@@ -1,0 +1,57 @@
+{
+  "version": 2,
+  "name": "Library",
+  "floors": [
+    {
+      "name": "Ground floor",
+      "width": 13,
+      "depth": 10,
+      "entrance": [4, 9],
+      "spawn": {"at": [4, 9], "facing": "N"},
+      "rooms": [
+        {"name": "Reading room", "rect": [0, 0, 9, 10], "floor": "#c8a27a"},
+        {"name": "Children's corner", "rect": [9, 0, 13, 6], "floor": "#fde7b0"},
+        {"name": "Restroom", "rect": [9, 6, 13, 10], "floor": "#cfe6ee", "checker": true}
+      ],
+      "doors": [
+        {"edge": "h:4:10", "name": "Entrance"},
+        {"edge": "v:9:2", "kind": "arch"},
+        {"edge": "v:9:3", "kind": "arch"},
+        {"edge": "v:9:8", "name": "Restroom"}
+      ],
+      "items": [
+        {"kind": "shelf", "x": 0, "y": 0, "w": 3, "facing": "S"},
+        {"kind": "shelf", "x": 5, "y": 0, "w": 3, "facing": "S"},
+        {"kind": "plant", "x": 8, "y": 0},
+        {"kind": "shelf", "x": 0, "y": 2, "w": 3, "facing": "N", "color": "#78350f"},
+        {"kind": "shelf", "x": 0, "y": 3, "w": 3, "facing": "S", "color": "#78350f"},
+        {"kind": "table", "x": 5, "y": 3},
+        {"kind": "chair", "x": 4, "y": 3, "facing": "E"},
+        {"kind": "chair", "x": 6, "y": 3, "facing": "W"},
+        {"kind": "armchair", "x": 8, "y": 4, "facing": "W", "color": "#166534"},
+        {"kind": "armchair", "x": 8, "y": 5, "facing": "W", "color": "#166534"},
+        {"kind": "table", "x": 1, "y": 6},
+        {"kind": "chair", "x": 0, "y": 6, "facing": "E"},
+        {"kind": "chair", "x": 2, "y": 6, "facing": "W"},
+        {"kind": "table", "x": 1, "y": 8},
+        {"kind": "chair", "x": 0, "y": 8, "facing": "E"},
+        {"kind": "chair", "x": 2, "y": 8, "facing": "W"},
+        {"kind": "counter", "x": 6, "y": 7, "w": 2, "facing": "S", "color": "#78350f"},
+        {"kind": "plant", "x": 8, "y": 9},
+        {"kind": "shelf", "x": 9, "y": 0, "w": 4, "facing": "S", "color": "#2563eb"},
+        {"kind": "rug", "x": 10, "y": 2, "w": 2, "h": 2, "color": "#f59e0b"},
+        {"kind": "armchair", "x": 12, "y": 2, "facing": "W", "color": "#db2777"},
+        {"kind": "armchair", "x": 12, "y": 3, "facing": "W", "color": "#7c3aed"},
+        {"kind": "bench", "x": 10, "y": 5, "w": 2, "facing": "N", "color": "#f97316"},
+        {"kind": "toilet", "x": 12, "y": 7, "facing": "W"},
+        {"kind": "sink", "x": 12, "y": 9, "facing": "W"}
+      ],
+      "partitions": [],
+      "spots": {
+        "home": [],
+        "work": [{"cell": [6, 6], "facing": "S"}, {"cell": [7, 6], "facing": "S"}],
+        "visit": [{"seat": [12, 2]}, {"seat": [12, 3]}, {"seat": [4, 3]}, {"seat": [6, 3]}, {"seat": [8, 4]}, {"seat": [8, 5]}, {"seat": [0, 6]}, {"seat": [2, 6]}]
+      }
+    }
+  ]
+}

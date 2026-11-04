@@ -1,0 +1,71 @@
+{
+  "version": 2,
+  "name": "Home",
+  "floors": [
+    {
+      "name": "Ground floor",
+      "width": 14,
+      "depth": 11,
+      "entrance": [8, 10],
+      "spawn": {"at": [8, 10], "facing": "NW"},
+      "rooms": [
+        {"name": "Living room", "rect": [0, 0, 7, 6], "floor": "#d9b382"},
+        {"name": "Kitchen", "rect": [7, 0, 14, 5], "floor": "#e9e5dc", "checker": true},
+        {"name": "Hall", "rect": [7, 5, 10, 11], "floor": "#c9a272"},
+        {"name": "Bathroom", "rect": [10, 5, 14, 8], "floor": "#cfe6ee", "checker": true},
+        {"name": "Study", "rect": [10, 8, 14, 11], "floor": "#a8b8cc"},
+        {"name": "Bedroom", "rect": [0, 6, 7, 11], "floor": "#b8a9c9"}
+      ],
+      "doors": [
+        {"edge": "h:8:11", "name": "Front door"},
+        {"edge": "v:7:5"},
+        {"edge": "h:8:5"},
+        {"edge": "v:7:2", "kind": "arch"},
+        {"edge": "v:7:3", "kind": "arch"},
+        {"edge": "v:10:6", "name": "Bathroom"},
+        {"edge": "v:10:9"},
+        {"edge": "v:7:8"}
+      ],
+      "items": [
+        {"kind": "rug", "x": 1, "y": 2, "w": 3, "h": 2, "color": "#be123c"},
+        {"kind": "sofa", "x": 1, "y": 1, "w": 3, "facing": "S"},
+        {"kind": "coffee", "x": 2, "y": 3},
+        {"kind": "tv", "x": 1, "y": 5, "w": 3, "facing": "N"},
+        {"kind": "armchair", "x": 5, "y": 2, "facing": "W"},
+        {"kind": "shelf", "x": 3, "y": 0, "w": 2, "facing": "S"},
+        {"kind": "plant", "x": 6, "y": 0},
+        {"kind": "plant", "x": 0, "y": 5},
+        {"kind": "kcounter", "x": 8, "y": 0, "w": 2, "facing": "S"},
+        {"kind": "sink", "x": 10, "y": 0, "facing": "S"},
+        {"kind": "kcounter", "x": 11, "y": 0, "facing": "S"},
+        {"kind": "stove", "x": 12, "y": 0, "facing": "S"},
+        {"kind": "fridge", "x": 13, "y": 0, "facing": "S"},
+        {"kind": "table", "x": 9, "y": 2, "w": 2},
+        {"kind": "chair", "x": 9, "y": 1, "facing": "S"},
+        {"kind": "chair", "x": 10, "y": 1, "facing": "S"},
+        {"kind": "chair", "x": 9, "y": 3, "facing": "N"},
+        {"kind": "chair", "x": 10, "y": 3, "facing": "N"},
+        {"kind": "plant", "x": 13, "y": 4},
+        {"kind": "toilet", "x": 13, "y": 5, "facing": "W"},
+        {"kind": "sink", "x": 11, "y": 5, "facing": "S"},
+        {"kind": "bath", "x": 11, "y": 7, "w": 3, "facing": "N"},
+        {"kind": "desk", "x": 12, "y": 9, "w": 2, "facing": "S"},
+        {"kind": "chair", "x": 12, "y": 10, "facing": "N", "color": "#334155"},
+        {"kind": "shelf", "x": 11, "y": 8, "facing": "S"},
+        {"kind": "rug", "x": 1, "y": 9, "w": 3, "h": 2, "color": "#7c3aed"},
+        {"kind": "bed", "x": 1, "y": 6, "w": 2, "h": 3, "facing": "S"},
+        {"kind": "bedside", "x": 3, "y": 6},
+        {"kind": "wardrobe", "x": 4, "y": 6, "w": 2, "facing": "S"},
+        {"kind": "plant", "x": 0, "y": 10},
+        {"kind": "armchair", "x": 5, "y": 9, "facing": "N", "color": "#a16207"},
+        {"kind": "plant", "x": 7, "y": 10}
+      ],
+      "partitions": [],
+      "spots": {
+        "home": [{"seat": [5, 2]}, {"seat": [1, 1]}, {"cell": [3, 4], "facing": "W"}, {"seat": [3, 1]}, {"seat": [5, 9]}, {"seat": [2, 1]}],
+        "work": [{"seat": [12, 10]}],
+        "visit": [{"seat": [9, 1]}, {"seat": [10, 3]}, {"seat": [10, 1]}, {"seat": [9, 3]}, {"seat": [2, 1]}, {"seat": [3, 1]}]
+      }
+    }
+  ]
+}

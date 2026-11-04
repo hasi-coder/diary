@@ -1,0 +1,23 @@
+{
+  "id": "circle-dance",
+  "label": "Circle dance",
+  "emoji": "🪩",
+  "description": "Everyone in a ring, hands out, stepping round.",
+  "people": {"min": 3, "max": 10},
+  "beat": 0.5,
+  "length": 8,
+  "loop": true,
+  "formation": {"type": "ring", "role": "dancer", "spin": 10},
+  "roles": {
+    "dancer": [
+      {"beat": 0, "armL": [20, 60], "armR": [20, 60], "emote": "♪"},
+      {"beat": 1, "armL": [20, 60], "armR": [20, 60], "legL": 20, "kneeL": 25},
+      {"beat": 2, "armL": [140, 40], "armR": [140, 40], "bob": 0.1},
+      {"beat": 3, "armL": [20, 60], "armR": [20, 60], "legR": 20, "kneeR": 25},
+      {"beat": 4, "armL": [20, 60], "armR": [20, 60]},
+      {"beat": 5, "armL": [20, 60], "armR": [20, 60], "legL": 20, "kneeL": 25},
+      {"beat": 6, "armL": [140, 40], "armR": [140, 40], "bob": 0.1},
+      {"beat": 7, "armL": [20, 60], "armR": [20, 60], "legR": 20, "kneeR": 25}
+    ]
+  }
+}

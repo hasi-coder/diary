@@ -1,0 +1,22 @@
+{
+  "id": "hug",
+  "label": "Hug",
+  "emoji": "🤗",
+  "description": "Step in, wrap your arms around each other, sway.",
+  "people": {"min": 2, "max": 2},
+  "beat": 0.5,
+  "length": 8,
+  "loop": false,
+  "formation": {"type": "spots", "spots": [{"role": "hugger", "at": [0, 0], "facing": 0}, {"role": "hugger", "at": [0, 0.45], "facing": 180}]},
+  "roles": {
+    "hugger": [
+      {"beat": 0},
+      {"beat": 1, "armL": [80, 60], "armR": [80, 60], "emote": "🤗"},
+      {"beat": 2, "armL": [85, -28], "armR": [85, -28], "lean": 10},
+      {"beat": 4, "armL": [85, -28], "armR": [85, -28], "lean": 10, "tilt": 6},
+      {"beat": 6, "armL": [85, -28], "armR": [85, -28], "lean": 10, "tilt": -6},
+      {"beat": 7, "armL": [30, 15], "armR": [30, 15]},
+      {"beat": 8, "emote": ""}
+    ]
+  }
+}

@@ -20,6 +20,7 @@ export function excerpt(content: string, profiles: Map<string, Profile>, max = 2
   const text = content
     .replace(TOKEN_RE, (_m, id: string) => `@${profiles.get(id)?.name ?? "deleted profile"}`)
     .replace(/```[\s\S]*?```/g, " ")
+    .replace(/!\[(?:\\.|[^\]\\])*\]\([^)]*\)/g, " ")
     .replace(/!?\[([^\]]*)\]\([^)]*\)/g, "$1")
     .replace(/^\s{0,3}(#{1,6}\s|>\s?|[-*+]\s(\[[ xX]\]\s)?|\d+\.\s)/gm, "")
     .replace(/[*_`~|]/g, "")

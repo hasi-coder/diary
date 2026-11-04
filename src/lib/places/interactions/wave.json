@@ -1,0 +1,24 @@
+{
+  "id": "wave",
+  "label": "Wave hello",
+  "emoji": "👋",
+  "description": "Everyone waves, one after another.",
+  "people": {"min": 2, "max": 12},
+  "beat": 0.3,
+  "length": 8,
+  "loop": false,
+  "stagger": 1,
+  "formation": {"type": "stay", "role": "waver"},
+  "roles": {
+    "waver": [
+      {"beat": 0},
+      {"beat": 1, "armR": [165, 30]},
+      {"beat": 2, "armR": [165, 0], "emote": "👋"},
+      {"beat": 3, "armR": [165, 30]},
+      {"beat": 4, "armR": [165, 0]},
+      {"beat": 5, "armR": [165, 30]},
+      {"beat": 6, "armR": [20, 10]},
+      {"beat": 8, "emote": ""}
+    ]
+  }
+}

@@ -1,0 +1,1302 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Places — mock UIs</title>
+<style>
+:root{--bg:#f0f2f5;--card:#fff;--ink:#1c1e21;--muted:#65676b;--line:#e4e6eb;--brand:#1877f2;--brand-soft:#e7f0fd;--ok:#16a34a;--warn:#d97706;--bad:#dc2626;--world:#1d232b}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;font:15px/1.5 -apple-system,BlinkMacSystemFont,"Inter","Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--ink)}
+a{color:var(--brand)}
+.wrap{max-width:1180px;margin:0 auto;padding:0 16px}
+header.hero{background:linear-gradient(135deg,#0f3d91,#1877f2 60%,#4f9cff);color:#fff;padding:40px 0 28px}
+header.hero h1{margin:0 0 6px;font-size:32px;letter-spacing:-.02em}
+header.hero p{margin:0;max-width:780px;opacity:.92}
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:18px}
+.chip{display:inline-flex;align-items:center;gap:6px;padding:4px 12px;border-radius:999px;background:rgba(255,255,255,.16);font-size:13px}
+.chip b{font-weight:600}
+nav.toc{position:sticky;top:0;z-index:20;background:rgba(255,255,255,.92);backdrop-filter:blur(8px);border-bottom:1px solid var(--line)}
+nav.toc .wrap{display:flex;gap:4px;overflow-x:auto;padding-top:8px;padding-bottom:8px}
+nav.toc a{white-space:nowrap;padding:6px 12px;border-radius:8px;color:var(--muted);text-decoration:none;font-size:14px;font-weight:500}
+nav.toc a:hover{background:var(--bg);color:var(--ink)}
+section{padding:36px 0 8px}
+section>h2{font-size:24px;margin:0 0 4px;letter-spacing:-.01em}
+section>p.lead{margin:0 0 18px;color:var(--muted);max-width:820px}
+.card{background:var(--card);border-radius:12px;box-shadow:0 1px 2px rgba(0,0,0,.08),0 1px 8px rgba(0,0,0,.04)}
+.pad{padding:16px}
+.grid{display:grid;gap:16px}
+.g2{grid-template-columns:repeat(2,minmax(0,1fr))}
+.g3{grid-template-columns:repeat(3,minmax(0,1fr))}
+.g4{grid-template-columns:repeat(4,minmax(0,1fr))}
+@media (max-width:860px){.g2,.g3,.g4{grid-template-columns:1fr}}
+.btn{display:inline-flex;align-items:center;gap:6px;border:0;border-radius:8px;padding:7px 14px;font:inherit;font-size:14px;font-weight:600;cursor:pointer;background:#e4e6eb;color:var(--ink)}
+.btn:hover{filter:brightness(.96)}
+.btn.primary{background:var(--brand);color:#fff}
+.btn.soft{background:var(--brand-soft);color:var(--brand)}
+.btn.small{padding:4px 10px;font-size:13px}
+.muted{color:var(--muted)}
+.tag{display:inline-block;padding:1px 8px;border-radius:999px;font-size:12px;font-weight:600;background:var(--bg);color:var(--muted)}
+.tag.home{background:#dcfce7;color:#166534}.tag.work{background:#dbeafe;color:#1e40af}.tag.visits{background:#fef3c7;color:#92400e}.tag.school{background:#f3e8ff;color:#6b21a8}
+table.t{width:100%;border-collapse:collapse;font-size:14px}
+table.t th,table.t td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+table.t th{color:var(--muted);font-weight:600;font-size:13px}
+kbd{font:12px ui-monospace,Menlo,monospace;color:#1c1e21;background:#fff;border:1px solid #cfd3da;border-bottom-width:2px;border-radius:4px;padding:0 5px}
+.note{font-size:13px;color:var(--muted)}
+
+/* app chrome */
+.app{display:grid;grid-template-columns:220px 1fr;min-height:420px;overflow:hidden}
+.app .side{background:#fff;border-right:1px solid var(--line);padding:12px}
+.app .side a{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:8px;color:var(--ink);text-decoration:none;font-weight:500;font-size:14px}
+.app .side a.on{background:var(--brand-soft);color:var(--brand)}
+.app .side .ic{width:22px;height:22px;border-radius:6px;display:grid;place-items:center;background:var(--bg);font-size:12px}
+.app .side a.on .ic{background:var(--brand);color:#fff}
+.app .main{background:var(--bg);padding:18px}
+@media (max-width:860px){.app{grid-template-columns:1fr}.app .side{display:none}}
+.topbar{display:flex;align-items:center;gap:10px;padding:8px 14px;background:#fff;border-bottom:1px solid var(--line);border-radius:12px 12px 0 0}
+.dot{width:11px;height:11px;border-radius:50%;display:inline-block}
+.seg{display:inline-flex;background:#e4e6eb;border-radius:8px;padding:2px}
+.seg button{border:0;background:none;padding:5px 12px;border-radius:6px;font:inherit;font-size:13px;font-weight:600;color:var(--muted);cursor:pointer}
+.seg button.on{background:#fff;color:var(--ink);box-shadow:0 1px 2px rgba(0,0,0,.1)}
+
+/* place cards */
+.pcard{overflow:hidden;display:flex;flex-direction:column}
+.pcard .pic{aspect-ratio:16/10;background:#dfe6ee;display:block;width:100%;object-fit:cover}
+.pcard .body{padding:12px 14px;display:flex;flex-direction:column;gap:6px;flex:1}
+.pcard h4{margin:0;font-size:16px}
+.pcard .who{font-size:13px;color:var(--muted)}
+.pcard .act{display:flex;gap:8px;margin-top:auto;padding-top:4px}
+
+/* world */
+.world{position:relative;background:var(--world);border-radius:14px;overflow:hidden;height:640px;user-select:none;box-shadow:0 8px 30px rgba(0,0,0,.25)}
+.world canvas.main{position:absolute;inset:0;width:100%;height:100%;cursor:pointer}
+.hud{position:absolute;display:flex;gap:8px;align-items:center;color:#fff;font-size:13px}
+.hud.tl{top:12px;left:12px;flex-direction:column;align-items:flex-start}
+.hud.tr{top:12px;right:12px}
+.hud.bl{bottom:12px;left:12px}
+.hud.br{bottom:12px;right:12px}
+.hud.bc{bottom:14px;left:50%;transform:translateX(-50%);pointer-events:none}
+.glass{background:rgba(17,24,39,.72);backdrop-filter:blur(6px);border:1px solid rgba(255,255,255,.1);border-radius:10px;padding:8px 12px}
+.hud .title{font-size:16px;font-weight:700}
+.hud .room{opacity:.8}
+.hbtn{border:1px solid rgba(255,255,255,.14);background:rgba(17,24,39,.72);color:#fff;border-radius:8px;padding:6px 11px;font:inherit;font-size:13px;font-weight:600;cursor:pointer;backdrop-filter:blur(6px)}
+.hbtn:hover{background:rgba(55,65,81,.85)}
+.hbtn.on{background:#1877f2;border-color:#1877f2}
+.badge-post{background:#fde68a;color:#78350f;border-radius:999px;padding:2px 10px;font-weight:600;font-size:12px}
+.people{display:flex;gap:6px;flex-wrap:wrap;max-width:520px}
+.pp{display:flex;align-items:center;gap:6px;padding:3px 8px 3px 3px;border-radius:999px;background:rgba(17,24,39,.72);border:1px solid rgba(255,255,255,.1);cursor:pointer}
+.pp canvas{width:26px;height:26px;border-radius:50%;background:#e5e7eb}
+.pp small{opacity:.7}
+.minimap{width:200px;height:150px;border-radius:10px;border:1px solid rgba(255,255,255,.15);background:#111827;display:block}
+.pop{position:absolute;z-index:5;background:#fff;color:var(--ink);border-radius:12px;box-shadow:0 10px 30px rgba(0,0,0,.35);padding:10px;min-width:220px;font-size:14px;display:none}
+.pop h5{margin:2px 4px 8px;font-size:14px}
+.pop .row{display:flex;align-items:center;gap:10px;padding:6px;border-radius:8px;cursor:pointer}
+.pop .row:hover{background:var(--bg)}
+.pop .row canvas{width:34px;height:34px;border-radius:50%;background:#e5e7eb}
+.pop .row .sub{font-size:12px;color:var(--muted)}
+.pop .acts{display:flex;flex-direction:column;gap:4px}
+.toast{position:absolute;top:70px;left:50%;transform:translateX(-50%);background:#111827;color:#fff;padding:8px 14px;border-radius:10px;font-size:13px;opacity:0;transition:opacity .25s;pointer-events:none;z-index:6}
+.toast.show{opacity:1}
+
+/* posts */
+.post{padding:14px 16px}
+.post .head{display:flex;gap:10px;align-items:center}
+.post .av{width:40px;height:40px;border-radius:50%;background:#dbeafe}
+.post .meta{font-size:13px;color:var(--muted)}
+.post .text{margin:10px 0}
+.post .snap{width:100%;border-radius:10px;display:block;background:#111827}
+.post .foot{display:flex;gap:8px;margin-top:10px;border-top:1px solid var(--line);padding-top:10px}
+.mention{color:var(--brand);font-weight:600}
+
+/* profile */
+.cover{height:150px;background:linear-gradient(120deg,#c084fc,#7c3aed);border-radius:12px 12px 0 0;position:relative}
+.cover .big{position:absolute;left:24px;bottom:-46px;width:112px;height:112px;border-radius:50%;border:4px solid #fff;background:#e5e7eb}
+.ptabs{display:flex;gap:4px;padding:56px 16px 0;border-bottom:1px solid var(--line)}
+.ptabs span{padding:10px 14px;font-weight:600;color:var(--muted);font-size:14px}
+.ptabs span.on{color:var(--brand);border-bottom:3px solid var(--brand)}
+.opt{display:flex;flex-wrap:wrap;gap:6px}
+.opt span{padding:4px 11px;border-radius:999px;background:var(--bg);font-size:13px;font-weight:600;color:var(--muted);cursor:pointer}
+.opt span.on{background:var(--brand);color:#fff}
+.sw{width:24px;height:24px;border-radius:50%;display:inline-block;border:2px solid #fff;box-shadow:0 0 0 1px var(--line);cursor:pointer}
+.sw.on{box-shadow:0 0 0 2px var(--brand)}
+.lbl{font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin:12px 0 6px}
+.faces{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+.face{border:1px dashed #cbd2dc;border-radius:10px;padding:8px;text-align:center;font-size:12px;color:var(--muted)}
+.face canvas{width:100%;aspect-ratio:1;border-radius:8px;background:#f8fafc;display:block;margin-bottom:6px}
+.turn{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.turn canvas{width:100%;aspect-ratio:3/4;background:linear-gradient(#eef2f7,#dfe6ee);border-radius:10px;display:block}
+.turn div{text-align:center;font-size:12px;color:var(--muted)}
+.placerow{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--line)}
+.placerow img{width:64px;height:40px;border-radius:6px;object-fit:cover;background:#dfe6ee}
+
+/* catalogue */
+.cat h4{margin:16px 0 8px;font-size:14px;color:var(--muted)}
+.tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(112px,1fr));gap:10px}
+.tile{background:#fff;border-radius:10px;padding:6px;text-align:center;font-size:12px;font-weight:600;box-shadow:0 1px 2px rgba(0,0,0,.06)}
+.tile canvas{width:100%;aspect-ratio:4/3;display:block}
+.tile .act{font-weight:500;color:var(--muted);font-size:11px}
+
+/* build */
+.build{display:grid;grid-template-columns:230px 1fr 220px;height:560px;background:var(--world);border-radius:14px;overflow:hidden;color:#e5e7eb}
+.build .pane{background:#111827;padding:12px;overflow:auto;font-size:13px}
+.build .pane h5{margin:6px 0 8px;font-size:12px;text-transform:uppercase;letter-spacing:.05em;color:#9ca3af}
+.build .it{display:flex;align-items:center;gap:8px;padding:5px 6px;border-radius:6px;cursor:grab}
+.build .it:hover,.build .it.on{background:#1f2937}
+.build .it .sq{width:16px;height:16px;border-radius:4px}
+.build .canvaswrap{position:relative}
+.build canvas{position:absolute;inset:0;width:100%;height:100%}
+.build .tools{position:absolute;top:10px;left:50%;transform:translateX(-50%);display:flex;gap:6px}
+@media (max-width:860px){.build{grid-template-columns:1fr;height:auto}.build .canvaswrap{height:420px}}
+.tpl{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:10px}
+.tpl div{background:#fff;border-radius:10px;padding:10px;text-align:center;font-weight:600;font-size:13px;border:2px solid transparent;cursor:pointer}
+.tpl div.on{border-color:var(--brand)}
+.tpl canvas{width:100%;aspect-ratio:4/3;display:block}
+
+/* model + plan */
+.model{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+@media (max-width:860px){.model{grid-template-columns:1fr}}
+.mbox{background:#fff;border-radius:12px;padding:12px 14px;border-top:4px solid var(--brand)}
+.mbox h4{margin:0 0 4px}
+.mbox code{font-size:12px;background:var(--bg);padding:1px 5px;border-radius:4px}
+.mbox ul{margin:6px 0 0;padding-left:18px;font-size:13px}
+.phases{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:10px}
+@media (max-width:860px){.phases{grid-template-columns:1fr}}
+.phase{background:#fff;border-radius:12px;padding:12px;position:relative;font-size:13px}
+.phase .n{width:28px;height:28px;border-radius:50%;background:var(--brand);color:#fff;display:grid;place-items:center;font-weight:700;margin-bottom:6px}
+.phase h4{margin:0 0 4px;font-size:14px}
+.phase .gate{margin-top:8px;padding:6px 8px;border-radius:8px;background:#ecfdf5;color:#065f46;font-size:12px}
+footer{padding:40px 0;color:var(--muted);font-size:13px}
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="wrap">
+    <h1>Places — a walkable world in My Diary</h1>
+    <p>Mock UIs for <a href="places_world_proposal.md" style="color:#fff;text-decoration:underline">places_world_proposal.md</a>. The 3D tour tab goes; journal people get characters and their own places, and every place can be entered full-window, walked through, and filled with the people from a post.</p>
+    <div class="chips">
+      <span class="chip"><b>Faces</b> one photo → 4 views (Codex skill)</span>
+      <span class="chip"><b>Invites</b> journal people only</span>
+      <span class="chip"><b>People</b> home · work · school · visits</span>
+      <span class="chip"><b>Old plans</b> dropped</span>
+      <span class="chip"><b>Look</b> smooth low-poly</span>
+      <span class="chip"><b>City</b> list of places with a picture</span>
+    </div>
+  </div>
+</header>
+
+<nav class="toc"><div class="wrap">
+  <a href="#places">1 · Places list</a>
+  <a href="#world">2 · The world</a>
+  <a href="#posts">3 · Posts → place</a>
+  <a href="#people">4 · People</a>
+  <a href="#placetab">5 · Place tab</a>
+  <a href="#catalogue">6 · Furniture</a>
+  <a href="#build">7 · Build mode</a>
+  <a href="#model">8 · Data</a>
+  <a href="#plan">9 · Plan</a>
+</div></nav>
+
+<main class="wrap">
+
+<!-- 1 PLACES LIST -->
+<section id="places">
+  <h2>1 · Places in the diary</h2>
+  <p class="lead">A new side-nav entry. A city is just a list of places with a picture; each card says whose home or work it is. Places with a layout can be entered, the rest can be built from a template. <b>Try “Enter” on Home or Sunrise Clinic.</b></p>
+  <div class="card">
+    <div class="app">
+      <div class="side">
+        <a href="#places"><span class="ic">◷</span> Timeline</a>
+        <a href="#people"><span class="ic">☺</span> People</a>
+        <a href="#places" class="on"><span class="ic">⌂</span> Places</a>
+        <a href="#places"><span class="ic">▤</span> Pages</a>
+        <a href="#places"><span class="ic">$</span> Marketplace</a>
+        <a href="#places"><span class="ic">▣</span> Gallery</a>
+      </div>
+      <div class="main">
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px;flex-wrap:wrap">
+          <h3 style="margin:0;font-size:20px">Places</h3>
+          <div class="seg" id="citySeg"><button class="on">Lakeside · 6</button><button>Colombo · 3</button><button>Elsewhere · 2</button></div>
+          <span style="flex:1"></span>
+          <button class="btn primary">＋ New place</button>
+        </div>
+        <div class="grid g3" id="placeCards"></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 2 WORLD -->
+<section id="world">
+  <h2>2 · The world (playable mock)</h2>
+  <p class="lead">Full-window in the app (top bar and side nav hidden, <kbd>Esc</kbd> exits). Click the floor to walk, click a door to open or close it, click a chair, sofa or toilet to sit, click a person to tell them to follow or wait. Doors open as people pass and close behind them; a toilet cubicle locks while it's in use. The app draws this in smooth low-poly 3D with three.js; this mock draws the same layout flat on a canvas.</p>
+  <div class="world" id="world0">
+    <canvas class="main" id="worldCanvas"></canvas>
+    <div class="hud tl">
+      <div class="glass"><div class="title" id="hudPlace">Home</div><div class="room" id="hudRoom">Hall</div></div>
+      <span class="badge-post" id="hudPost" style="display:none"></span>
+    </div>
+    <div class="hud tr">
+      <div class="seg" style="background:rgba(17,24,39,.72)"><button class="on" id="vIso" style="color:#111">Iso</button><button id="vTop" style="color:#cbd5e1">Top view</button></div>
+      <button class="hbtn" id="bWalls">Walls: cut-away</button>
+      <button class="hbtn" id="bInvite">＋ Invite</button>
+      <button class="hbtn" id="bSave">◉ Save moment</button>
+      <button class="hbtn" id="bExit">✕ Exit</button>
+    </div>
+    <div class="hud bl"><div class="people" id="hudPeople"></div></div>
+    <div class="hud br"><canvas class="minimap" id="minimap"></canvas></div>
+    <div class="hud bc"><div class="glass" id="hint">Click to walk · click a door to open/close · click a seat to sit · <kbd>T</kbd> top view · <kbd>W A S D</kbd> step</div></div>
+    <div class="pop" id="invitePop"><h5>Invite to this place</h5><div id="inviteList"></div></div>
+    <div class="pop" id="personPop"></div>
+    <div class="toast" id="toast"></div>
+  </div>
+  <div class="grid g4" style="margin-top:14px">
+    <div class="card pad"><b>Moving</b><div class="note">Click a tile, a room, or <kbd>W A S D</kbd>. Paths go around furniture and through doors (A* on a 0.5 m grid in the app, 1 m here). The camera rotates in 90° steps with <kbd>Q</kbd> / <kbd>E</kbd> in the app.</div></div>
+    <div class="card pad"><b>Faces turn with the camera</b><div class="note">Each head is one of four images. Walking toward you shows <i>front</i>, down-left <i>left</i>, down-right <i>right</i>, away <i>back</i>. Watch the heads as people walk.</div></div>
+    <div class="card pad"><b>Room for groups</b><div class="note">Cubicles and fitting rooms are 2 × 2 m and lock with everyone inside; aisles and corridors let two people pass. Try the <i>Saree shopping</i> post, or invite Saki and use the family cubicle at the clinic.</div></div>
+    <div class="card pad"><b>Who's there</b><div class="note">On entry, people whose home or work it is are already in (Amma, Kavi and Saki at Home; Dr. Fernando and Dilini at the clinic). Opening a post adds its people.</div></div>
+  </div>
+</section>
+
+<!-- 3 POSTS -->
+<section id="posts">
+  <h2>3 · Open a post's place</h2>
+  <p class="lead">A post with a check-in and tagged people gets <b>Open place</b>. The place opens with those people already inside, gathered where the visit happened. <b>Save moment</b> in the world adds a post here with a snapshot.</p>
+  <div class="grid g2" id="timeline"></div>
+</section>
+
+<!-- 4 PEOPLE -->
+<section id="people">
+  <h2>4 · People: their places and their character</h2>
+  <p class="lead">On a person's profile, About gets <b>Places</b> (home, work, school, visits) and <b>Character</b> (body options and four face views). Faces are made from one photo by the <code>generate-face-views</code> skill with Codex, or uploaded by hand.</p>
+  <div class="card">
+    <div class="cover"><canvas class="big" id="amAvatar" width="224" height="224"></canvas></div>
+    <div style="padding:0 16px 0 152px;margin-top:8px"><div style="font-size:22px;font-weight:700">Amma</div><div class="muted">Mother · 3 places · 41 posts</div></div>
+    <div class="ptabs"><span>Posts</span><span class="on">About</span><span>Media</span></div>
+    <div class="grid g2 pad" style="align-items:start">
+      <div>
+        <div class="lbl">Places</div>
+        <div id="amPlaces"></div>
+        <div style="display:flex;gap:8px;margin-top:10px;align-items:center">
+          <select class="btn small" style="appearance:auto"><option>Choose a place…</option><option>Lakeside General Hospital</option><option>The Rusty Bean</option><option>Corner Grocer</option></select>
+          <select class="btn small" style="appearance:auto"><option>Home</option><option>Work</option><option>School</option><option selected>Visits</option></select>
+          <button class="btn small soft">Add</button>
+        </div>
+        <p class="note">People are placed by these: at <i>home</i> and <i>work</i> they're there when you enter; <i>visits</i> places list them as regulars and offer them first in Invite.</p>
+      </div>
+      <div>
+        <div class="lbl">Character</div>
+        <div class="grid g2" style="gap:10px">
+          <div><div class="note">Age</div><div class="opt" data-k="age"><span>Child</span><span>Teen</span><span>Adult</span><span class="on">Elder</span></div></div>
+          <div><div class="note">Body shape</div><div class="opt" data-k="figure"><span class="on">Feminine</span><span>Masculine</span><span>Neutral</span></div></div>
+          <div><div class="note">Build</div><div class="opt" data-k="build"><span>Slim</span><span class="on">Average</span><span>Broad</span></div></div>
+          <div><div class="note">Hair</div><div class="opt" data-k="style"><span>Short</span><span>Long</span><span class="on">Bun</span><span>Bald</span></div></div>
+        </div>
+        <div class="note" style="margin-top:8px">Skin · hair · top · bottom</div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap" id="swatches"></div>
+        <div class="lbl">Turnaround (live preview)</div>
+        <div class="turn" id="turn"></div>
+        <div class="lbl">Face views</div>
+        <div class="faces" id="faces"></div>
+        <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
+          <button class="btn small soft">Upload 4 images</button>
+          <button class="btn small">Copy Codex prompt</button>
+          <span class="note" style="align-self:center">Skill: <code>.claude/skills/generate-face-views</code></span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 5 PLACE TAB -->
+<section id="placetab">
+  <h2>5 · A place's profile</h2>
+  <p class="lead">The old “3D tour” tab becomes <b>Place</b>: the picture, Enter, who lives or works here, the regulars, and the posts checked in here.</p>
+  <div class="card">
+    <div class="cover" style="background:linear-gradient(120deg,#7dd3fc,#0284c7)"><canvas class="big" id="clAvatar" width="224" height="224" style="border-radius:24px"></canvas></div>
+    <div style="padding:0 16px 0 152px;margin-top:8px"><div style="font-size:22px;font-weight:700">Sunrise Clinic</div><div class="muted">Clinic · Lakeside · 6 rooms</div></div>
+    <div class="ptabs"><span>Posts</span><span>About</span><span>Media</span><span class="on">Place</span></div>
+    <div class="grid g2 pad" style="align-items:start">
+      <div><img id="clThumb" style="width:100%;border-radius:12px;background:#1d232b;display:block" alt="Sunrise Clinic layout">
+        <div style="display:flex;gap:8px;margin-top:10px"><button class="btn primary" onclick="openFromPost(null,'clinic')">▶ Enter</button><button class="btn" onclick="location.hash='#build'">✎ Edit layout</button></div></div>
+      <div>
+        <div class="lbl">Works here</div><div id="clWork" class="people" style="max-width:none"></div>
+        <div class="lbl">Often here</div><div id="clOften" class="people" style="max-width:none"></div>
+        <div class="lbl">Posts here</div>
+        <div class="placerow"><div style="flex:1"><b>Amma's check-up</b><div class="note">Oct 28 · with Amma, Kavi</div></div><button class="btn small soft" onclick="openFromPost('p1')">Open place</button></div>
+        <div class="placerow"><div style="flex:1"><b>Flu shots</b><div class="note">Sep 12 · with Saki</div></div><button class="btn small soft">Open place</button></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 6 CATALOGUE -->
+<section id="catalogue">
+  <h2>6 · Furniture and everyday things</h2>
+  <p class="lead">Each item has a footprint, a model and interaction spots (where you stand or sit, which way you face). These are the first set; the full list is in the proposal.</p>
+  <div class="cat" id="cat"></div>
+</section>
+
+<!-- 7 BUILD -->
+<section id="build">
+  <h2>7 · Adding a place: template, then Build mode</h2>
+  <p class="lead">New place → pick a template and a size → it is generated, then edited in Build mode (<kbd>B</kbd> inside the world). Agents can do the same over MCP.</p>
+  <div class="card pad" style="margin-bottom:14px">
+    <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:10px">
+      <b>New place</b>
+      <input class="btn" style="font-weight:500;background:#fff;border:1px solid var(--line)" value="Sunrise Clinic">
+      <select class="btn small" style="appearance:auto"><option>Lakeside</option><option>Colombo</option></select>
+      <div class="seg"><button>S</button><button class="on">M</button><button>L</button></div>
+    </div>
+    <div class="tpl" id="tpl"></div>
+  </div>
+  <div class="build">
+    <div class="pane" id="buildCat"></div>
+    <div class="canvaswrap">
+      <canvas id="buildCanvas"></canvas>
+      <div class="tools">
+        <button class="hbtn on">▭ Room</button><button class="hbtn">⌐ Door</button><button class="hbtn">▣ Item</button><button class="hbtn">⧉ Kit</button><button class="hbtn">⌫ Erase</button><button class="hbtn">↶</button><button class="hbtn">↷</button>
+      </div>
+    </div>
+    <div class="pane">
+      <h5>Selected</h5>
+      <div style="font-weight:700;font-size:14px">Toilet block kit</div>
+      <div class="note" style="color:#9ca3af">cubicle + family cubicle, 2 × 2 m each · 2 sinks · bench · 6 × 4 m</div>
+      <h5 style="margin-top:14px">Room</h5>
+      <div>Toilets · 3 × 3 m · tile</div>
+      <h5 style="margin-top:14px">Checks</h5>
+      <div style="color:#86efac">✓ Every room reachable</div>
+      <div style="color:#86efac">✓ No blocked doors</div>
+      <div style="color:#86efac">✓ Cubicles 2 × 2 m: fit 2 people</div>
+      <div style="color:#fcd34d">! Corridor 2 m: OK; aim for 1.5 m+</div>
+      <div style="color:#fcd34d">! Consulting 2 has no window</div>
+      <h5 style="margin-top:14px">Rooms</h5>
+      <div id="buildRooms" style="line-height:1.9"></div>
+    </div>
+  </div>
+</section>
+
+<!-- 8 MODEL -->
+<section id="model">
+  <h2>8 · What gets stored</h2>
+  <p class="lead">All of it is JSON on existing profiles, encrypted like everything else. No new record types.</p>
+  <div class="model">
+    <div class="mbox"><h4>City</h4><div class="note">A <code>place</code> profile, category “City”. Cover photo = the city's picture.</div><ul><li>Places link to it with relation <code>located-in</code></li><li>No layout, no streets</li></ul></div>
+    <div class="mbox" style="border-color:#0ea5e9"><h4>Place layout</h4><div class="note"><code>Profile.layout</code> replaces <code>plan</code> (old plans dropped)</div><ul><li><code>floors[]</code> → <code>rooms</code>, <code>doors</code>, <code>walls</code>, <code>items</code></li><li>0.5 m grid, rotations 0/90/180/270</li><li>Items from the catalogue, with several seats/use spots each</li><li>Sized for groups: corridors 1.5 m, cubicles and fitting rooms 2 × 2 m</li></ul></div>
+    <div class="mbox" style="border-color:#16a34a"><h4>Person</h4><div class="note">Existing person / me profiles gain three fields</div><ul><li><code>character</code>: age, body shape, build, skin, hair, outfit</li><li><code>faces</code>: front, left, right, back (media)</li><li><code>places[]</code>: <code>{placeId, role: home|work|school|visits}</code></li></ul></div>
+    <div class="mbox" style="border-color:#f59e0b"><h4>Post</h4><div class="note">Unchanged: check-in <code>place_id</code> + mentions</div><ul><li>“Open place” spawns the mentioned people</li><li>“Save moment” = a post with a snapshot</li></ul></div>
+    <div class="mbox" style="border-color:#a855f7"><h4>MCP tools</h4><div class="note">Replace <code>set_place_plan</code></div><ul><li><code>create_place</code>, <code>set_place_layout</code>, <code>add_room</code>, <code>add_items</code></li><li><code>create_city</code>, <code>set_character</code>, <code>set_person_faces</code></li></ul></div>
+    <div class="mbox" style="border-color:#64748b"><h4>World state</h4><div class="note">Memory only, reset on each visit</div><ul><li>Doors, positions, who sits where</li><li>Residents start at their usual spots</li></ul></div>
+  </div>
+</section>
+
+<!-- 9 PLAN -->
+<section id="plan">
+  <h2>9 · Plan</h2>
+  <p class="lead">Phases 1–3 are the core. Each ends with something you can try in the demo workspace (<code>npm run seed:demo</code>).</p>
+  <div class="phases">
+    <div class="phase"><div class="n">0</div><h4>Clear the ground</h4>Remove 3D tour tab, PlanEditor, <code>set_place_plan</code>, old plans. v2 layout schema.<div class="gate">App builds; old workspaces open</div></div>
+    <div class="phase"><div class="n">1</div><h4>Walkable home</h4>World route, iso camera, cut-away walls, top view, A*, click/WASD, doors.<div class="gate">Walk front door → bedroom</div></div>
+    <div class="phase"><div class="n">2</div><h4>Furniture &amp; actions</h4>Catalogue, sit, lie, cubicle and fitting-room lock with a group inside, room kits sized for groups.<div class="gate">Two people share a fitting room</div></div>
+    <div class="phase"><div class="n">3</div><h4>Characters &amp; invites</h4>Character section, bodies, 4-view faces, skill + <code>set_person_faces</code>, invite, Save moment.<div class="gate">Invited people sit in free chairs</div></div>
+    <div class="phase"><div class="n">4</div><h4>People's places</h4><code>Profile.places</code>, residents on entry, Open place from posts, Places list, Place tab.<div class="gate">Check-up post opens with Amma &amp; Kavi</div></div>
+    <div class="phase"><div class="n">5</div><h4>Build &amp; agents</h4>Editor, templates S/M/L, validation, MCP tools.<div class="gate">A clinic built in &lt; 5 min</div></div>
+  </div>
+  <div class="grid g2" style="margin-top:16px">
+    <div class="card pad"><b>Still open</b>
+      <ol style="margin:6px 0 0;padding-left:20px;font-size:14px">
+        <li>Is a person's spot in a place chosen (Nimal's desk is “GP office 2”) or picked from the room type?</li>
+        <li>Should Save moment take a short note typed in the world?</li>
+        <li>One face style per workspace (illustrated, realistic, cartoon), or per person?</li>
+      </ol>
+    </div>
+    <div class="card pad"><b>Demo workspace</b>
+      <ul style="margin:6px 0 0;padding-left:20px;font-size:14px">
+        <li>Lakeside: Home, Lakeside General Hospital, Sunrise Clinic, River &amp; Rose, The Rusty Bean, Corner Grocer</li>
+        <li>People: You, Amma, Nimal, Kavi, Saki, Robin Okafor (+ clinic staff)</li>
+        <li>Posts: “Amma's check-up”, “Saree shopping”, “Sunday lunch”, each with Open place</li>
+      </ul>
+    </div>
+  </div>
+</section>
+</main>
+<footer><div class="wrap">Mock only — layouts, people and posts are made up for the demo workspace. Generated 2026-11-03 for places_world_proposal.md.</div></footer>
+
+<script>
+"use strict";
+// ───────────────────────── people ─────────────────────────
+const PEOPLE = {
+  me:{name:'You',rel:'Diary author',age:'adult',figure:'masculine',build:'average',skin:'#c68e64',hair:'#1f1a17',style:'short',top:'#2563eb',bottom:'#334155',glasses:true},
+  amma:{name:'Amma',rel:'Mother',age:'elder',figure:'feminine',build:'average',skin:'#b07650',hair:'#d4d4d4',style:'bun',top:'#9333ea',bottom:'#7e22ce',skirt:true},
+  nimal:{name:'Nimal',rel:'Brother',age:'adult',figure:'masculine',build:'broad',skin:'#a5683f',hair:'#171412',style:'short',top:'#16a34a',bottom:'#1e293b',beard:true},
+  kavi:{name:'Kavi',rel:'Niece',age:'teen',figure:'feminine',build:'slim',skin:'#c48a5e',hair:'#3a2214',style:'long',top:'#f59e0b',bottom:'#1d4ed8'},
+  saki:{name:'Saki',rel:'Nephew',age:'child',figure:'masculine',build:'average',skin:'#b97c55',hair:'#171412',style:'short',top:'#ef4444',bottom:'#0f766e'},
+  robin:{name:'Robin Okafor',rel:'Friend',age:'adult',figure:'neutral',build:'slim',skin:'#6f4429',hair:'#0c0a09',style:'short',top:'#10b981',bottom:'#475569'},
+  fernando:{name:'Dr. Fernando',rel:'Family doctor',age:'adult',figure:'masculine',build:'average',skin:'#9a6040',hair:'#57534e',style:'short',top:'#f8fafc',bottom:'#1e3a8a',glasses:true},
+  nadee:{name:'Nadee',rel:'Shop owner',age:'adult',figure:'feminine',build:'average',skin:'#c08359',hair:'#2b1a10',style:'bun',top:'#db2777',bottom:'#831843',skirt:true},
+  dilini:{name:'Dilini',rel:'Clinic receptionist',age:'adult',figure:'feminine',build:'slim',skin:'#b98058',hair:'#1c1917',style:'long',top:'#0ea5e9',bottom:'#0c4a6e',skirt:true},
+};
+
+// ───────────────────────── catalogue ─────────────────────────
+const WOOD='#a9784f';
+// parts: [u0,v0,u1,v1,z0,z1,color]; u across the item, v from back (0) to front (1) — the front is the way it faces
+const KINDS = {
+  chair:{label:'Chair',group:'Seating',seat:true,seatZ:.47,color:'#c2410c',act:'sit',parts:c=>[[.42,.42,.58,.58,0,.4,'#57534e'],[.18,.18,.82,.82,.4,.47,c],[.18,.1,.82,.22,.47,.98,c]]},
+  armchair:{label:'Armchair',group:'Seating',seat:true,seatZ:.42,color:'#0f766e',act:'sit',parts:c=>[[.06,.08,.94,.96,0,.42,c],[.06,.04,.94,.3,.42,.9,c],[.06,.3,.22,.96,.42,.62,c],[.78,.3,.94,.96,.42,.62,c]]},
+  sofa:{label:'Sofa',group:'Seating',seat:true,seatZ:.42,color:'#4f46e5',act:'sit',parts:(c,L)=>{const a=.18/L;return[[.02,.08,.98,.96,0,.42,c],[.02,.04,.98,.3,.42,.9,c],[.02,.3,.02+a,.96,.42,.62,c],[.98-a,.3,.98,.96,.42,.62,c]]}},
+  bench:{label:'Bench',group:'Seating',seat:true,seatZ:.45,color:WOOD,act:'sit',parts:c=>[[.1,.35,.2,.65,0,.4,'#57534e'],[.8,.35,.9,.65,0,.4,'#57534e'],[.04,.25,.96,.75,.4,.47,c]]},
+  table:{label:'Table',group:'Tables',color:WOOD,act:'sit at, with chairs',parts:c=>[[.12,.12,.2,.2,0,.72,'#57534e'],[.8,.12,.88,.2,0,.72,'#57534e'],[.12,.8,.2,.88,0,.72,'#57534e'],[.8,.8,.88,.88,0,.72,'#57534e'],[.04,.04,.96,.96,.72,.79,c]]},
+  coffee:{label:'Coffee table',group:'Tables',color:'#78350f',act:'',parts:c=>[[.12,.15,.88,.85,0,.36,c],[.08,.1,.92,.9,.36,.42,c]]},
+  desk:{label:'Desk',group:'Tables',color:'#d6c3a5',act:'sit and work',parts:c=>[[.04,.1,.3,.9,0,.74,'#a8a29e'],[.04,.06,.96,.94,.74,.8,c],[.55,.2,.75,.35,.8,1.15,'#111827']]},
+  counter:{label:'Counter',group:'Tables',color:'#64748b',act:'serve, pay',parts:c=>[[.02,.1,.98,.92,0,1,c],[0,.06,1,.96,1,1.06,'#e5e7eb']]},
+  bed:{label:'Bed',group:'Bedroom',color:'#60a5fa',act:'lie, sit on edge',parts:c=>[[.04,.02,.96,.98,0,.32,WOOD],[.04,0,.96,.06,.32,.9,WOOD],[.07,.05,.93,.96,.32,.5,'#f8fafc'],[.15,.08,.85,.2,.5,.6,'#ffffff'],[.07,.4,.93,.96,.5,.54,c]]},
+  hbed:{label:'Hospital bed',group:'Health',color:'#7dd3fc',act:'lie',parts:c=>[[.08,.04,.92,.96,0,.5,'#cbd5e1'],[.08,.04,.92,.08,.5,1,'#cbd5e1'],[.1,.06,.9,.94,.5,.62,c]]},
+  couch:{label:'Exam couch',group:'Health',color:'#38bdf8',act:'lie for a check-up',parts:c=>[[.15,.05,.85,.95,0,.55,'#cbd5e1'],[.1,.02,.9,.98,.55,.68,c],[.1,.02,.9,.25,.68,.9,c]]},
+  bedside:{label:'Bedside table',group:'Bedroom',color:WOOD,act:'',parts:c=>[[.15,.15,.85,.85,0,.55,c],[.4,.35,.6,.55,.55,.85,'#fde68a']]},
+  wardrobe:{label:'Wardrobe',group:'Bedroom',color:'#8b5e3c',act:'open',parts:c=>[[.04,.04,.96,.62,0,2,c]]},
+  toilet:{label:'Toilet',group:'Bathroom',seat:true,seatZ:.42,color:'#ffffff',act:'sit (cubicle locks)',parts:c=>[[.22,.04,.78,.28,0,.85,'#f1f5f9'],[.26,.28,.74,.86,0,.42,c]]},
+  sink:{label:'Sink',group:'Bathroom',color:'#ffffff',act:'wash hands',parts:c=>[[.4,.12,.6,.35,0,.8,'#e2e8f0'],[.18,.04,.82,.55,.8,.9,c]]},
+  bath:{label:'Bath',group:'Bathroom',color:'#ffffff',act:'bathe',parts:c=>[[.03,.08,.97,.92,0,.55,c],[.1,.16,.9,.84,.55,.56,'#bae6fd']]},
+  fridge:{label:'Fridge',group:'Kitchen',color:'#f8fafc',act:'open',parts:c=>[[.08,.06,.92,.8,0,1.85,c]]},
+  stove:{label:'Stove',group:'Kitchen',color:'#475569',act:'cook',parts:c=>[[.04,.08,.96,.92,0,.88,c],[.04,.08,.96,.92,.88,.92,'#1e293b']]},
+  kcounter:{label:'Kitchen unit',group:'Kitchen',color:'#e7e5e4',act:'prepare food',parts:c=>[[.02,.08,.98,.92,0,.86,'#a8a29e'],[0,.04,1,.96,.86,.92,c]]},
+  tv:{label:'TV',group:'Living',color:'#111827',act:'watch, from a seat',parts:c=>[[.06,.35,.94,.7,0,.48,WOOD],[.1,.46,.9,.56,.48,1.15,c]]},
+  shelf:{label:'Bookshelf',group:'Living',color:'#92400e',act:'take a book',parts:c=>[[.04,.04,.96,.42,0,1.8,c]]},
+  plant:{label:'Plant',group:'Living',color:'#16a34a',act:'',parts:c=>[[.32,.32,.68,.68,0,.35,'#b45309']],blob:.85},
+  rug:{label:'Rug',group:'Living',flat:true,color:'#e11d48',act:'',parts:c=>[[.02,.02,.98,.98,0,.02,c]]},
+  cooler:{label:'Water cooler',group:'Health',color:'#e0f2fe',act:'drink',parts:c=>[[.28,.28,.72,.72,0,1.05,c],[.33,.33,.67,.67,1.05,1.45,'#7dd3fc']]},
+  cabinet:{label:'Medicine cabinet',group:'Health',color:'#f1f5f9',act:'open',parts:c=>[[.06,.04,.94,.45,0,1.6,c]]},
+  rack:{label:'Shop shelf',group:'Shop',color:'#cbd5e1',act:'browse',parts:c=>[[.04,.15,.96,.85,0,1.6,c],[.08,.2,.92,.8,.5,.55,'#f59e0b'],[.08,.2,.92,.8,1,1.05,'#22c55e']]},
+  mirror:{label:'Mirror',group:'Shop',color:'#bfdbfe',act:'check the fit',parts:c=>[[.1,.02,.9,.1,0,1.9,'#94a3b8'],[.16,.1,.84,.13,.12,1.8,c]]},
+  till:{label:'Till counter',group:'Shop',color:'#334155',act:'pay',parts:c=>[[.02,.1,.98,.92,0,1,c],[.3,.3,.7,.6,1,1.3,'#111827']]},
+};
+
+// ───────────────────────── layouts ─────────────────────────
+const HOME = {
+  id:'home', name:'Home', W:14, H:11, spawn:[8,10,'NW'], entrance:[8,10],
+  rooms:[
+    {name:'Living room',x1:0,y1:0,x2:7,y2:6,floor:'#d9b382'},
+    {name:'Kitchen',x1:7,y1:0,x2:14,y2:5,floor:'#e9e5dc',check:true},
+    {name:'Hall',x1:7,y1:5,x2:10,y2:11,floor:'#c9a272'},
+    {name:'Bathroom',x1:10,y1:5,x2:14,y2:8,floor:'#cfe6ee',check:true},
+    {name:'Study',x1:10,y1:8,x2:14,y2:11,floor:'#a8b8cc'},
+    {name:'Bedroom',x1:0,y1:6,x2:7,y2:11,floor:'#b8a9c9'},
+  ],
+  doors:[
+    {e:'h:8:11',name:'Front door'},{e:'v:7:5'},{e:'h:8:5'},{e:'v:7:2',kind:'arch'},{e:'v:7:3',kind:'arch'},
+    {e:'v:10:6'},{e:'v:10:9'},{e:'v:7:8'},
+  ],
+  walls:[],
+  items:[
+    {kind:'rug',x:1,y:2,w:3,h:2,color:'#be123c'},
+    {kind:'sofa',x:1,y:1,w:3,facing:'S'},{kind:'coffee',x:2,y:3},{kind:'tv',x:1,y:5,w:3,facing:'N'},
+    {kind:'armchair',x:5,y:2,facing:'W'},{kind:'shelf',x:3,y:0,w:2,facing:'S'},{kind:'plant',x:6,y:0},{kind:'plant',x:0,y:5},
+    {kind:'kcounter',x:8,y:0,w:2,facing:'S'},{kind:'sink',x:10,y:0,facing:'S'},{kind:'kcounter',x:11,y:0,facing:'S'},{kind:'stove',x:12,y:0,facing:'S'},{kind:'fridge',x:13,y:0,facing:'S'},
+    {kind:'table',x:9,y:2,w:2},{kind:'chair',x:9,y:1,facing:'S'},{kind:'chair',x:10,y:1,facing:'S'},{kind:'chair',x:9,y:3,facing:'N'},{kind:'chair',x:10,y:3,facing:'N'},{kind:'plant',x:13,y:4},
+    {kind:'toilet',x:13,y:5,facing:'W'},{kind:'sink',x:11,y:5,facing:'S'},{kind:'bath',x:11,y:7,w:3,facing:'N'},
+    {kind:'desk',x:12,y:9,w:2,facing:'S'},{kind:'chair',x:12,y:10,facing:'N',color:'#334155'},{kind:'shelf',x:11,y:8,w:1,facing:'S'},
+    {kind:'rug',x:1,y:9,w:3,h:2,color:'#7c3aed'},
+    {kind:'bed',x:1,y:6,w:2,h:3,facing:'S'},{kind:'bedside',x:3,y:6},{kind:'wardrobe',x:4,y:6,w:2,facing:'S'},{kind:'plant',x:0,y:10},{kind:'armchair',x:5,y:9,facing:'N',color:'#a16207'},
+    {kind:'plant',x:7,y:10},
+  ],
+  residents:[['amma',{seat:[5,2]}],['kavi',{seat:[1,1]}],['saki',{cell:[3,4],facing:'W'}]],
+};
+const CLINIC = {
+  id:'clinic', name:'Sunrise Clinic', W:16, H:12, spawn:[3,11,'NE'], entrance:[3,11],
+  rooms:[
+    {name:'Staff room',x1:0,y1:0,x2:8,y2:4,floor:'#d6e4cf'},
+    {name:'Waiting room',x1:0,y1:4,x2:8,y2:12,floor:'#ebe6dc',check:true},
+    {name:'Corridor',x1:8,y1:0,x2:10,y2:12,floor:'#d8d2c6'},
+    {name:'Consulting 1',x1:10,y1:0,x2:16,y2:5,floor:'#d5e5f0'},
+    {name:'Consulting 2',x1:10,y1:5,x2:16,y2:8,floor:'#d5e5f0'},
+    {name:'Toilets',x1:10,y1:8,x2:16,y2:12,floor:'#c9e3ec',check:true},
+  ],
+  doors:[
+    {e:'h:3:12',name:'Entrance'},{e:'h:6:4',locked:true,name:'Staff only'},{e:'v:8:2'},{e:'v:8:6',kind:'arch'},{e:'v:8:7',kind:'arch'},
+    {e:'v:10:3'},{e:'v:10:7'},{e:'v:10:10'},
+    {e:'h:12:10',part:true,cubicle:[12,8],name:'Cubicle'},{e:'h:14:10',part:true,cubicle:[15,8],name:'Family cubicle'},
+  ],
+  // two 2 × 2 m cubicles: room for a parent and a child, or a person and a carer
+  walls:['v:12:8','v:12:9','v:14:8','v:14:9','h:13:10','h:15:10'],
+  items:[
+    {kind:'table',x:3,y:1,w:2},{kind:'chair',x:3,y:0,facing:'S'},{kind:'chair',x:4,y:0,facing:'S'},{kind:'chair',x:3,y:2,facing:'N'},{kind:'chair',x:4,y:2,facing:'N'},
+    {kind:'fridge',x:7,y:0,facing:'S'},{kind:'sofa',x:0,y:3,w:2,facing:'N',color:'#64748b'},{kind:'plant',x:7,y:3},
+    {kind:'counter',x:1,y:5,w:3,facing:'N'},{kind:'chair',x:2,y:4,facing:'S',color:'#334155'},{kind:'cooler',x:7,y:5},{kind:'plant',x:0,y:11},{kind:'plant',x:7,y:11},
+    {kind:'chair',x:3,y:8,facing:'N',color:'#0284c7'},{kind:'chair',x:4,y:8,facing:'N',color:'#0284c7'},{kind:'chair',x:5,y:8,facing:'N',color:'#0284c7'},{kind:'chair',x:6,y:8,facing:'N',color:'#0284c7'},
+    {kind:'chair',x:3,y:10,facing:'N',color:'#0284c7'},{kind:'chair',x:4,y:10,facing:'N',color:'#0284c7'},{kind:'chair',x:5,y:10,facing:'N',color:'#0284c7'},{kind:'chair',x:6,y:10,facing:'N',color:'#0284c7'},
+    {kind:'coffee',x:0,y:8,facing:'S'},
+    {kind:'desk',x:12,y:2,w:2,facing:'N'},{kind:'chair',x:12,y:1,facing:'S',color:'#334155'},{kind:'chair',x:12,y:3,facing:'N'},{kind:'chair',x:13,y:3,facing:'N'},
+    {kind:'couch',x:15,y:1,h:3,facing:'W'},{kind:'sink',x:11,y:0,facing:'S'},{kind:'cabinet',x:14,y:0,facing:'S'},
+    {kind:'desk',x:12,y:6,w:2,facing:'N'},{kind:'chair',x:12,y:5,facing:'S',color:'#334155'},{kind:'chair',x:12,y:7,facing:'N'},{kind:'chair',x:13,y:7,facing:'N'},
+    {kind:'couch',x:15,y:5,h:3,facing:'W'},{kind:'sink',x:11,y:5,facing:'S'},
+    {kind:'sink',x:10,y:8,facing:'S'},{kind:'sink',x:11,y:8,facing:'S'},
+    {kind:'toilet',x:12,y:8,facing:'S'},{kind:'toilet',x:15,y:8,facing:'S'},{kind:'bench',x:13,y:11,w:2,facing:'N'},{kind:'plant',x:15,y:11},
+  ],
+  residents:[['dilini',{seat:[2,4]}],['fernando',{seat:[12,1]}]],
+};
+const SHOP = {
+  id:'shop', name:'River & Rose', W:14, H:10, spawn:[4,9,'N'], entrance:[4,9],
+  rooms:[
+    {name:'Shop floor',x1:0,y1:0,x2:10,y2:10,floor:'#e3c9a0'},
+    {name:'Fitting rooms',x1:10,y1:0,x2:14,y2:7,floor:'#dccbe0'},
+    {name:'Stockroom',x1:10,y1:7,x2:14,y2:10,floor:'#c9c6bd'},
+  ],
+  doors:[
+    {e:'h:4:10',name:'Entrance'},{e:'h:5:10',name:'Entrance'},{e:'v:10:2',kind:'arch'},{e:'v:10:3',kind:'arch'},{e:'v:10:8',locked:true,name:'Staff only'},
+    {e:'v:12:1',part:true,cubicle:[13,0],name:'Fitting room 1'},{e:'v:12:3',part:true,cubicle:[13,2],name:'Fitting room 2'},{e:'v:12:5',part:true,cubicle:[13,4],name:'Fitting room 3'},
+  ],
+  // three 2 × 2 m fitting rooms, each with a bench and a mirror: one tries on, one or two help
+  walls:['h:12:2','h:13:2','h:12:4','h:13:4','h:12:6','h:13:6','v:12:0','v:12:2','v:12:4'],
+  items:[
+    {kind:'till',x:1,y:1,w:3,facing:'S'},{kind:'table',x:7,y:1,w:2,color:'#f5d0fe'},
+    {kind:'rack',x:2,y:3,w:2,facing:'S'},{kind:'rack',x:6,y:3,w:2,facing:'S'},{kind:'rack',x:2,y:6,w:2,facing:'S'},{kind:'rack',x:6,y:6,w:2,facing:'S'},
+    {kind:'mirror',x:0,y:5,facing:'E'},{kind:'plant',x:0,y:9},{kind:'plant',x:9,y:9},
+    {kind:'armchair',x:10,y:0,facing:'E',color:'#9d174d'},{kind:'plant',x:10,y:6},
+    {kind:'bench',x:13,y:0,facing:'W'},{kind:'mirror',x:13,y:1,facing:'W'},
+    {kind:'bench',x:13,y:2,facing:'W'},{kind:'mirror',x:13,y:3,facing:'W'},
+    {kind:'bench',x:13,y:4,facing:'W'},{kind:'mirror',x:13,y:5,facing:'W'},
+    {kind:'shelf',x:11,y:9,w:3,facing:'N'},
+  ],
+  residents:[['nadee',{cell:[2,0],facing:'SE'}]],
+};
+const LAYOUTS = {home:HOME, clinic:CLINIC, shop:SHOP};
+
+const POSTS = {
+  p1:{id:'p1',title:"Amma's check-up",place:'clinic',date:'Oct 28, 2026',people:[['amma',{seat:[3,8]}],['kavi',{seat:[4,8]}]],
+      text:'Took <span class="mention">Amma</span> for her check-up. <span class="mention">Kavi</span> came along and read to her in the waiting room.'},
+  p3:{id:'p3',title:'Saree shopping',place:'shop',date:'Oct 5, 2026',people:[['amma',{cell:[12,2],facing:'E'}],['kavi',{seat:[13,2]}]],
+      text:'<span class="mention">Kavi</span> tried on three sarees; <span class="mention">Amma</span> helped in the fitting room and picked the green one.'},
+  p2:{id:'p2',title:'Sunday lunch',place:'home',date:'Oct 19, 2026',people:[['nimal',{seat:[9,1]}],['robin',{seat:[10,3]}]],
+      text:'<span class="mention">Nimal</span> and <span class="mention">Robin Okafor</span> came over for lunch. Saki would not leave the TV.'},
+};
+
+// ───────────────────────── place model ─────────────────────────
+const DIRS = {N:[0,-1],S:[0,1],E:[1,0],W:[-1,0],NE:[1,-1],NW:[-1,-1],SE:[1,1],SW:[-1,1]};
+const dirOf = (dx,dy) => (dy<0?'N':dy>0?'S':'') + (dx>0?'E':dx<0?'W':'') || 'S';
+// Which of the four face images shows, given where a character faces (camera looks from the south-east)
+const VIEW = {SE:'front',E:'right',NE:'right',S:'left',SW:'left',N:'back',W:'back',NW:'back'};
+
+function buildPlace(def){
+  const {W,H} = def;
+  const room = Array.from({length:H},()=>Array(W).fill(-1));
+  def.rooms.forEach((r,i)=>{for(let y=r.y1;y<r.y2;y++)for(let x=r.x1;x<r.x2;x++)room[y][x]=i;});
+  const rid = (x,y) => (x<0||y<0||x>=W||y>=H) ? -1 : room[y][x];
+  const edges = new Map();
+  for(let y=0;y<=H;y++)for(let x=0;x<W;x++){const a=rid(x,y-1),b=rid(x,y);if(a!==b)edges.set(`h:${x}:${y}`,{type:'wall',ext:a<0||b<0});}
+  for(let y=0;y<H;y++)for(let x=0;x<=W;x++){const a=rid(x-1,y),b=rid(x,y);if(a!==b)edges.set(`v:${x}:${y}`,{type:'wall',ext:a<0||b<0});}
+  def.walls.forEach(k=>edges.set(k,{type:'wall',part:true}));
+  const doors = def.doors.map(d=>({...d,open:false,locked:!!d.locked,t:0}));
+  doors.forEach(d=>{ if(d.kind==='arch') edges.delete(d.e); else edges.set(d.e,{type:'door',door:d,ext:(edges.get(d.e)||{}).ext,part:d.part}); });
+  const block = Array.from({length:H},()=>Array(W).fill(false));
+  const seats = [];
+  const items = def.items.map(it=>{
+    const spec = KINDS[it.kind];
+    const o = {w:1,h:1,facing:'S',...it,color:it.color||spec.color,spec};
+    for(let y=o.y;y<o.y+o.h;y++)for(let x=o.x;x<o.x+o.w;x++){
+      if(spec.seat) seats.push({x,y,facing:o.facing,item:o,z:spec.seatZ,occ:null,res:null});
+      else if(!spec.flat) block[y][x]=true;
+    }
+    return o;
+  });
+  return {def,W,H,room,rid,edges,doors,items,block,seats};
+}
+const edgeKey = (ax,ay,bx,by) => ay===by ? `v:${Math.max(ax,bx)}:${ay}` : `h:${ax}:${Math.max(ay,by)}`;
+const seatAt = (pl,x,y) => pl.seats.find(s=>s.x===x&&s.y===y);
+
+function walkable(pl,x,y,goal){
+  if(x<0||y<0||x>=pl.W||y>=pl.H||pl.room[y][x]<0||pl.block[y][x]) return false;
+  const s = seatAt(pl,x,y);
+  if(s) return goal && (!s.occ);
+  return true;
+}
+function stepOK(pl,ax,ay,bx,by,goal){
+  if(!walkable(pl,bx,by,goal)) return false;
+  const dx=bx-ax, dy=by-ay;
+  if(dx&&dy){
+    if(!walkable(pl,ax+dx,ay,false)||!walkable(pl,ax,ay+dy,false)) return false;
+    return ![edgeKey(ax,ay,ax+dx,ay),edgeKey(ax,ay,ax,ay+dy),edgeKey(ax+dx,ay,bx,by),edgeKey(ax,ay+dy,bx,by)].some(k=>pl.edges.has(k));
+  }
+  const e = pl.edges.get(edgeKey(ax,ay,bx,by));
+  if(!e) return true;
+  return e.type==='door' && !e.door.locked;
+}
+function findPath(pl,sx,sy,tx,ty){
+  const key=(x,y)=>y*pl.W+x, goalK=key(tx,ty);
+  const open=[[sx,sy]], g=new Map([[key(sx,sy),0]]), from=new Map(), f=new Map([[key(sx,sy),0]]);
+  const h=(x,y)=>{const a=Math.abs(x-tx),b=Math.abs(y-ty);return Math.max(a,b)+.41*Math.min(a,b);};
+  let guard=0;
+  while(open.length&&guard++<5000){
+    open.sort((a,b)=>f.get(key(...a))-f.get(key(...b)));
+    const [x,y]=open.shift(), k=key(x,y);
+    if(k===goalK){const p=[[x,y]];let c=k;while(from.has(c)){c=from.get(c);p.unshift([c%pl.W,Math.floor(c/pl.W)]);}return p.slice(1);}
+    for(const [dx,dy] of Object.values(DIRS)){
+      const nx=x+dx, ny=y+dy, nk=key(nx,ny);
+      if(!stepOK(pl,x,y,nx,ny,nk===goalK)) continue;
+      const ng=g.get(k)+(dx&&dy?1.41:1);
+      if(ng<(g.has(nk)?g.get(nk):1e9)){g.set(nk,ng);from.set(nk,k);f.set(nk,ng+h(nx,ny));if(!open.some(o=>o[0]===nx&&o[1]===ny))open.push([nx,ny]);}
+    }
+  }
+  return null;
+}
+
+// ───────────────────────── drawing ─────────────────────────
+const TW=44, TH=22, ZS=24, WALL=2.4, LOW=.3;
+function shade(hex,f){
+  const n=parseInt(hex.slice(1),16), ch=[n>>16,n>>8&255,n&255];
+  return 'rgb('+ch.map(c=>Math.round(f>=0?c+(255-c)*f:c*(1+f))).join(',')+')';
+}
+function poly(ctx,pts,fill,stroke){
+  ctx.beginPath();ctx.moveTo(pts[0][0],pts[0][1]);for(let i=1;i<pts.length;i++)ctx.lineTo(pts[i][0],pts[i][1]);ctx.closePath();
+  ctx.fillStyle=fill;ctx.fill();
+  if(stroke){ctx.strokeStyle=stroke;ctx.lineWidth=.6;ctx.stroke();}
+}
+// a box with soft low-poly shading: the south face, the east face, then the top
+function prism(ctx,P,x0,y0,x1,y1,z0,z1,col){
+  const edge='rgba(0,0,0,.12)';
+  poly(ctx,[P(x0,y1,z0),P(x1,y1,z0),P(x1,y1,z1),P(x0,y1,z1)],shade(col,-.14),edge);
+  poly(ctx,[P(x1,y0,z0),P(x1,y1,z0),P(x1,y1,z1),P(x1,y0,z1)],shade(col,-.3),edge);
+  poly(ctx,[P(x0,y0,z1),P(x1,y0,z1),P(x1,y1,z1),P(x0,y1,z1)],shade(col,.1),edge);
+}
+// u/v in the item's own frame → world rect
+function itemRect(it,u0,v0,u1,v1){
+  const {x,y,w,h,facing}=it; let a,b,c,d;
+  if(facing==='S'){a=x+u0*w;c=x+u1*w;b=y+v0*h;d=y+v1*h;}
+  else if(facing==='N'){a=x+w-u1*w;c=x+w-u0*w;b=y+h-v1*h;d=y+h-v0*h;}
+  else if(facing==='E'){a=x+v0*w;c=x+v1*w;b=y+h-u1*h;d=y+h-u0*h;}
+  else {a=x+w-v1*w;c=x+w-v0*w;b=y+u0*h;d=y+u1*h;}
+  return [a,b,c,d];
+}
+function drawItem(ctx,P,it){
+  const L = (it.facing==='S'||it.facing==='N') ? it.w : it.h;
+  const parts = it.spec.parts(it.color,L).map(p=>{const r=itemRect(it,p[0],p[1],p[2],p[3]);return [...r,p[4],p[5],p[6]];});
+  parts.sort((a,b)=>(a[0]+a[2]+a[1]+a[3])-(b[0]+b[2]+b[1]+b[3])||a[4]-b[4]);
+  parts.forEach(p=>prism(ctx,P,...p));
+  if(it.spec.blob){
+    const [sx,sy]=P(it.x+.5,it.y+.5,it.spec.blob);
+    ctx.fillStyle=shade(it.color,-.15);ctx.beginPath();ctx.arc(sx,sy,11,0,7);ctx.fill();
+    ctx.fillStyle=shade(it.color,.15);ctx.beginPath();ctx.arc(sx-3,sy-4,7,0,7);ctx.fill();
+  }
+}
+function drawEdge(ctx,P,key,e,opts){
+  const [t,xs,ys]=key.split(':'), x=+xs, y=+ys;
+  let full = e.part ? 1.9 : WALL;
+  const front = t==='h' ? y>opts.ay : x>opts.ax;
+  let hgt = opts.walls==='up' ? full : opts.walls==='down' ? (e.ext&&!front?full:LOW) : (front?LOW:full);
+  if(opts.walls==='down'&&!e.ext) hgt=LOW;
+  const col = e.part ? '#d1d5db' : e.ext ? '#c08463' : '#efe7da';
+  const T=e.part?.03:.05;
+  const box=(a,b,z0,z1,c)=> t==='h' ? prism(ctx,P,x+a,y-T,x+b,y+T,z0,z1,c) : prism(ctx,P,x-T,y+a,x+T,y+b,z0,z1,c);
+  if(e.type!=='door'){ box(0,1,0,hgt,col); return; }
+  const d=e.door, DH=Math.min(2.05,hgt);
+  box(0,.06,0,hgt,col); box(.94,1,0,hgt,col);
+  if(hgt>DH) box(.06,.94,DH,hgt,col);
+  const leaf = d.occupied ? '#b45353' : '#9a6b43';
+  if(!d.open){ box(.06,.94,0,DH*.98,leaf); }
+  else if(t==='h') prism(ctx,P,x+.06,y,x+.11,y+.86,0,DH*.98,leaf);
+  else prism(ctx,P,x,y+.06,x+.86,y+.11,0,DH*.98,leaf);
+  if(d.locked||d.cubicle){
+    const [sx,sy]= t==='h'?P(x+.5,y,Math.min(hgt,1.95)+.18):P(x,y+.5,Math.min(hgt,1.95)+.18);
+    ctx.fillStyle=d.locked?'#ef4444':'#22c55e';ctx.beginPath();ctx.arc(sx,sy,3.2,0,7);ctx.fill();
+  }
+}
+
+// characters
+const AGE={child:{h:1.12,r:5.6},teen:{h:1.55,r:5.7},adult:{h:1.74,r:5.9},elder:{h:1.62,r:5.9}};
+function drawFace(ctx,cx,cy,r,view,p){
+  if(view==='left'){ctx.save();ctx.translate(cx,0);ctx.scale(-1,1);ctx.translate(-cx,0);drawFace(ctx,cx,cy,r,'right',p);ctx.restore();return;}
+  const hair=p.hair, skin=p.skin, st=p.style;
+  ctx.lineWidth=Math.max(.6,r*.08);ctx.strokeStyle='rgba(0,0,0,.28)';
+  if(st==='long'&&view!=='back'){ctx.fillStyle=hair;ctx.beginPath();ctx.ellipse(view==='front'?cx:cx-r*.25,cy+r*.35,r*1.08,r*1.25,0,0,7);ctx.fill();}
+  if(view==='back'){
+    ctx.fillStyle=skin;ctx.beginPath();ctx.arc(cx,cy,r,0,7);ctx.fill();
+    ctx.fillStyle=st==='bald'?shade(skin,-.1):hair;ctx.beginPath();
+    if(st==='bald'){ctx.arc(cx,cy,r,Math.PI*.1,Math.PI*.9);}else ctx.arc(cx,cy,r*1.03,0,7);
+    ctx.fill();
+    if(st==='long'){ctx.fillRect(cx-r*1.02,cy,r*2.04,r*1.4);}
+    if(st==='bun'){ctx.beginPath();ctx.arc(cx,cy-r*.85,r*.45,0,7);ctx.fill();}
+    ctx.beginPath();ctx.arc(cx,cy,r,0,7);ctx.stroke();
+    return;
+  }
+  ctx.fillStyle=skin;ctx.beginPath();ctx.arc(cx,cy,r,0,7);ctx.fill();ctx.stroke();
+  ctx.fillStyle=hair;ctx.beginPath();
+  if(view==='front'){
+    if(st==='bald'){ctx.arc(cx-r*.9,cy-r*.1,r*.3,0,7);ctx.arc(cx+r*.9,cy-r*.1,r*.3,0,7);}
+    else{ctx.arc(cx,cy,r*1.04,Math.PI*1.02,Math.PI*1.98);ctx.quadraticCurveTo(cx+r*.4,cy-r*.15,cx,cy-r*.45);ctx.quadraticCurveTo(cx-r*.5,cy-r*.2,cx-r*1.04,cy-r*.05);}
+  } else {
+    if(st==='bald'){ctx.arc(cx-r*.35,cy,r*.4,0,7);}
+    else{ctx.arc(cx,cy,r*1.04,Math.PI*.55,Math.PI*1.9);ctx.quadraticCurveTo(cx+r*.3,cy-r*.3,cx-r*.05,cy+r*.1);ctx.quadraticCurveTo(cx-r*.3,cy+r*.5,cx-r*.6,cy+r*.85);}
+  }
+  ctx.fill();
+  if(st==='bun'){ctx.beginPath();ctx.arc(view==='front'?cx:cx-r*.75,cy-r*.85,r*.42,0,7);ctx.fill();}
+  const ink='#1f2937';
+  if(view==='front'){
+    ctx.fillStyle=ink;[-1,1].forEach(s=>{ctx.beginPath();ctx.arc(cx+s*r*.36,cy+r*.12,r*.12,0,7);ctx.fill();});
+    ctx.strokeStyle=ink;ctx.lineWidth=Math.max(.6,r*.08);ctx.beginPath();ctx.arc(cx,cy+r*.35,r*.25,.2*Math.PI,.8*Math.PI);ctx.stroke();
+    if(p.beard){ctx.fillStyle=hair;ctx.beginPath();ctx.arc(cx,cy+r*.15,r*.95,.1*Math.PI,.9*Math.PI);ctx.quadraticCurveTo(cx,cy+r*.55,cx+r*.9,cy+r*.45);ctx.fill();}
+    if(p.glasses){ctx.strokeStyle=ink;ctx.lineWidth=Math.max(.5,r*.07);[-1,1].forEach(s=>{ctx.beginPath();ctx.arc(cx+s*r*.36,cy+r*.12,r*.24,0,7);ctx.stroke();});ctx.beginPath();ctx.moveTo(cx-r*.12,cy+r*.1);ctx.lineTo(cx+r*.12,cy+r*.1);ctx.stroke();}
+  } else {
+    ctx.fillStyle=skin;ctx.beginPath();ctx.moveTo(cx+r*.92,cy-r*.05);ctx.lineTo(cx+r*1.2,cy+r*.28);ctx.lineTo(cx+r*.9,cy+r*.38);ctx.fill();
+    ctx.fillStyle=shade(skin,-.15);ctx.beginPath();ctx.ellipse(cx-r*.15,cy+r*.15,r*.17,r*.25,0,0,7);ctx.fill();
+    ctx.fillStyle=ink;ctx.beginPath();ctx.arc(cx+r*.5,cy+r*.1,r*.12,0,7);ctx.fill();
+    ctx.strokeStyle=ink;ctx.lineWidth=Math.max(.6,r*.08);ctx.beginPath();ctx.moveTo(cx+r*.55,cy+r*.58);ctx.lineTo(cx+r*.85,cy+r*.55);ctx.stroke();
+    if(p.beard){ctx.fillStyle=hair;ctx.beginPath();ctx.moveTo(cx-r*.05,cy+r*.35);ctx.quadraticCurveTo(cx+r*.3,cy+r*1.05,cx+r*.95,cy+r*.5);ctx.lineTo(cx+r*.4,cy+r*.45);ctx.fill();}
+    if(p.glasses){ctx.strokeStyle=ink;ctx.lineWidth=Math.max(.5,r*.07);ctx.beginPath();ctx.arc(cx+r*.55,cy+r*.12,r*.24,0,7);ctx.stroke();ctx.beginPath();ctx.moveTo(cx+r*.3,cy+r*.1);ctx.lineTo(cx-r*.1,cy+r*.05);ctx.stroke();}
+  }
+}
+// a character standing (or sitting) with its feet at screen point (sx, sy); fv = facing vector on screen
+function drawBody(ctx,p,sx,sy,facing,o){
+  const A=AGE[p.age], Hpx=A.h*ZS, r=A.r, view=VIEW[facing]||'front';
+  const [fx,fy]=DIRS[facing]; const fsx=(fx-fy)*TW/2, fsy=(fx+fy)*TH/2, fl=Math.hypot(fsx,fsy)||1, ux=fsx/fl, uy=fsy/fl;
+  const bw={slim:8,average:10,broad:12.5}[p.build]*(p.age==='child'?.8:1)*(p.figure==='masculine'?1.08:1);
+  const leg=Hpx*.44, torso=Hpx*.31;
+  const swing=o.walking?Math.sin(o.t*12)*3.2:0;
+  ctx.fillStyle='rgba(0,0,0,.2)';ctx.beginPath();ctx.ellipse(sx,sy,8,3.6,0,0,7);ctx.fill();
+  let hipX=sx, hipY=sy-leg;
+  ctx.lineCap='round';
+  if(o.sitZ!=null){
+    hipY=sy-o.sitZ*ZS; const kx=hipX+ux*7, ky=hipY+uy*7*0.6;
+    ctx.strokeStyle=p.bottom;ctx.lineWidth=3.4;
+    [-2.2,2.2].forEach(d=>{ctx.beginPath();ctx.moveTo(hipX+d,hipY);ctx.lineTo(kx+d,ky);ctx.lineTo(kx+d,ky+o.sitZ*ZS*.9);ctx.stroke();});
+  } else {
+    ctx.strokeStyle=p.bottom;ctx.lineWidth=3.4;
+    ctx.beginPath();ctx.moveTo(hipX-2.4,hipY);ctx.lineTo(sx-2.4+swing,sy-1);ctx.stroke();
+    ctx.beginPath();ctx.moveTo(hipX+2.4,hipY);ctx.lineTo(sx+2.4-swing,sy-1);ctx.stroke();
+  }
+  const shY=hipY-torso;
+  ctx.fillStyle=p.top;ctx.strokeStyle='rgba(0,0,0,.25)';ctx.lineWidth=.7;
+  ctx.beginPath();
+  if(p.skirt&&o.sitZ==null){ctx.moveTo(hipX-bw/2,shY+2);ctx.lineTo(hipX+bw/2,shY+2);ctx.lineTo(hipX+bw/2+3,hipY+leg*.45);ctx.lineTo(hipX-bw/2-3,hipY+leg*.45);}
+  else ctx.roundRect(hipX-bw/2,shY,bw,torso+2,3.5);
+  ctx.closePath();ctx.fill();ctx.stroke();
+  // arms
+  ctx.strokeStyle=shade(p.top,-.12);ctx.lineWidth=2.8;
+  [-1,1].forEach(s=>{ctx.beginPath();ctx.moveTo(hipX+s*(bw/2+1),shY+2.5);ctx.lineTo(hipX+s*(bw/2+1.5)-s*0+(o.walking?-s*swing*.6:0),shY+torso*.88);ctx.stroke();
+    ctx.fillStyle=p.skin;ctx.beginPath();ctx.arc(hipX+s*(bw/2+1.5)+(o.walking?-s*swing*.6:0),shY+torso*.92,1.7,0,7);ctx.fill();});
+  if(p.age==='elder'&&o.sitZ==null){ctx.strokeStyle='#78350f';ctx.lineWidth=1.6;ctx.beginPath();ctx.moveTo(hipX+bw/2+3,shY+torso*.85);ctx.lineTo(hipX+bw/2+5,sy);ctx.stroke();}
+  const stoop=p.age==='elder'?1.6:0;
+  const hx=hipX+ux*stoop, hy=shY-r+.5;
+  ctx.fillStyle=p.skin;ctx.fillRect(hx-1.8,shY-2.5,3.6,3);
+  drawFace(ctx,hx,hy,r,view,p);
+  if(o.ring){ctx.strokeStyle='#fbbf24';ctx.lineWidth=2;ctx.beginPath();ctx.ellipse(sx,sy,11,5,0,0,7);ctx.stroke();}
+  if(o.label){
+    ctx.font='600 9.5px -apple-system,Segoe UI,sans-serif';const tw=ctx.measureText(o.label).width;
+    ctx.fillStyle='rgba(17,24,39,.78)';ctx.beginPath();ctx.roundRect(hx-tw/2-5,hy-r-17,tw+10,13,6);ctx.fill();
+    ctx.fillStyle='#fff';ctx.textAlign='center';ctx.fillText(o.label,hx,hy-r-7.5);
+  }
+}
+
+function makeP(ox,oy){return (x,y,z=0)=>[ox+(x-y)*TW/2, oy+(x+y)*TH/2 - z*ZS];}
+function isoBounds(pl){return {minX:-pl.H*TW/2,maxX:pl.W*TW/2,minY:-WALL*ZS-10,maxY:(pl.W+pl.H)*TH/2+6};}
+
+function drawIso(ctx,pl,chars,opts){
+  const P=opts.P;
+  // floors
+  for(let y=0;y<pl.H;y++)for(let x=0;x<pl.W;x++){
+    const r=pl.room[y][x]; if(r<0) continue; const rm=pl.def.rooms[r];
+    const c=rm.check&&((x+y)&1)?shade(rm.floor,-.05):rm.floor;
+    poly(ctx,[P(x,y),P(x+1,y),P(x+1,y+1),P(x,y+1)],c,'rgba(0,0,0,.05)');
+  }
+  pl.items.filter(i=>i.spec.flat).forEach(i=>drawItem(ctx,P,i));
+  if(opts.roomLabels!==false){
+    ctx.font='600 11px -apple-system,Segoe UI,sans-serif';ctx.textAlign='center';
+    pl.def.rooms.forEach(r=>{const [sx,sy]=P((r.x1+r.x2)/2,(r.y1+r.y2)/2);ctx.fillStyle='rgba(17,24,39,.5)';const w=ctx.measureText(r.name).width;ctx.beginPath();ctx.roundRect(sx-w/2-6,sy-8,w+12,16,8);ctx.fill();ctx.fillStyle='#fff';ctx.fillText(r.name,sx,sy+4);});
+  }
+  if(opts.path&&opts.path.length){
+    ctx.fillStyle='rgba(250,204,21,.85)';
+    opts.path.forEach(([x,y],i)=>{const [sx,sy]=P(x+.5,y+.5);ctx.beginPath();ctx.ellipse(sx,sy,i===opts.path.length-1?5:2.4,i===opts.path.length-1?2.6:1.3,0,0,7);ctx.fill();});
+  }
+  // depth-ordered walls, items, people
+  const byCell=new Map();
+  pl.items.filter(i=>!i.spec.flat).forEach(i=>{const k=(i.x+i.w-1)+','+(i.y+i.h-1);(byCell.get(k)||byCell.set(k,[]).get(k)).push(['i',i]);});
+  chars.forEach(c=>{const it=c.seat&&c.seat.item, k=it?(it.x+it.w-1)+','+(it.y+it.h-1):Math.floor(c.x)+','+Math.floor(c.y);(byCell.get(k)||byCell.set(k,[]).get(k)).push(['c',c]);});
+  for(let d=0;d<=pl.W+pl.H;d++){
+    for(let x=0;x<=pl.W;x++){
+      const y=d-x; if(y<0||y>pl.H) continue;
+      const hk=`h:${x}:${y}`, vk=`v:${x}:${y}`;
+      if(pl.edges.has(vk)) drawEdge(ctx,P,vk,pl.edges.get(vk),opts);
+      if(pl.edges.has(hk)) drawEdge(ctx,P,hk,pl.edges.get(hk),opts);
+      const list=byCell.get(x+','+y); if(!list) continue;
+      list.sort((a,b)=>(a[0]==='c')-(b[0]==='c'));
+      list.forEach(([t,o])=>{
+        if(t==='i') drawItem(ctx,P,o);
+        else{const [sx,sy]=P(o.x,o.y);drawBody(ctx,o.p,sx,sy,o.facing,{walking:o.path.length>0,t:opts.t,sitZ:o.seat?o.seat.z:null,ring:o.sel,label:opts.labels?o.p.name:null});}
+      });
+    }
+  }
+}
+
+function drawTop(ctx,pl,chars,o){
+  const S=o.S, ox=o.ox, oy=o.oy, X=x=>ox+x*S, Y=y=>oy+y*S;
+  for(let y=0;y<pl.H;y++)for(let x=0;x<pl.W;x++){const r=pl.room[y][x];if(r<0)continue;const rm=pl.def.rooms[r];ctx.fillStyle=rm.check&&((x+y)&1)?shade(rm.floor,-.05):rm.floor;ctx.fillRect(X(x),Y(y),S+.5,S+.5);}
+  if(o.grid){ctx.strokeStyle='rgba(0,0,0,.12)';ctx.lineWidth=1;for(let x=0;x<=pl.W;x++){ctx.beginPath();ctx.moveTo(X(x),Y(0));ctx.lineTo(X(x),Y(pl.H));ctx.stroke();}for(let y=0;y<=pl.H;y++){ctx.beginPath();ctx.moveTo(X(0),Y(y));ctx.lineTo(X(pl.W),Y(y));ctx.stroke();}}
+  pl.items.forEach(it=>{
+    const [a,b,c,d]=[X(it.x)+S*.08,Y(it.y)+S*.08,it.w*S-S*.16,it.h*S-S*.16];
+    ctx.fillStyle=it.spec.flat?shade(it.color,.35):it.color;ctx.strokeStyle='rgba(0,0,0,.35)';ctx.lineWidth=1;
+    ctx.beginPath();ctx.roundRect(a,b,c,d,S*.12);ctx.fill();ctx.stroke();
+    if(it.kind==='plant'){ctx.fillStyle='#15803d';ctx.beginPath();ctx.arc(a+c/2,b+d/2,S*.32,0,7);ctx.fill();}
+    if(it.spec.seat){const [fx,fy]=DIRS[it.facing];ctx.fillStyle='rgba(0,0,0,.35)';for(let y=it.y;y<it.y+it.h;y++)for(let x=it.x;x<it.x+it.w;x++){const cx=X(x+.5)-fx*S*.3,cy=Y(y+.5)-fy*S*.3;ctx.beginPath();ctx.arc(cx,cy,S*.08,0,7);ctx.fill();}}
+  });
+  pl.edges.forEach((e,k)=>{
+    const [t,xs,ys]=k.split(':'),x=+xs,y=+ys;
+    const a=t==='h'?[X(x),Y(y)]:[X(x),Y(y)], b=t==='h'?[X(x+1),Y(y)]:[X(x),Y(y+1)];
+    if(e.type==='door'){
+      const d=e.door;ctx.strokeStyle=d.occupied?'#b45353':'#9a6b43';ctx.lineWidth=Math.max(2,S*.09);ctx.beginPath();
+      if(d.open){ctx.moveTo(a[0],a[1]);ctx.lineTo(t==='h'?a[0]:a[0]+S*.85,t==='h'?a[1]+S*.85:a[1]);}else{ctx.moveTo(a[0],a[1]);ctx.lineTo(b[0],b[1]);}
+      ctx.stroke();
+      if(d.open){ctx.setLineDash([2,3]);ctx.lineWidth=1;ctx.beginPath();t==='h'?ctx.arc(a[0],a[1],S*.85,0,Math.PI/2):ctx.arc(a[0],a[1],S*.85,0,Math.PI/2);ctx.stroke();ctx.setLineDash([]);}
+      if(d.locked||d.cubicle){ctx.fillStyle=d.locked?'#ef4444':'#22c55e';ctx.beginPath();ctx.arc((a[0]+b[0])/2,(a[1]+b[1])/2,S*.1,0,7);ctx.fill();}
+      return;
+    }
+    ctx.strokeStyle=e.part?'#9ca3af':'#374151';ctx.lineWidth=e.part?Math.max(1.5,S*.06):Math.max(3,S*.14);ctx.lineCap='square';
+    ctx.beginPath();ctx.moveTo(a[0],a[1]);ctx.lineTo(b[0],b[1]);ctx.stroke();
+  });
+  if(o.path&&o.path.length){ctx.strokeStyle='#facc15';ctx.lineWidth=2;ctx.setLineDash([4,4]);ctx.beginPath();const c0=chars[0];ctx.moveTo(X(c0.x),Y(c0.y));o.path.forEach(([x,y])=>ctx.lineTo(X(x+.5),Y(y+.5)));ctx.stroke();ctx.setLineDash([]);}
+  chars.forEach(c=>{
+    const cx=X(c.x), cy=Y(c.y), r=Math.max(4,S*.32);
+    ctx.fillStyle=c.p.top;ctx.strokeStyle=c.sel?'#fbbf24':'#fff';ctx.lineWidth=c.sel?3:1.5;ctx.beginPath();ctx.arc(cx,cy,r,0,7);ctx.fill();ctx.stroke();
+    const [fx,fy]=DIRS[c.facing],fl=Math.hypot(fx,fy);ctx.strokeStyle='#fff';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(cx,cy);ctx.lineTo(cx+fx/fl*r*1.3,cy+fy/fl*r*1.3);ctx.stroke();
+    if(o.initials){ctx.fillStyle='#fff';ctx.font=`700 ${Math.round(r*.95)}px -apple-system,sans-serif`;ctx.textAlign='center';ctx.fillText(c.p.name[0],cx,cy+r*.35);}
+  });
+  if(o.roomLabels){const fs=Math.max(9,Math.round(S*.34));ctx.font=`600 ${fs}px -apple-system,Segoe UI,sans-serif`;ctx.textAlign='center';pl.def.rooms.forEach(r=>{const cx=X((r.x1+r.x2)/2),cy=Y((r.y1+r.y2)/2),w=ctx.measureText(r.name).width;ctx.fillStyle='rgba(17,24,39,.72)';ctx.beginPath();ctx.roundRect(cx-w/2-6,cy-fs*.8,w+12,fs*1.6,fs*.8);ctx.fill();ctx.fillStyle='#fff';ctx.fillText(r.name,cx,cy+fs*.35);});}
+}
+
+// render a still of a layout into a new canvas (thumbnails, profile pictures)
+function still(def,w,h,{people=true,walls='down',bg='#1d232b'}={}){
+  const cv=document.createElement('canvas');cv.width=w;cv.height=h;const ctx=cv.getContext('2d');
+  ctx.fillStyle=bg;ctx.fillRect(0,0,w,h);
+  const pl=buildPlace(def), b=isoBounds(pl), s=Math.min(w/(b.maxX-b.minX+30),h/(b.maxY-b.minY+20));
+  ctx.scale(s,s);
+  const P=makeP(-b.minX+(w/s-(b.maxX-b.minX))/2,-b.minY+(h/s-(b.maxY-b.minY))/2);
+  const chars=people?def.residents.map(([id,spot])=>placeChar(pl,id,spot)):[];
+  drawIso(ctx,pl,chars,{P,walls,ax:0,ay:0,t:0,roomLabels:false});
+  return cv;
+}
+function placeChar(pl,id,spot){
+  const c={id,p:PEOPLE[id],x:0,y:0,facing:'S',path:[],seat:null,state:'stay',sel:false};
+  if(spot.seat){const s=seatAt(pl,spot.seat[0],spot.seat[1]);if(s&&!s.occ){c.x=s.x+.5;c.y=s.y+.5;c.seat=s;s.occ=c;c.facing=s.facing;return c;}}
+  const [x,y]=spot.cell||pl.def.entrance;c.x=x+.5;c.y=y+.5;c.facing=spot.facing||'SE';return c;
+}
+
+// ───────────────────────── the playable world ─────────────────────────
+const W0 = {
+  cv:document.getElementById('worldCanvas'), mini:document.getElementById('minimap'),
+  pl:null, chars:[], author:null, view:'iso', walls:'cut', post:null, t:0, cam:null,
+};
+W0.ctx=W0.cv.getContext('2d'); W0.mctx=W0.mini.getContext('2d');
+
+function loadPlace(id,post){
+  const def=LAYOUTS[id]; W0.pl=buildPlace(def); W0.post=post||null;
+  const a={id:'me',p:PEOPLE.me,x:def.spawn[0]+.5,y:def.spawn[1]+.5,facing:def.spawn[2],path:[],seat:null,state:'me',sel:false,goal:null};
+  W0.author=a; W0.chars=[a];
+  def.residents.forEach(([pid,spot])=>W0.chars.push(placeChar(W0.pl,pid,spot)));
+  if(post) post.people.forEach(([pid,spot])=>{const c=placeChar(W0.pl,pid,spot);c.guest=true;W0.chars.push(c);});
+  W0.chars.forEach(c=>{if(c.seat)lockCubicle(c.seat);});
+  document.getElementById('hudPlace').textContent=def.name;
+  const hp=document.getElementById('hudPost');
+  if(post){hp.style.display='';hp.textContent='From post · '+post.title+' · '+post.date;} else hp.style.display='none';
+  hidePops(); renderPeople(); fit();
+}
+function fit(){
+  const r=W0.cv.getBoundingClientRect(), dpr=window.devicePixelRatio||1;
+  W0.cv.width=r.width*dpr; W0.cv.height=r.height*dpr;
+  const pl=W0.pl, b=isoBounds(pl);
+  if(W0.view==='iso'){
+    const s=Math.min(r.width/(b.maxX-b.minX+60),(r.height-60)/(b.maxY-b.minY+40));
+    W0.cam={s,ox:-b.minX+(r.width/s-(b.maxX-b.minX))/2,oy:-b.minY+((r.height)/s-(b.maxY-b.minY))/2+10/s};
+  } else {
+    const S=Math.min((r.width-80)/pl.W,(r.height-130)/pl.H);
+    W0.cam={S,ox:(r.width-S*pl.W)/2,oy:(r.height-S*pl.H)/2+20};
+  }
+  const mr=W0.mini.getBoundingClientRect(); W0.mini.width=mr.width*dpr; W0.mini.height=mr.height*dpr;
+}
+function screenToCell(mx,my){
+  if(W0.view==='iso'){const {s,ox,oy}=W0.cam,ux=mx/s,uy=my/s,a=(ux-ox)/(TW/2),b=(uy-oy)/(TH/2);return [(a+b)/2,(b-a)/2];}
+  const {S,ox,oy}=W0.cam; return [(mx-ox)/S,(my-oy)/S];
+}
+function cellToScreen(x,y,z=0){
+  if(W0.view==='iso'){const {s,ox,oy}=W0.cam;const [px,py]=makeP(ox,oy)(x,y,z);return [px*s,py*s];}
+  const {S,ox,oy}=W0.cam; return [ox+x*S,oy+y*S];
+}
+const cellOf=c=>[Math.floor(c.x),Math.floor(c.y)];
+
+function stand(c){
+  if(!c.seat) return;
+  const s=c.seat; s.occ=null;
+  const cub=W0.pl.doors.find(d=>d.cubicle&&d.cubicle[0]===s.x&&d.cubicle[1]===s.y);
+  if(cub){cub.locked=false;cub.occupied=false;cub.open=true;cub.t=W0.t;cub.pending=null;}
+  c.seat=null;
+}
+const cubicleOf=s=>s&&W0.pl.doors.find(d=>d.cubicle&&d.cubicle[0]===s.x&&d.cubicle[1]===s.y);
+// the cells behind a cubicle's door (everything reachable from its seat without crossing a wall or door)
+function cubicleCells(d){
+  if(d.cells) return d.cells;
+  const pl=W0.pl, seen=new Set([d.cubicle.join()]), q=[d.cubicle];
+  while(q.length){const [x,y]=q.shift();for(const [dx,dy] of [[1,0],[-1,0],[0,1],[0,-1]]){const nx=x+dx,ny=y+dy;
+    if(nx<0||ny<0||nx>=pl.W||ny>=pl.H||pl.room[ny][nx]<0||seen.has(nx+','+ny)||pl.edges.has(edgeKey(x,y,nx,ny)))continue;seen.add(nx+','+ny);q.push([nx,ny]);}}
+  return d.cells=[...seen].map(k=>k.split(',').map(Number));
+}
+const inCells=(cells,x,y)=>cells.some(([a,b])=>a===x&&b===y);
+function lockCubicle(s){
+  const cub=cubicleOf(s);
+  if(cub){cub.open=false;cub.locked=true;cub.occupied=true;cub.pending=null;}
+  return cub;
+}
+function goTo(c,tx,ty,seat){
+  const pl=W0.pl, step=c.path.length?c.path[0]:null; // finish the step under way
+  const [sx,sy]=step||cellOf(c);
+  stand(c);
+  if(c.goalSeat){c.goalSeat.res=null;c.goalSeat=null;}
+  const path=findPath(pl,sx,sy,tx,ty);
+  if(!path){if(c===W0.author)toast("Can't get there from here");return false;}
+  c.path=step?[step,...path]:path;
+  if(seat){seat.res=c;c.goalSeat=seat;}
+  return true;
+}
+function update(dt){
+  const pl=W0.pl; W0.t+=dt;
+  for(const c of W0.chars){
+    if(!c.path.length) continue;
+    const [nx,ny]=c.path[0], tx=nx+.5, ty=ny+.5, dx=tx-c.x, dy=ty-c.y, dist=Math.hypot(dx,dy);
+    const [cx,cy]=cellOf(c);
+    if(cx!==nx||cy!==ny){
+      const k=(Math.abs(nx-cx)+Math.abs(ny-cy)===1)?edgeKey(cx,cy,nx,ny):null, e=k&&pl.edges.get(k);
+      if(e&&e.type==='door'&&!e.door.open){e.door.open=true;e.door.manual=false;}
+      if(e&&e.type==='door') e.door.t=W0.t;
+    }
+    c.facing=dirOf(Math.sign(Math.round(dx*4)),Math.sign(Math.round(dy*4)))||c.facing;
+    const sp=(c.p.age==='elder'?1.7:2.6)*dt;
+    if(dist<=sp){c.x=tx;c.y=ty;c.path.shift();
+      if(!c.path.length&&c.goalSeat){const s=c.goalSeat;s.res=null;c.goalSeat=null;if(!s.occ){c.seat=s;s.occ=c;c.facing=s.facing;
+        const cub=cubicleOf(s); if(cub){cub.pending=W0.t;cub.by=c;}}}
+    } else {c.x+=dx/dist*sp;c.y+=dy/dist*sp;}
+  }
+  // a cubicle locks once everyone walking into it is inside
+  pl.doors.forEach(d=>{
+    if(d.pending==null||W0.t-d.pending<.7) return;
+    const cells=cubicleCells(d), inbound=W0.chars.some(o=>o.path.length&&inCells(cells,...o.path[o.path.length-1]));
+    if(inbound) return;
+    const by=d.by; lockCubicle(by.seat||{x:d.cubicle[0],y:d.cubicle[1]});
+    if(by===W0.author){const inside=W0.chars.filter(o=>o!==by&&inCells(cells,...cellOf(o)));toast(inside.length?'Locked — with '+inside.map(o=>o.p.name).join(', '):'Locked — occupied');}
+  });
+  // doors close behind people
+  pl.doors.forEach(d=>{
+    if(!d.open||d.manual||d.kind==='arch') return;
+    if(W0.t-d.t<1.4) return;
+    const [t,xs,ys]=d.e.split(':'),x=+xs,y=+ys, a=t==='h'?[x,y-1]:[x-1,y], b=[x,y];
+    if(W0.chars.some(c=>{const [cx,cy]=cellOf(c);return (cx===a[0]&&cy===a[1])||(cx===b[0]&&cy===b[1]);})) {d.t=W0.t;return;}
+    d.open=false;
+  });
+  // followers
+  if(Math.floor(W0.t*2)!==Math.floor((W0.t-dt)*2)) W0.chars.forEach(c=>{if(c.state==='follow')follow(c);});
+  const [ax,ay]=cellOf(W0.author), r=pl.room[ay]&&pl.room[ay][ax];
+  document.getElementById('hudRoom').textContent=r>=0?pl.def.rooms[r].name:'';
+}
+function follow(c){
+  const pl=W0.pl,a=W0.author,[ax,ay]=cellOf(a),[cx,cy]=cellOf(c);
+  // going into a cubicle or fitting room: come in too, if there is room
+  const cub=cubicleOf(a.seat||a.goalSeat);
+  if(cub&&!cub.locked){
+    const cells=cubicleCells(cub);
+    if(inCells(cells,cx,cy)||(c.path.length&&inCells(cells,...c.path[c.path.length-1]))) return;
+    const taken=new Set(W0.chars.filter(o=>o!==c).map(o=>(o.path.length?o.path[o.path.length-1]:cellOf(o)).join()));
+    const free=cells.find(([x,y])=>walkable(pl,x,y,false)&&!taken.has(x+','+y)&&!(x===cub.cubicle[0]&&y===cub.cubicle[1]));
+    if(free){stand(c);goTo(c,free[0],free[1]);return;}
+  }
+  if(c.path.length) return;
+  const aroom=pl.room[ay][ax], croom=pl.room[cy][cx];
+  if(a.path.length) { if(Math.hypot(ax-cx,ay-cy)>2.5){ stand(c); const t=near(ax,ay,c); if(t) goTo(c,t[0],t[1]); } return; }
+  if(c.seat&&c.seat.item&&pl.room[c.seat.y][c.seat.x]===aroom) return;
+  const free=pl.seats.filter(s=>!s.occ&&(!s.res||s.res===c)&&pl.room[s.y][s.x]===aroom&&s.item.kind!=='toilet').sort((s1,s2)=>Math.hypot(s1.x-ax,s1.y-ay)-Math.hypot(s2.x-ax,s2.y-ay));
+  if(a.seat&&free.length){goTo(c,free[0].x,free[0].y,free[0]);return;}
+  if(croom!==aroom||Math.hypot(ax-cx,ay-cy)>2.5){const t=near(ax,ay,c);if(t)goTo(c,t[0],t[1]);}
+}
+function near(ax,ay,self){
+  const pl=W0.pl, taken=new Set(W0.chars.filter(c=>c!==self).map(c=>c.path.length?c.path[c.path.length-1].join():cellOf(c).join()));
+  let best=null,bd=1e9;
+  for(let y=ay-2;y<=ay+2;y++)for(let x=ax-2;x<=ax+2;x++){if((x===ax&&y===ay)||taken.has(x+','+y)||!walkable(pl,x,y,false))continue;if(pl.room[y][x]!==pl.room[ay][ax])continue;const d=Math.hypot(x-ax,y-ay);if(d<bd){bd=d;best=[x,y];}}
+  return best;
+}
+
+function frame(ts){
+  const now=ts||performance.now(), dt=Math.min(.05,(now-(W0.last||now))/1000); W0.last=now;
+  if(W0.pl){update(dt);draw();}
+  requestAnimationFrame(frame);
+}
+function draw(){
+  const ctx=W0.ctx, dpr=window.devicePixelRatio||1, pl=W0.pl, a=W0.author;
+  ctx.setTransform(1,0,0,1,0,0);
+  const g=ctx.createRadialGradient(W0.cv.width/2,W0.cv.height/2,50,W0.cv.width/2,W0.cv.height/2,W0.cv.width*.7);
+  g.addColorStop(0,'#2b3440');g.addColorStop(1,'#151a20');ctx.fillStyle=g;ctx.fillRect(0,0,W0.cv.width,W0.cv.height);
+  const [ax,ay]=cellOf(a);
+  if(W0.view==='iso'){
+    const {s,ox,oy}=W0.cam; ctx.setTransform(s*dpr,0,0,s*dpr,0,0);
+    drawIso(ctx,pl,W0.chars,{P:makeP(ox,oy),walls:W0.walls,ax,ay,t:W0.t,path:a.path,labels:false});
+    // name tags drawn last so walls never hide them
+    ctx.setTransform(dpr,0,0,dpr,0,0);
+    W0.chars.forEach(c=>{if(c===a&&!c.sel)return;const [sx,sy]=cellToScreen(c.x,c.y,(c.seat?c.seat.z:0)+AGE[c.p.age].h+.45);
+      ctx.font='600 11px -apple-system,Segoe UI,sans-serif';const tw=ctx.measureText(c.p.name).width;ctx.fillStyle=c.state==='follow'?'rgba(24,119,242,.9)':'rgba(17,24,39,.75)';ctx.beginPath();ctx.roundRect(sx-tw/2-6,sy-9,tw+12,17,8);ctx.fill();ctx.fillStyle='#fff';ctx.textAlign='center';ctx.fillText(c.p.name,sx,sy+4);});
+  } else {
+    ctx.setTransform(dpr,0,0,dpr,0,0);
+    drawTop(ctx,pl,W0.chars,{...W0.cam,path:a.path,initials:true,roomLabels:true,grid:true});
+  }
+  // minimap
+  const m=W0.mctx, mw=W0.mini.width, mh=W0.mini.height; m.setTransform(1,0,0,1,0,0);m.fillStyle='#111827';m.fillRect(0,0,mw,mh);
+  const S=Math.min((mw-16)/pl.W,(mh-16)/pl.H); drawTop(m,pl,W0.chars,{S,ox:(mw-S*pl.W)/2,oy:(mh-S*pl.H)/2});
+}
+
+// input
+W0.cv.addEventListener('click',ev=>{
+  const r=W0.cv.getBoundingClientRect(), mx=ev.clientX-r.left, my=ev.clientY-r.top, pl=W0.pl, a=W0.author;
+  hidePops();
+  // people
+  for(const c of W0.chars){ if(c===a) continue;
+    const [sx,sy]=cellToScreen(c.x,c.y,(c.seat?c.seat.z:0)+AGE[c.p.age].h*.6);
+    if(Math.hypot(mx-sx,my-sy)<(W0.view==='iso'?20*W0.cam.s/1.6:14)){personPop(c,mx,my);return;} }
+  // seats
+  for(const s of pl.seats){const [sx,sy]=cellToScreen(s.x+.5,s.y+.5,s.z+.15);
+    if(Math.hypot(mx-sx,my-sy)<(W0.view==='iso'?12*W0.cam.s/1.6:W0.cam.S*.45)){
+      if(s.occ&&s.occ!==a){toast(s.occ.p.name+' is sitting there');return;}
+      if(s.occ===a) return; goTo(a,s.x,s.y,s); return; } }
+  // doors
+  for(const d of pl.doors){ if(d.kind==='arch') continue;
+    const [t,xs,ys]=d.e.split(':'),x=+xs,y=+ys, z=W0.walls==='up'||(W0.walls==='cut'&&!(t==='h'?y>Math.floor(a.y):x>Math.floor(a.x)))?1:.2;
+    const [sx,sy]=t==='h'?cellToScreen(x+.5,y,z):cellToScreen(x,y+.5,z);
+    if(Math.hypot(mx-sx,my-sy)<(W0.view==='iso'?13*W0.cam.s/1.6:W0.cam.S*.4)){
+      if(d.locked){toast(d.occupied?'Occupied':(d.name||'Door')+' — locked');return;}
+      d.open=!d.open;d.manual=d.open;d.t=W0.t;toast((d.name||'Door')+(d.open?' opened':' closed'));return; } }
+  const [fx,fy]=screenToCell(mx,my), cx=Math.floor(fx), cy=Math.floor(fy);
+  if(walkable(pl,cx,cy,false)) goTo(a,cx,cy);
+  else { // nearest walkable next to it (e.g. clicked a table)
+    let best=null,bd=9;for(const [dx,dy] of Object.values(DIRS)){const x=cx+dx,y=cy+dy;if(walkable(pl,x,y,false)){const dd=Math.hypot(x+.5-fx,y+.5-fy);if(dd<bd){bd=dd;best=[x,y];}}}
+    if(best) goTo(a,best[0],best[1]);
+  }
+});
+document.addEventListener('keydown',ev=>{
+  const wr=W0.cv.getBoundingClientRect(); if(wr.bottom<0||wr.top>innerHeight||/INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName)) return;
+  const k=ev.key.toLowerCase();
+  if(k==='t'){setView(W0.view==='iso'?'top':'iso');return;}
+  const m={w:[0,-1],arrowup:[0,-1],s:[0,1],arrowdown:[0,1],a:[-1,0],arrowleft:[-1,0],d:[1,0],arrowright:[1,0]}[k];
+  if(!m) return; ev.preventDefault();
+  const a=W0.author, [x,y]=a.path.length?a.path[a.path.length-1]:cellOf(a);
+  if(stepOK(W0.pl,x,y,x+m[0],y+m[1],false)) goTo(a,x+m[0],y+m[1]);
+});
+
+function setView(v){W0.view=v;document.getElementById('vIso').classList.toggle('on',v==='iso');document.getElementById('vTop').classList.toggle('on',v==='top');
+  document.getElementById('vIso').style.color=v==='iso'?'#111':'#cbd5e1';document.getElementById('vTop').style.color=v==='top'?'#111':'#cbd5e1';
+  document.getElementById('minimap').style.display=v==='iso'?'':'none';fit();}
+document.getElementById('vIso').onclick=()=>setView('iso');
+document.getElementById('vTop').onclick=()=>setView('top');
+document.getElementById('bWalls').onclick=e=>{W0.walls={cut:'up',up:'down',down:'cut'}[W0.walls];e.target.textContent='Walls: '+{cut:'cut-away',up:'up',down:'down'}[W0.walls];};
+document.getElementById('bExit').onclick=()=>{location.hash='';document.getElementById('places').scrollIntoView();};
+document.getElementById('bInvite').onclick=ev=>{
+  ev.stopPropagation(); const pop=document.getElementById('invitePop'), list=document.getElementById('inviteList');
+  if(pop.style.display==='block'){hidePops();return;}
+  hidePops(); list.innerHTML='';
+  const here=new Set(W0.chars.map(c=>c.id)), visits=W0.pl.def.id==='clinic'?['amma']:[];
+  const ids=Object.keys(PEOPLE).filter(id=>id!=='me').sort((a,b)=>visits.includes(b)-visits.includes(a));
+  ids.forEach(id=>{const p=PEOPLE[id],row=document.createElement('div');row.className='row';
+    const cv=faceCanvas(p,'front',68);row.appendChild(cv);
+    const t=document.createElement('div');t.innerHTML=`<div style="font-weight:600">${p.name}</div><div class="sub">${p.rel}${visits.includes(id)?' · often here':''}${here.has(id)?' · here':''}</div>`;row.appendChild(t);
+    if(here.has(id)) row.style.opacity=.45; else row.onclick=()=>{invite(id);hidePops();};
+    list.appendChild(row);});
+  pop.style.display='block';pop.style.right='12px';pop.style.top='56px';
+};
+function invite(id){
+  const pl=W0.pl,[ex,ey]=pl.def.entrance;
+  const c={id,p:PEOPLE[id],x:ex+.5,y:ey+.5,facing:'N',path:[],seat:null,state:'follow',sel:false,guest:true};
+  W0.chars.push(c); toast(PEOPLE[id].name+' is coming in'); renderPeople(); follow(c);
+}
+function personPop(c,mx,my){
+  const pop=document.getElementById('personPop');
+  pop.innerHTML='';const head=document.createElement('div');head.className='row';head.style.cursor='default';head.appendChild(faceCanvas(c.p,'front',68));
+  const t=document.createElement('div');t.innerHTML=`<div style="font-weight:700">${c.p.name}</div><div class="sub">${c.p.rel}${c.seat?' · sitting':''}</div>`;head.appendChild(t);pop.appendChild(head);
+  const acts=document.createElement('div');acts.className='acts';
+  const add=(label,fn)=>{const b=document.createElement('button');b.className='btn small';b.textContent=label;b.onclick=e=>{e.stopPropagation();fn();hidePops();renderPeople();};acts.appendChild(b);};
+  add(c.state==='follow'?'✓ Following you':'Follow me',()=>{c.state='follow';follow(c);});
+  add('Wait here',()=>{c.state='stay';c.path=[];if(c.goalSeat){c.goalSeat.res=null;c.goalSeat=null;}const [x,y]=[Math.round(c.x-.5),Math.round(c.y-.5)];c.x=x+.5;c.y=y+.5;});
+  add('Send home',()=>{stand(c);W0.chars=W0.chars.filter(o=>o!==c);toast(c.p.name+' went home');});
+  pop.appendChild(acts);
+  W0.chars.forEach(o=>o.sel=false);c.sel=true;
+  pop.style.display='block';pop.style.right='';pop.style.left=Math.min(mx+12,W0.cv.clientWidth-240)+'px';pop.style.top=Math.max(8,my-60)+'px';
+}
+function hidePops(){document.querySelectorAll('.pop').forEach(p=>p.style.display='none');W0.chars&&W0.chars.forEach(c=>c.sel=false);}
+function renderPeople(){
+  const el=document.getElementById('hudPeople');el.innerHTML='';
+  W0.chars.forEach(c=>{const d=document.createElement('div');d.className='pp';d.appendChild(faceCanvas(c.p,'front',52));
+    const s=document.createElement('span');s.innerHTML=`${c.p.name} <small>${c===W0.author?'':c.state==='follow'?'following':c.guest?'guest':'lives/works here'}</small>`;d.appendChild(s);
+    d.onclick=ev=>{ev.stopPropagation();if(c!==W0.author){const [sx,sy]=cellToScreen(c.x,c.y,1);personPop(c,sx,sy);}};el.appendChild(d);});
+}
+let toastT;
+function toast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');clearTimeout(toastT);toastT=setTimeout(()=>t.classList.remove('show'),1600);}
+document.getElementById('bSave').onclick=()=>{
+  const others=W0.chars.filter(c=>c!==W0.author).map(c=>`<span class="mention">${c.p.name}</span>`);
+  const img=W0.cv.toDataURL('image/png');
+  const card=postCard({title:'Saved moment',date:'Just now',text:`At <b>${W0.pl.def.name}</b>${others.length?' with '+others.join(', '):''}.`,img,place:W0.pl.def.id});
+  const tl=document.getElementById('timeline');tl.insertBefore(card,tl.firstChild);
+  toast('Saved to your timeline ↓');
+};
+addEventListener('resize',()=>W0.pl&&fit());
+
+// ───────────────────────── helpers for static mocks ─────────────────────────
+function faceCanvas(p,view,size){const cv=document.createElement('canvas');cv.width=cv.height=size;const c=cv.getContext('2d');
+  c.fillStyle='#e5e7eb';c.fillRect(0,0,size,size);
+  c.fillStyle=p.top;c.beginPath();c.ellipse(size/2,size*1.02,size*.42,size*.3,0,0,7);c.fill();
+  c.fillStyle=p.skin;c.fillRect(size*.44,size*.62,size*.12,size*.14);
+  drawFace(c,size/2,size*.45,size*.27,view,p);return cv;}
+function figureCanvas(cv,p,facing){
+  const c=cv.getContext('2d'),w=cv.width,h=cv.height;c.clearRect(0,0,w,h);
+  const s=h/70;c.setTransform(s,0,0,s,0,0);
+  c.fillStyle='rgba(0,0,0,.06)';c.beginPath();c.ellipse(w/s/2,62,16,6,0,0,7);c.fill();
+  drawBody(c,p,w/s/2,62,facing,{});c.setTransform(1,0,0,1,0,0);
+}
+function postCard(o){
+  const d=document.createElement('div');d.className='card post';
+  d.innerHTML=`<div class="head"><canvas class="av" width="80" height="80"></canvas><div><b>You</b> ${o.place?`<span class="muted">— at</span> <b>${LAYOUTS[o.place].name}</b>`:''}<div class="meta">${o.date} · ⌂ check-in</div></div></div>
+  <div class="text">${o.text}</div><img class="snap" alt="">
+  <div class="foot"><button class="btn small">♡ Like</button><button class="btn small">Comment</button><span style="flex:1"></span>${o.post?`<button class="btn small primary">▶ Open place</button>`:''}</div>`;
+  const av=d.querySelector('canvas.av');av.getContext('2d').drawImage(faceCanvas(PEOPLE.me,'front',80),0,0);
+  const img=d.querySelector('img.snap');img.src=o.img;
+  if(o.post) d.querySelector('.btn.primary').onclick=()=>openFromPost(o.post);
+  return d;
+}
+function openFromPost(postId,placeId){
+  const post=postId?POSTS[postId]:null; loadPlace(post?post.place:placeId,post);
+  document.getElementById('world').scrollIntoView({behavior:'smooth'});
+}
+function buildingSVG(main,roof,accent,sign){
+  return 'data:image/svg+xml;utf8,'+encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 200"><rect width="320" height="200" fill="#cfe3c4"/><path d="M0 150 L160 70 L320 150 L160 230Z" fill="#b9d3a8"/>
+  <path d="M80 120 L160 80 L240 120 L240 60 L160 20 L80 60Z" fill="${main}"/><path d="M80 60 L160 100 L160 160 L80 120Z" fill="${shadeHex(main,-.15)}"/><path d="M160 100 L240 60 L240 120 L160 160Z" fill="${shadeHex(main,-.3)}"/>
+  <path d="M80 60 L160 20 L240 60 L160 100Z" fill="${roof}"/>${[0,1,2].map(i=>`<rect x="${92+i*20}" y="${84+i*10}" width="10" height="16" fill="#bfdbfe" transform="skewY(26.5)" transform-origin="${97+i*20} ${92+i*10}"/>`).join('')}
+  <rect x="120" y="4" width="80" height="20" rx="4" fill="${accent}"/><text x="160" y="18" font-family="sans-serif" font-size="11" font-weight="700" fill="#fff" text-anchor="middle">${sign}</text></svg>`);
+}
+function shadeHex(hex,f){const m=shade(hex,f).match(/\d+/g).map(Number);return '#'+m.map(v=>v.toString(16).padStart(2,'0')).join('');}
+
+// ───────────────────────── build the page ─────────────────────────
+// 1 places list
+(function(){
+  const homeImg=still(HOME,640,400).toDataURL(), clinicImg=still(CLINIC,640,400).toDataURL();
+  const cards=[
+    {name:'Home',cat:'House',img:homeImg,roles:[['home','You, Amma, Kavi, Saki']],enter:'home'},
+    {name:'Sunrise Clinic',cat:'Clinic',img:clinicImg,roles:[['work','Dr. Fernando, Dilini'],['visits','Amma']],enter:'clinic'},
+    {name:'River & Rose',cat:'Clothing shop',img:still(SHOP,640,400).toDataURL(),roles:[['work','Nadee'],['visits','Amma, Kavi']],enter:'shop'},
+    {name:'Lakeside General Hospital',cat:'Hospital · 2 floors',img:buildingSVG('#f1f5f9','#94a3b8','#dc2626','✚ HOSPITAL'),roles:[['work','Nimal']]},
+    {name:'The Rusty Bean',cat:'Coffee shop',img:buildingSVG('#fde68a','#b45309','#78350f','COFFEE'),roles:[['work','Robin Okafor'],['visits','You, Nimal']]},
+    {name:'Corner Grocer',cat:'Grocery',img:buildingSVG('#dcfce7','#15803d','#166534','GROCER'),roles:[['visits','Amma']]},
+  ];
+  const el=document.getElementById('placeCards');
+  cards.forEach(c=>{const d=document.createElement('div');d.className='card pcard';
+    d.innerHTML=`<img class="pic" src="${c.img}" alt=""><div class="body"><h4>${c.name}</h4><div class="muted" style="font-size:13px">${c.cat}</div>
+    <div class="who">${c.roles.map(([r,n])=>`<span class="tag ${r}">${r}</span> ${n}`).join('<br>')}</div>
+    <div class="act">${c.enter?`<button class="btn primary small">▶ Enter</button><button class="btn small">Posts · ${{home:14,clinic:6,shop:3}[c.enter]}</button>`:`<button class="btn soft small">⚒ Build from template</button>`}</div></div>`;
+    if(c.enter) d.querySelector('.btn.primary').onclick=()=>openFromPost(null,c.enter);
+    el.appendChild(d);});
+})();
+
+// 3 posts
+(function(){
+  const tl=document.getElementById('timeline');
+  ['p1','p3','p2'].map(k=>POSTS[k]).forEach(p=>{
+    const def=LAYOUTS[p.place], pl=buildPlace(def), cv=document.createElement('canvas');cv.width=760;cv.height=420;
+    const ctx=cv.getContext('2d');ctx.fillStyle='#1d232b';ctx.fillRect(0,0,760,420);
+    const b=isoBounds(pl),s=Math.min(760/(b.maxX-b.minX+30),420/(b.maxY-b.minY+20));ctx.scale(s,s);
+    const P=makeP(-b.minX+(760/s-(b.maxX-b.minX))/2,-b.minY+(420/s-(b.maxY-b.minY))/2);
+    const chars=[...def.residents,...p.people].map(([id,spot])=>placeChar(pl,id,spot));
+    chars.forEach(c=>{if(!c.seat)return;const cub=pl.doors.find(d=>d.cubicle&&d.cubicle[0]===c.seat.x&&d.cubicle[1]===c.seat.y);if(cub)cub.occupied=true;});
+    drawIso(ctx,pl,chars,{P,walls:'down',ax:0,ay:0,t:0,roomLabels:false});
+    tl.appendChild(postCard({title:p.title,date:p.date,text:`<b>${p.title}.</b> ${p.text}`,img:cv.toDataURL(),place:p.place,post:p.id}));
+  });
+})();
+
+// 4 people
+(function(){
+  const am=PEOPLE.amma, av=document.getElementById('amAvatar');av.getContext('2d').drawImage(faceCanvas(am,'front',224),0,0);
+  const thumbs={home:still(HOME,256,160,{people:false}).toDataURL(),clinic:still(CLINIC,256,160,{people:false}).toDataURL()};
+  const rows=[['home','Home','Lives here · Living room',thumbs.home],['visits','Sunrise Clinic','Often here · check-ups',thumbs.clinic],['visits','Corner Grocer','Often here',buildingSVG('#dcfce7','#15803d','#166534','GROCER')]];
+  document.getElementById('amPlaces').innerHTML=rows.map(([r,n,s,img])=>`<div class="placerow"><img src="${img}" alt=""><div style="flex:1"><b>${n}</b><div class="note">${s}</div></div><span class="tag ${r}">${r}</span></div>`).join('');
+  const turn=document.getElementById('turn'), views=[['SE','front'],['S','left'],['E','right'],['NW','back']];
+  const faces=document.getElementById('faces');
+  function render(){
+    turn.innerHTML='';faces.innerHTML='';
+    views.forEach(([f,v])=>{const w=document.createElement('div');const cv=document.createElement('canvas');cv.width=180;cv.height=240;figureCanvas(cv,am,f);w.appendChild(cv);w.appendChild(Object.assign(document.createElement('div'),{textContent:v}));turn.appendChild(w);});
+    views.forEach(([f,v])=>{const w=document.createElement('div');w.className='face';const cv=faceCanvas(am,v,240);w.appendChild(cv);w.appendChild(Object.assign(document.createElement('div'),{innerHTML:`<b style="color:#1c1e21">${v}</b><br>Replace`}));faces.appendChild(w);});
+  }
+  document.querySelectorAll('#people .opt').forEach(g=>g.addEventListener('click',e=>{
+    if(e.target.tagName!=='SPAN')return;g.querySelectorAll('span').forEach(s=>s.classList.remove('on'));e.target.classList.add('on');
+    am[g.dataset.k]=e.target.textContent.toLowerCase();render();av.getContext('2d').drawImage(faceCanvas(am,'front',224),0,0);}));
+  const sw=document.getElementById('swatches');
+  [['skin',['#f1c7a5','#d9a27a','#b07650','#7a4a2e','#4a2c1a']],['hair',['#d4d4d4','#171412','#6b3f1d','#c2410c']],['top',['#9333ea','#16a34a','#0ea5e9','#f43f5e']],['bottom',['#7e22ce','#1e293b','#78716c']]].forEach(([k,cols])=>{
+    cols.forEach(c=>{const s=document.createElement('span');s.className='sw'+(am[k]===c?' on':'');s.style.background=c;s.title=k;s.onclick=()=>{am[k]=c;sw.querySelectorAll(`[title=${k}]`).forEach(x=>x.classList.remove('on'));s.classList.add('on');render();av.getContext('2d').drawImage(faceCanvas(am,'front',224),0,0);};sw.appendChild(s);});
+    sw.appendChild(Object.assign(document.createElement('span'),{style:'width:10px'}));});
+  render();
+})();
+
+// 5 place tab
+(function(){
+  document.getElementById('clAvatar').getContext('2d').drawImage(still(CLINIC,224,224,{people:false,bg:'#e0f2fe'}),0,0);
+  document.getElementById('clThumb').src=still(CLINIC,900,560).toDataURL();
+  const chip=id=>{const d=document.createElement('div');d.className='pp';d.style.background='#f0f2f5';d.style.color='#1c1e21';d.style.border='0';d.appendChild(faceCanvas(PEOPLE[id],'front',52));d.appendChild(Object.assign(document.createElement('span'),{innerHTML:`${PEOPLE[id].name} <small>${PEOPLE[id].rel}</small>`}));return d;};
+  ['fernando','dilini'].forEach(id=>document.getElementById('clWork').appendChild(chip(id)));
+  document.getElementById('clOften').appendChild(chip('amma'));
+})();
+
+// 6 catalogue
+(function(){
+  const groups={};Object.entries(KINDS).forEach(([k,v])=>(groups[v.group]=groups[v.group]||[]).push(k));
+  const el=document.getElementById('cat');
+  Object.entries(groups).forEach(([g,ks])=>{
+    el.insertAdjacentHTML('beforeend',`<h4>${g}</h4>`);const row=document.createElement('div');row.className='tiles';
+    ks.forEach(k=>{
+      const spec=KINDS[k], w=['sofa','bench','counter','table','kcounter','desk','rack','till'].includes(k)?2:1, h=['bed','bath','hbed','couch'].includes(k)?2:1;
+      const bw=k==='bath'?2:['bed','hbed','couch'].includes(k)?1:w, bh=k==='bath'?1:h;
+      const def={W:bw,H:bh,rooms:[{name:'',x1:0,y1:0,x2:bw,y2:bh,floor:'#e5e7eb'}],doors:[],walls:[],items:[{kind:k,x:0,y:0,w:bw,h:bh,facing:'S'}],residents:[]};
+      const pl=buildPlace(def);pl.edges.clear();
+      const cv=document.createElement('canvas');cv.width=240;cv.height=180;const ctx=cv.getContext('2d');
+      const b={minX:-pl.H*TW/2,maxX:pl.W*TW/2,minY:-2.1*ZS,maxY:(pl.W+pl.H)*TH/2};const s=Math.min(240/(b.maxX-b.minX+10),180/(b.maxY-b.minY+10));ctx.scale(s,s);
+      const P=makeP(-b.minX+(240/s-(b.maxX-b.minX))/2,-b.minY+(180/s-(b.maxY-b.minY))/2);
+      const chars=[];
+      if(spec.seat){const st=pl.seats[0];chars.push({p:PEOPLE[['kavi','nimal','amma','robin','saki'][k.length%5]],x:st.x+.5,y:st.y+.5,facing:st.facing,path:[],seat:st});}
+      drawIso(ctx,pl,chars,{P,walls:'up',ax:0,ay:0,t:0,roomLabels:false});
+      const t=document.createElement('div');t.className='tile';t.appendChild(cv);t.insertAdjacentHTML('beforeend',`${spec.label}<div class="act">${spec.act||'&nbsp;'}</div>`);row.appendChild(t);
+    });
+    el.appendChild(row);
+  });
+  el.insertAdjacentHTML('beforeend',`<h4>Room kits</h4><div class="tiles" style="grid-template-columns:repeat(auto-fill,minmax(180px,1fr))">${['Toilet block · cubicle + family cubicle (2 × 2 m) + 2 sinks + bench','Fitting rooms · 3 × (2 × 2 m), bench + mirror each','Waiting area · 8 chairs + plant','GP office · desk, 3 chairs, couch, sink','Ward · 4 hospital beds','Kitchen · units, stove, fridge, table','Bedroom · bed, bedside, wardrobe'].map(s=>`<div class="tile" style="text-align:left;padding:10px">${s}</div>`).join('')}</div>`);
+})();
+
+// 7 build mode
+(function(){
+  const tpl=document.getElementById('tpl');
+  [['Home',HOME],['Apartment',null],['Hospital',null],['Clinic',CLINIC],['Shop',null],['Cafe',null],['Office',null],['Empty',null]].forEach(([n,def],i)=>{
+    const d=document.createElement('div');if(n==='Clinic')d.className='on';
+    const img=def?still(def,260,195,{people:false,bg:'#f8fafc'}).toDataURL():buildingSVG({Apartment:'#e0e7ff',Hospital:'#f1f5f9',Shop:'#dcfce7',Cafe:'#fde68a',Office:'#e2e8f0',Empty:'#f8fafc'}[n],'#94a3b8','#64748b',n.toUpperCase());
+    d.innerHTML=`<img src="${img}" style="width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:6px;display:block;margin-bottom:6px">${n}`;
+    d.onclick=()=>{tpl.querySelectorAll('div').forEach(x=>x.classList.remove('on'));d.classList.add('on');};tpl.appendChild(d);});
+  const cat=document.getElementById('buildCat');const groups={};Object.entries(KINDS).forEach(([k,v])=>(groups[v.group]=groups[v.group]||[]).push(k));
+  cat.innerHTML='<input placeholder="Search items…" style="width:100%;padding:7px 9px;border-radius:7px;border:1px solid #374151;background:#1f2937;color:#fff;margin-bottom:6px">'+
+    '<h5>Kits</h5><div class="it on"><span class="sq" style="background:#22c55e"></span>Toilet block</div><div class="it"><span class="sq" style="background:#0284c7"></span>Waiting area</div><div class="it"><span class="sq" style="background:#38bdf8"></span>GP office</div>'+
+    Object.entries(groups).map(([g,ks])=>`<h5>${g}</h5>`+ks.map(k=>`<div class="it"><span class="sq" style="background:${KINDS[k].color};border:1px solid #4b5563"></span>${KINDS[k].label}</div>`).join('')).join('');
+  document.getElementById('buildRooms').innerHTML=CLINIC.rooms.map(r=>`<div><span class="sq" style="display:inline-block;width:10px;height:10px;border-radius:3px;background:${r.floor};margin-right:6px"></span>${r.name} · ${r.x2-r.x1}×${r.y2-r.y1}</div>`).join('');
+  const cv=document.getElementById('buildCanvas');
+  function paint(){
+    const r=cv.getBoundingClientRect(),dpr=devicePixelRatio||1;if(r.width<50)return;cv.width=r.width*dpr;cv.height=r.height*dpr;const ctx=cv.getContext('2d');ctx.scale(dpr,dpr);
+    ctx.fillStyle='#1d232b';ctx.fillRect(0,0,r.width,r.height);
+    const pl=buildPlace(CLINIC), S=Math.min((r.width-40)/(pl.W+4),(r.height-90)/pl.H), ox=(r.width-S*(pl.W+4))/2, oy=(r.height-S*pl.H)/2+20;
+    // empty cells grid around the building
+    ctx.strokeStyle='rgba(255,255,255,.06)';for(let x=-3;x<=pl.W+3;x++){ctx.beginPath();ctx.moveTo(ox+x*S,oy-3*S);ctx.lineTo(ox+x*S,oy+(pl.H+3)*S);ctx.stroke();}for(let y=-3;y<=pl.H+3;y++){ctx.beginPath();ctx.moveTo(ox-3*S,oy+y*S);ctx.lineTo(ox+(pl.W+3)*S,oy+y*S);ctx.stroke();}
+    drawTop(ctx,pl,[],{S,ox,oy,grid:true,roomLabels:true});
+    // the kit being placed
+    ctx.fillStyle='rgba(34,197,94,.18)';ctx.strokeStyle='#22c55e';ctx.lineWidth=2;ctx.setLineDash([6,4]);ctx.strokeRect(ox+10*S,oy+8*S,6*S,4*S);ctx.fillRect(ox+10*S,oy+8*S,6*S,4*S);ctx.setLineDash([]);
+    ctx.fillStyle='#22c55e';ctx.font='600 12px -apple-system,sans-serif';ctx.textAlign='left';ctx.fillText('Toilet block kit · 6 × 4',ox+10*S,oy+8*S-8);
+    // a new room being dragged
+    ctx.strokeStyle='#60a5fa';ctx.setLineDash([6,4]);ctx.strokeRect(ox+16*S,oy+5*S,3*S,4*S);ctx.setLineDash([]);ctx.fillStyle='rgba(96,165,250,.15)';ctx.fillRect(ox+16*S,oy+5*S,3*S,4*S);
+    ctx.fillStyle='#93c5fd';ctx.fillText('New room 3 × 4 m',ox+16*S+4,oy+5*S-8);
+  }
+  paint();addEventListener('resize',paint);
+})();
+
+loadPlace('home');
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>

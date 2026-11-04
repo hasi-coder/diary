@@ -7,6 +7,7 @@ import { UnlockScreen } from "./components/UnlockScreen";
 import { GalleryView } from "./views/GalleryView";
 import { MarketplaceView } from "./views/MarketplaceView";
 import { ProfilesView } from "./views/ProfilesView";
+import { PlacesView } from "./views/PlacesView";
 import { PostView } from "./views/PostView";
 import { ProfileView } from "./views/ProfileView";
 import { SearchView } from "./views/SearchView";
@@ -14,6 +15,7 @@ import { SeriesView } from "./views/SeriesView";
 import { SettingsView } from "./views/SettingsView";
 import { TimelineView } from "./views/TimelineView";
 import { TrashView } from "./views/TrashView";
+import { WorldView } from "./views/WorldView";
 
 export default function App() {
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
@@ -61,12 +63,14 @@ function Workspace() {
       {searching && <SearchPalette onClose={() => setSearching(false)} />}
       <div className="flex min-h-0 flex-1">
         {/* Like Facebook: the left menu on list pages; profiles and posts use the full width. */}
-        {route.view !== "profile" && route.view !== "post" && <SideNav />}
+        {route.view !== "profile" && route.view !== "post" && route.view !== "world" && <SideNav />}
         {route.view === "timeline" && <TimelineView />}
         {route.view === "profiles" && <ProfilesView />}
         {route.view === "marketplace" && <MarketplaceView />}
         {route.view === "settings" && <SettingsView />}
         {route.view === "gallery" && <GalleryView />}
+        {route.view === "places" && <PlacesView />}
+        {route.view === "world" && <WorldView key={`${route.placeId}:${route.postId ?? ""}`} placeId={route.placeId} postId={route.postId} />}
         {route.view === "series" && <SeriesView key={route.id ?? "all"} id={route.id} />}
         {route.view === "trash" && <TrashView />}
         {route.view === "search" && <SearchView key={route.query} initial={route.query} />}

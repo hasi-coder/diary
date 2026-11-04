@@ -3,7 +3,7 @@
 // person (you by default), so a diary can record "Sarah loved this".
 import { useRef, useState } from "react";
 import { ChatCircleIcon, DotsThreeIcon, PaperPlaneRightIcon, ThumbsUpIcon } from "@phosphor-icons/react";
-import { api, errorMessage, REACTIONS, type Comment, type Post, type ReactionKind } from "../lib/api";
+import { api, errorMessage, REACTIONS, type Comment, type Post, type Profile, type ReactionKind } from "../lib/api";
 import { useJournal } from "../lib/journal";
 import { formatPostDate } from "../lib/format";
 import { PostContent } from "./PostContent";
@@ -203,15 +203,45 @@ function CommentRow({ post, comment }: { post: Post; comment: Comment }) {
   );
 }
 
+/** Who you're acting as (commenting, voting): your avatar, or one of your people's. Click to change. */
+export function ActAsPicker({ value, onChange, label }: { value: Profile; onChange: (id: string) => void; label: string }) {
+  const { snapshot } = useJournal();
+  const [picking, setPicking] = useState(false);
+  const people = snapshot.profiles.filter((p) => p.kind === "me" || p.kind === "person");
+  return (
+    <div className="relative">
+      <button type="button" onClick={() => setPicking((p) => !p)} title={`${label} ${value.name}. Click to change.`} aria-label={label}>
+        <Avatar profile={value} size="sm" />
+      </button>
+      {picking && (
+        <>
+          <div className="fixed inset-0 z-10" onClick={() => setPicking(false)} />
+          <div className="thin-scroll absolute bottom-full left-0 z-20 mb-1 max-h-64 w-56 overflow-y-auto rounded-lg bg-white p-1 shadow-md">
+            <div className="px-2 py-1 text-[12px] font-semibold text-slate-500">{label}</div>
+            {people.map((p) => (
+              <button
+                key={p.id}
+                type="button"
+                onClick={() => (onChange(p.id), setPicking(false))}
+                className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[15px] hover:bg-slate-50 ${p.id === value.id ? "font-semibold" : ""}`}
+              >
+                <Avatar profile={p} size="sm" /> <span className="truncate">{p.name}</span>
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 /** "Write a comment…", as you or as one of your people. */
 function CommentBox({ post, autoFocus }: { post: Post; autoFocus?: boolean }) {
-  const { owner, snapshot, profiles, refresh } = useJournal();
+  const { owner, profiles, refresh } = useJournal();
   const [authorId, setAuthorId] = useState(owner.id);
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [picking, setPicking] = useState(false);
-  const people = snapshot.profiles.filter((p) => p.kind === "me" || p.kind === "person");
   const author = profiles.get(authorId) ?? owner;
 
   const send = async () => {
@@ -231,28 +261,7 @@ function CommentBox({ post, autoFocus }: { post: Post; autoFocus?: boolean }) {
 
   return (
     <div className="flex gap-2">
-      <div className="relative">
-        <button onClick={() => setPicking((p) => !p)} title={`Commenting as ${author.name}. Click to change.`} aria-label="Comment as">
-          <Avatar profile={author} size="sm" />
-        </button>
-        {picking && (
-          <>
-            <div className="fixed inset-0 z-10" onClick={() => setPicking(false)} />
-            <div className="thin-scroll absolute bottom-full left-0 z-20 mb-1 max-h-64 w-56 overflow-y-auto rounded-lg bg-white p-1 shadow-md">
-              <div className="px-2 py-1 text-[12px] font-semibold text-slate-500">Comment as</div>
-              {people.map((p) => (
-                <button
-                  key={p.id}
-                  onClick={() => (setAuthorId(p.id), setPicking(false))}
-                  className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[15px] hover:bg-slate-50 ${p.id === author.id ? "font-semibold" : ""}`}
-                >
-                  <Avatar profile={p} size="sm" /> <span className="truncate">{p.name}</span>
-                </button>
-              ))}
-            </div>
-          </>
-        )}
-      </div>
+      <ActAsPicker value={author} onChange={setAuthorId} label="Comment as" />
       <div className="min-w-0 flex-1">
         <div className="flex items-end rounded-2xl bg-slate-50 pr-1">
           <textarea

@@ -1,0 +1,33 @@
+{
+  "id": "dance-pair",
+  "label": "Dance together",
+  "emoji": "💃",
+  "description": "Face to face, swaying side to side with arms up.",
+  "people": {"min": 2, "max": 2},
+  "beat": 0.45,
+  "length": 8,
+  "loop": true,
+  "formation": {"type": "spots", "spots": [{"role": "lead", "at": [0, 0], "facing": 0}, {"role": "partner", "at": [0, 1.0], "facing": 180}]},
+  "roles": {
+    "lead": [
+      {"beat": 0, "armL": [40, 30], "armR": [40, 30], "emote": "♪"},
+      {"beat": 1, "armL": [150, 20], "armR": [40, 40], "legL": 25, "kneeL": 30, "bob": 0.08, "move": [0.15, 0], "tilt": -8},
+      {"beat": 2, "armL": [40, 30], "armR": [40, 30]},
+      {"beat": 3, "armL": [40, 40], "armR": [150, 20], "legR": 25, "kneeR": 30, "bob": 0.08, "move": [-0.15, 0], "tilt": 8},
+      {"beat": 4, "armL": [160, 25], "armR": [160, 25], "bob": 0.12},
+      {"beat": 5, "armL": [60, 60], "armR": [60, 60], "turn": -30, "kneeL": 15, "kneeR": 15},
+      {"beat": 6, "armL": [90, 70], "armR": [90, 70], "turn": 30, "bob": 0.05},
+      {"beat": 7, "armL": [40, 30], "armR": [40, 30]}
+    ],
+    "partner": [
+      {"beat": 0, "emote": "♪", "armL": [40, 30], "armR": [40, 30]},
+      {"beat": 1, "bob": 0.08, "armL": [40, 40], "armR": [150, 20], "legR": 25, "kneeR": 30, "move": [-0.15, 0], "tilt": 8},
+      {"beat": 2, "armL": [40, 30], "armR": [40, 30]},
+      {"beat": 3, "bob": 0.08, "armL": [150, 20], "armR": [40, 40], "legL": 25, "kneeL": 30, "move": [0.15, 0], "tilt": -8},
+      {"beat": 4, "bob": 0.12, "armL": [160, 25], "armR": [160, 25]},
+      {"beat": 5, "armL": [60, 60], "armR": [60, 60], "kneeL": 15, "kneeR": 15, "turn": 30},
+      {"beat": 6, "bob": 0.05, "armL": [90, 70], "armR": [90, 70], "turn": -30},
+      {"beat": 7, "armL": [40, 30], "armR": [40, 30]}
+    ]
+  }
+}

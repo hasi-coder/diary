@@ -121,6 +121,9 @@ pub struct Profile {
     /// their long side (re-encoded as JPEG). 0 keeps them as they are.
     #[serde(default)]
     pub product_photo_max: u32,
+    /// Pages and shops: product photos are saved as 80% JPEGs, whatever their size.
+    #[serde(default)]
+    pub product_photo_jpeg: bool,
     /// Relationships this profile declared. Each is shown on both profiles,
     /// with the inverse label on the other side.
     #[serde(default)]
@@ -128,6 +131,24 @@ pub struct Profile {
     /// Where a page or shop was imported from (agent "publish from URL").
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub source_url: String,
+    /// Other shop/page URLs retained when duplicates are merged.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub source_urls: Vec<String>,
+    /// Old page ids that now open this page. Product ids never change.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub merged_page_ids: Vec<String>,
+    /// Places, shops and pages: the walkable layout for the Places world (see
+    /// `src/lib/places/layout.ts` for the schema). Stored as given; the UI owns
+    /// its shape. Older records' `plan` (the 3D tour) is dropped on load.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub layout: Option<serde_json::Value>,
+    /// People and the owner: how they look in the Places world (age, body,
+    /// hair, outfit; see `src/lib/places/character.ts`). The UI owns its shape.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub character: Option<serde_json::Value>,
+    /// People and the owner: the four head images their character wears.
+    #[serde(default, skip_serializing_if = "Faces::is_empty")]
+    pub faces: Faces,
     /// In the Trash since then (unix millis); `None` while live.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub trashed_at: Option<i64>,
@@ -140,6 +161,14 @@ pub struct Profile {
 
 fn default_cover_position() -> u8 {
     50
+}
+
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PageMerge {
+    pub page: Profile,
+    pub source_id: String,
+    pub moved_products: usize,
 }
 
 fn default_terms() -> String {
@@ -177,16 +206,84 @@ pub struct RelationInput {
     pub since: String,
 }
 
+/// A character's head seen from four sides. `left` and `right` are profiles
+/// with the nose toward that edge of the image. Bytes live in `media/<id>.enc`.
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Faces {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub front: Option<MediaRef>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub left: Option<MediaRef>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub right: Option<MediaRef>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub back: Option<MediaRef>,
+}
+
+impl Faces {
+    pub fn is_empty(&self) -> bool {
+        self.front.is_none() && self.left.is_none() && self.right.is_none() && self.back.is_none()
+    }
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Deserialize)]
-#[serde(rename_all = "lowercase")]
+#[serde(rename_all = "snake_case")]
 pub enum PhotoSlot {
     Avatar,
     Cover,
+    FaceFront,
+    FaceLeft,
+    FaceRight,
+    FaceBack,
+}
+
+impl PhotoSlot {
+    pub fn is_face(self) -> bool {
+        !matches!(self, PhotoSlot::Avatar | PhotoSlot::Cover)
+    }
 }
 
 impl Profile {
     pub fn can_sell(&self) -> bool {
         self.kind == ProfileKind::Shop || (self.kind == ProfileKind::Page && self.has_shop)
+    }
+
+    /// Whether this profile is a person (or the owner), who can have a character.
+    pub fn is_person(&self) -> bool {
+        matches!(self.kind, ProfileKind::Me | ProfileKind::Person)
+    }
+
+    pub fn photo(&self, slot: PhotoSlot) -> Option<&MediaRef> {
+        match slot {
+            PhotoSlot::Avatar => self.avatar.as_ref(),
+            PhotoSlot::Cover => self.cover.as_ref(),
+            PhotoSlot::FaceFront => self.faces.front.as_ref(),
+            PhotoSlot::FaceLeft => self.faces.left.as_ref(),
+            PhotoSlot::FaceRight => self.faces.right.as_ref(),
+            PhotoSlot::FaceBack => self.faces.back.as_ref(),
+        }
+    }
+
+    pub fn photo_slot(&mut self, slot: PhotoSlot) -> &mut Option<MediaRef> {
+        match slot {
+            PhotoSlot::Avatar => &mut self.avatar,
+            PhotoSlot::Cover => &mut self.cover,
+            PhotoSlot::FaceFront => &mut self.faces.front,
+            PhotoSlot::FaceLeft => &mut self.faces.left,
+            PhotoSlot::FaceRight => &mut self.faces.right,
+            PhotoSlot::FaceBack => &mut self.faces.back,
+        }
+    }
+
+    /// Every photo the profile itself holds: avatar, cover and face views.
+    pub fn photos(&self) -> impl Iterator<Item = &MediaRef> {
+        [&self.avatar, &self.cover, &self.faces.front, &self.faces.left, &self.faces.right, &self.faces.back].into_iter().flatten()
+    }
+
+    pub fn photos_mut(&mut self) -> impl Iterator<Item = &mut MediaRef> {
+        let Faces { front, left, right, back } = &mut self.faces;
+        [&mut self.avatar, &mut self.cover, front, left, right, back].into_iter().flatten()
     }
 }
 
@@ -265,6 +362,59 @@ pub struct Reaction {
     pub created_at: i64,
 }
 
+/// A question asked in a status post (its text is the question), answered by
+/// any profile, as on Facebook.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Poll {
+    pub options: Vec<PollOption>,
+    /// Whether a profile may pick more than one option.
+    #[serde(default)]
+    pub multiple: bool,
+    /// One per profile and option, oldest first.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub votes: Vec<PollVote>,
+}
+
+/// A choice: text, a photo, or both. The photo's bytes live in `media/<id>.enc`.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PollOption {
+    pub id: String,
+    #[serde(default)]
+    pub text: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub image: Option<MediaRef>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PollVote {
+    pub profile_id: String,
+    pub option_id: String,
+    pub created_at: i64,
+}
+
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PollInput {
+    pub options: Vec<PollOptionInput>,
+    #[serde(default)]
+    pub multiple: bool,
+}
+
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PollOptionInput {
+    /// Set for options already on the poll, so their votes are kept.
+    pub id: Option<String>,
+    #[serde(default)]
+    pub text: String,
+    /// A staged upload, or the option's current photo.
+    #[serde(default)]
+    pub image_id: Option<String>,
+}
+
 /// "feeling happy", "eating breakfast" and the like.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -328,6 +478,12 @@ pub struct Series {
     pub description: String,
     #[serde(default)]
     pub color: String,
+    /// Read latest part first, like a feed; by default oldest first, like a story.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub newest_first: bool,
+    /// Parts in an order set by hand (rough dates: "diary entry 1, 2"); empty means by date.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub part_order: Vec<String>,
     pub created_at: i64,
     pub updated_at: i64,
 }
@@ -353,6 +509,9 @@ pub struct SeriesInput {
     pub description: String,
     #[serde(default)]
     pub color: String,
+    /// `None` keeps the series' reading order (new series: oldest first).
+    #[serde(default)]
+    pub newest_first: Option<bool>,
 }
 
 /// A journal entry. Mentions are embedded in the Markdown as `@[profile:<uuid>]`.
@@ -391,12 +550,22 @@ pub struct Post {
     /// Attached images and videos, in display order. Bytes live in `media/<id>.enc`.
     #[serde(default)]
     pub media: Vec<MediaRef>,
+    /// Albums only: the photos are layers of one subject (before and after,
+    /// outside and inside), stacked and viewed with a slider; captions name them.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub layered: bool,
     /// Notes added under the post later, by any profile, oldest first.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub comments: Vec<Comment>,
     /// At most one per profile.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub reactions: Vec<Reaction>,
+    /// Statuses only.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub poll: Option<Poll>,
+    /// Statuses only: an earlier post shared as a memory, shown as an embedded card.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub shared_post_id: Option<String>,
     /// In the Trash since then (unix millis); `None` while live.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub trashed_at: Option<i64>,
@@ -405,6 +574,13 @@ pub struct Post {
     pub trashed_with: Option<String>,
     pub created_at: i64,
     pub updated_at: i64,
+}
+
+impl Post {
+    /// Every media file the post owns: its attachments, then its poll's photos.
+    pub fn all_media(&self) -> impl Iterator<Item = &MediaRef> {
+        self.media.iter().chain(self.poll.iter().flat_map(|p| p.options.iter().filter_map(|o| o.image.as_ref())))
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -463,6 +639,15 @@ pub struct PostInput {
     /// Attachments in display order: ids of staged uploads or of media already on the post.
     #[serde(default)]
     pub media_ids: Vec<String>,
+    /// Albums only: show the photos as layers with a slider.
+    #[serde(default)]
+    pub layered: bool,
+    /// Statuses only; `None` removes the post's poll.
+    #[serde(default)]
+    pub poll: Option<PollInput>,
+    /// Statuses only: the earlier post shared as a memory.
+    #[serde(default)]
+    pub shared_post_id: Option<String>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]

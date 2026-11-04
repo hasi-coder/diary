@@ -1,6 +1,21 @@
 # Proposal: Places characters — real bodies, layered clothing, skin tones
 
-Status: phase 0 spike done · 2026-11-04
+Status: phase 0 done, phase 1 in progress · 2026-11-04
+
+## Phase 1 so far
+
+- `Figure` (`src/components/world/scene.ts`) starts with the box body and swaps in the MakeHuman body as soon as `body.glb` loads (straight away once it's cached, so thumbnails get it too). If it can't load, the box body stays.
+- Today's `Character` fields drive it (`shapeOf`, `outfitOf` in `body.ts`): figure → feminine/masculine, age group or birthday → years, build → weight and muscle, top/bottom colours and the skirt flag → tee or fitted tee, jeans, slim jeans or skirt. Bodies are scaled to the age's height in `AGES`, so seats, doors and the camera fit as before.
+- The same poses drive both bodies (`Limbs`): walking, sitting, and every interaction keyframe (arms, legs, knees, lean, tilt). On the MakeHuman body, "out" is applied before "forward", so a raised arm leans away from the head.
+- The face image follows the head bone; tags and emotes follow the face.
+- Checked in the cafe with the world's camera from two sides: walking, sitting (elder and child), standing, waving.
+
+- `Character` gained two optional fields instead of a v2 rewrite, so saved characters load unchanged: `body` (sliders: shape, weight, muscle, height, bust, over the figure/build presets) and `wearing` (one garment and colour per slot: top, bottom, shoes). When `wearing` is missing it comes from `top`/`bottom`/`skirt`; editing clothes keeps those three in step for the drawn faces, avatars and box body.
+- The garment catalogue is `src/lib/places/garments.ts`; the skin palette is the Monk scale (`MONK_SKIN_TONES`) plus any colour.
+- The Character card: "Fine-tune the body" sliders (figure and build chips reset them), Monk swatches with a colour picker, and a Clothes row per slot (garment + colour; shoes can be left off). The preview keeps one renderer and only rebuilds the figure, so dragging a slider doesn't pile up WebGL contexts.
+
+Still to do in phase 1: underwear (and so letting tops and bottoms be optional), arm swing that clears wider bodies, and an MCP tool to set a character.
+
 
 ## Built so far (phase 0)
 

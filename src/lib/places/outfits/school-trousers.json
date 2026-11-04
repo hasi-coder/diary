@@ -1,0 +1,9 @@
+{
+  "label": "School uniform (trousers)",
+  "description": "White top, navy trousers, black shoes",
+  "wearing": [
+    { "garment": "tee", "color": "#f8fafc" },
+    { "garment": "jeans", "color": "#1e3a8a" },
+    { "garment": "shoes", "color": "#292524" }
+  ]
+}

@@ -1,0 +1,57 @@
+{
+  "version": 2,
+  "name": "Cafe",
+  "floors": [
+    {
+      "name": "Ground floor",
+      "width": 12,
+      "depth": 9,
+      "entrance": [4, 8],
+      "spawn": {"at": [4, 8], "facing": "N"},
+      "rooms": [
+        {"name": "Cafe", "rect": [0, 0, 9, 9], "floor": "#d6b48a"},
+        {"name": "Kitchen", "rect": [9, 0, 12, 5], "floor": "#e9e5dc", "checker": true},
+        {"name": "Restroom", "rect": [9, 5, 12, 9], "floor": "#cfe6ee", "checker": true}
+      ],
+      "doors": [
+        {"edge": "h:4:9", "name": "Entrance"},
+        {"edge": "v:9:2", "locked": true, "name": "Staff only"},
+        {"edge": "v:9:7", "name": "Restroom"}
+      ],
+      "items": [
+        {"kind": "counter", "x": 1, "y": 1, "w": 4, "facing": "S"},
+        {"kind": "plant", "x": 0, "y": 0},
+        {"kind": "shelf", "x": 5, "y": 0, "w": 2, "facing": "S", "color": "#78350f"},
+        {"kind": "fridge", "x": 8, "y": 0, "facing": "S"},
+        {"kind": "table", "x": 1, "y": 4},
+        {"kind": "chair", "x": 1, "y": 3, "facing": "S"},
+        {"kind": "chair", "x": 1, "y": 5, "facing": "N"},
+        {"kind": "table", "x": 4, "y": 4},
+        {"kind": "chair", "x": 4, "y": 3, "facing": "S"},
+        {"kind": "chair", "x": 4, "y": 5, "facing": "N"},
+        {"kind": "table", "x": 7, "y": 3},
+        {"kind": "chair", "x": 7, "y": 2, "facing": "S"},
+        {"kind": "chair", "x": 7, "y": 4, "facing": "N"},
+        {"kind": "sofa", "x": 0, "y": 7, "h": 2, "facing": "E", "color": "#92400e"},
+        {"kind": "coffee", "x": 1, "y": 7, "h": 2},
+        {"kind": "armchair", "x": 2, "y": 7, "facing": "W", "color": "#b45309"},
+        {"kind": "armchair", "x": 2, "y": 8, "facing": "W", "color": "#b45309"},
+        {"kind": "table", "x": 7, "y": 5},
+        {"kind": "chair", "x": 6, "y": 5, "facing": "E"},
+        {"kind": "chair", "x": 8, "y": 5, "facing": "W"},
+        {"kind": "plant", "x": 8, "y": 8},
+        {"kind": "kcounter", "x": 10, "y": 0, "w": 2, "facing": "S"},
+        {"kind": "stove", "x": 11, "y": 1, "facing": "W"},
+        {"kind": "sink", "x": 11, "y": 2, "facing": "W"},
+        {"kind": "toilet", "x": 11, "y": 5, "facing": "W"},
+        {"kind": "sink", "x": 11, "y": 8, "facing": "W"}
+      ],
+      "partitions": [],
+      "spots": {
+        "home": [],
+        "work": [{"cell": [2, 0], "facing": "SE"}, {"cell": [3, 0], "facing": "S"}],
+        "visit": [{"seat": [4, 3]}, {"seat": [4, 5]}, {"seat": [1, 3]}, {"seat": [1, 5]}, {"seat": [0, 7]}, {"seat": [2, 7]}]
+      }
+    }
+  ]
+}

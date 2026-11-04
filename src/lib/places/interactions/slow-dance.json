@@ -1,0 +1,33 @@
+{
+  "id": "slow-dance",
+  "label": "Slow dance",
+  "emoji": "🎶",
+  "description": "Close together, swaying and slowly turning.",
+  "people": {"min": 2, "max": 2},
+  "beat": 0.9,
+  "length": 8,
+  "loop": true,
+  "formation": {"type": "spots", "spin": 6, "spots": [{"role": "lead", "at": [0, 0], "facing": 0}, {"role": "partner", "at": [0, 0.5], "facing": 180}]},
+  "roles": {
+    "lead": [
+      {"beat": 0, "armL": [75, -10], "armR": [75, -10], "tilt": -5, "move": [0.04, 0], "emote": "🎶"},
+      {"beat": 1, "armL": [75, -10], "armR": [75, -10], "legL": 10},
+      {"beat": 2, "armL": [75, -10], "armR": [75, -10], "tilt": 5, "move": [-0.04, 0]},
+      {"beat": 3, "armL": [75, -10], "armR": [75, -10], "legR": 10},
+      {"beat": 4, "armL": [75, -10], "armR": [75, -10], "tilt": -5, "move": [0.04, 0]},
+      {"beat": 5, "armL": [75, -10], "armR": [75, -10], "legL": 10},
+      {"beat": 6, "armL": [75, -10], "armR": [75, -10], "tilt": 5, "move": [-0.04, 0]},
+      {"beat": 7, "armL": [75, -10], "armR": [75, -10], "legR": 10}
+    ],
+    "partner": [
+      {"beat": 0, "armL": [115, -18], "armR": [115, -18], "tilt": 5, "move": [-0.04, 0]},
+      {"beat": 1, "armL": [115, -18], "armR": [115, -18], "legR": 10},
+      {"beat": 2, "armL": [115, -18], "armR": [115, -18], "tilt": -5, "move": [0.04, 0]},
+      {"beat": 3, "armL": [115, -18], "armR": [115, -18], "legL": 10},
+      {"beat": 4, "armL": [115, -18], "armR": [115, -18], "tilt": 5, "move": [-0.04, 0]},
+      {"beat": 5, "armL": [115, -18], "armR": [115, -18], "legR": 10},
+      {"beat": 6, "armL": [115, -18], "armR": [115, -18], "tilt": -5, "move": [0.04, 0]},
+      {"beat": 7, "armL": [115, -18], "armR": [115, -18], "legL": 10}
+    ]
+  }
+}

@@ -1,0 +1,24 @@
+{
+  "id": "cheer",
+  "label": "Cheer",
+  "emoji": "🎉",
+  "description": "Everyone claps and throws their arms up, a little out of step.",
+  "people": {"min": 2, "max": 12},
+  "beat": 0.35,
+  "length": 8,
+  "loop": true,
+  "stagger": 0.5,
+  "formation": {"type": "stay", "role": "cheerer"},
+  "roles": {
+    "cheerer": [
+      {"beat": 0, "armL": [80, 15], "armR": [80, 15]},
+      {"beat": 1, "armL": [80, -8], "armR": [80, -8], "emote": "👏"},
+      {"beat": 2, "armL": [80, 15], "armR": [80, 15]},
+      {"beat": 3, "armL": [80, -8], "armR": [80, -8]},
+      {"beat": 4, "armL": [170, 20], "armR": [170, 20], "bob": 0.15, "emote": "🎉"},
+      {"beat": 5, "armL": [170, 20], "armR": [170, 20]},
+      {"beat": 6, "armL": [80, 15], "armR": [80, 15]},
+      {"beat": 7, "armL": [80, -8], "armR": [80, -8], "emote": "👏"}
+    ]
+  }
+}

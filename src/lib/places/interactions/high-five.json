@@ -1,0 +1,21 @@
+{
+  "id": "high-five",
+  "label": "High five",
+  "emoji": "✋",
+  "description": "Raise a hand and slap it.",
+  "people": {"min": 2, "max": 2},
+  "beat": 0.4,
+  "length": 6,
+  "loop": false,
+  "formation": {"type": "spots", "spots": [{"role": "slapper", "at": [0, 0], "facing": 0}, {"role": "slapper", "at": [0, 0.75], "facing": 180}]},
+  "roles": {
+    "slapper": [
+      {"beat": 0},
+      {"beat": 1, "armR": [120, 10], "lean": -5},
+      {"beat": 2, "armR": [150, 5], "bob": 0.06, "lean": 8, "emote": "✋"},
+      {"beat": 3, "armR": [110, 10]},
+      {"beat": 4, "armR": [20, 10]},
+      {"beat": 6, "emote": ""}
+    ]
+  }
+}

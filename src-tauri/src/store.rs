@@ -39,6 +39,8 @@ use crate::model::*;
 use crate::record::{self, Kind, CURRENT_SCHEMA};
 use crate::search::{self, DocKey, DocKind, Field, Query, SearchIndex};
 
+mod merge;
+
 const CONFIG_FILE: &str = "workspace.json";
 const MANIFEST_FILE: &str = "manifest.enc";
 const MANIFEST_ID: &str = "manifest";
@@ -183,6 +185,10 @@ fn clean_genders(genders: &[String]) -> Vec<String> {
 
 /// Series one post can be part of.
 const MAX_SERIES_PER_POST: usize = 10;
+/// A place's layout may be at most this large, serialized.
+const MAX_LAYOUT_BYTES: usize = 2 * 1024 * 1024;
+/// A character (body, hair, outfit) is a handful of fields.
+const MAX_CHARACTER_BYTES: usize = 4 * 1024;
 
 /// Photos and videos per shop item.
 pub const MAX_MEDIA_PER_ITEM: usize = 20;
@@ -389,6 +395,34 @@ fn recover_rotation(dir: &Path) -> Result<()> {
 
 const MAX_COMMENTS_PER_POST: usize = 500;
 
+/// A series' parts: by date, or in the order set by hand with parts added
+/// since slotted in by date (before the first placed part that is later).
+fn order_parts<'a>(manual: &[String], mut members: Vec<&'a Post>) -> Vec<&'a Post> {
+    members.sort_by_key(|p| (p.occurred_at, p.created_at));
+    if manual.is_empty() {
+        return members;
+    }
+    let rank: HashMap<&str, usize> = manual.iter().enumerate().map(|(i, id)| (id.as_str(), i)).collect();
+    let (mut placed, loose): (Vec<&Post>, Vec<&Post>) = members.into_iter().partition(|p| rank.contains_key(p.id.as_str()));
+    placed.sort_by_key(|p| rank[p.id.as_str()]);
+    for p in loose {
+        let at = placed.iter().position(|q| (q.occurred_at, q.created_at) > (p.occurred_at, p.created_at)).unwrap_or(placed.len());
+        placed.insert(at, p);
+    }
+    placed
+}
+
+/// Choices one poll can offer.
+const MAX_POLL_OPTIONS: usize = 10;
+
+/// Keeps each profile's latest vote only (a poll that now takes one answer).
+fn keep_latest_vote(votes: &mut Vec<PollVote>) {
+    let mut seen = HashSet::new();
+    let mut kept: Vec<PollVote> = votes.drain(..).rev().filter(|v| seen.insert(v.profile_id.clone())).collect();
+    kept.reverse();
+    *votes = kept;
+}
+
 /// A birthday or anniversary: `YYYY-MM-DD`, or `MM-DD` without the year
 /// (digits needn't be padded). Empty stays empty.
 fn clean_date(value: &str, what: &str) -> Result<String> {
@@ -498,8 +532,14 @@ pub fn create_workspace(
             cover: None,
             cover_position: 50,
             product_photo_max: 0,
+            product_photo_jpeg: false,
             relations: Vec::new(),
             source_url: String::new(),
+            source_urls: Vec::new(),
+            merged_page_ids: Vec::new(),
+            layout: None,
+            character: None,
+            faces: Faces::default(),
             trashed_at: None,
             trashed_with: None,
             created_at: now,
@@ -684,8 +724,8 @@ impl Workspace {
     }
 
     fn reindex_media(&mut self) {
-        let post_media = self.posts.values().flat_map(|p| p.media.iter());
-        let profile_media = self.profiles.values().flat_map(|p| p.avatar.iter().chain(p.cover.iter()));
+        let post_media = self.posts.values().flat_map(|p| p.all_media());
+        let profile_media = self.profiles.values().flat_map(Profile::photos);
         let item_media = self.items.values().flat_map(|i| i.media.iter());
         self.media.index = post_media.chain(profile_media).chain(item_media).map(|m| (m.id.clone(), m.clone())).collect();
     }
@@ -1063,11 +1103,17 @@ impl Workspace {
             cover: existing.as_ref().and_then(|p| p.cover.clone()),
             cover_position: existing.as_ref().map_or(50, |p| p.cover_position),
             product_photo_max: existing.as_ref().map_or(0, |p| p.product_photo_max),
+            product_photo_jpeg: existing.as_ref().is_some_and(|p| p.product_photo_jpeg),
             // An edit that doesn't mention the source (the UI) keeps it.
             source_url: match input.source_url.trim() {
                 "" => existing.as_ref().map(|p| p.source_url.clone()).unwrap_or_default(),
                 url => short(url, 2000),
             },
+            source_urls: existing.as_ref().map(|p| p.source_urls.clone()).unwrap_or_default(),
+            merged_page_ids: existing.as_ref().map(|p| p.merged_page_ids.clone()).unwrap_or_default(),
+            layout: existing.as_ref().and_then(|p| p.layout.clone()),
+            character: existing.as_ref().and_then(|p| p.character.clone()),
+            faces: existing.as_ref().map(|p| p.faces.clone()).unwrap_or_default(),
             relations: existing.map(|p| p.relations).unwrap_or_default(),
             trashed_at: None,
             trashed_with: None,
@@ -1140,10 +1186,10 @@ impl Workspace {
     /// upload (or the current photo). The replaced photo's file is deleted.
     pub fn set_profile_photo(&mut self, profile_id: &str, slot: PhotoSlot, media_id: Option<String>) -> Result<Profile> {
         let mut profile = self.profiles.get(profile_id).ok_or_else(|| Error::NotFound(format!("profile {profile_id}")))?.clone();
-        let current = match slot {
-            PhotoSlot::Avatar => profile.avatar.clone(),
-            PhotoSlot::Cover => profile.cover.clone(),
-        };
+        if slot.is_face() && !profile.is_person() {
+            return Err(Error::Invalid("Only people have face views.".into()));
+        }
+        let current = profile.photo_slot(slot).clone();
         let next = match media_id {
             None => None,
             Some(id) if current.as_ref().is_some_and(|m| m.id == id) => current.clone(),
@@ -1158,10 +1204,7 @@ impl Workspace {
                 Some(MediaRef { caption: String::new(), tags: Vec::new(), ..staged.media.clone() })
             }
         };
-        match slot {
-            PhotoSlot::Avatar => profile.avatar = next.clone(),
-            PhotoSlot::Cover => profile.cover = next.clone(),
-        }
+        *profile.photo_slot(slot) = next.clone();
         let profile = self.put_profile(profile)?;
         if let Some(m) = &next {
             if let Some(staged) = self.media.staged.remove(&m.id) {
@@ -1181,6 +1224,43 @@ impl Workspace {
         self.put_profile(profile)
     }
 
+    /// Sets (or with `None` removes) the walkable layout of a place, shop or
+    /// page. It must be an object with a `floors` array; the UI validates the rest.
+    pub fn set_profile_layout(&mut self, profile_id: &str, layout: Option<serde_json::Value>) -> Result<Profile> {
+        let mut profile = self.profiles.get(profile_id).ok_or_else(|| Error::NotFound(format!("profile {profile_id}")))?.clone();
+        if !matches!(profile.kind, ProfileKind::Place | ProfileKind::Shop | ProfileKind::Page) {
+            return Err(Error::Invalid("Only places, shops and pages have a layout.".into()));
+        }
+        if let Some(layout) = &layout {
+            if !layout.get("floors").and_then(Value::as_array).is_some_and(|f| !f.is_empty()) {
+                return Err(Error::Invalid("A layout needs a \"floors\" list with at least one floor.".into()));
+            }
+            if layout.to_string().len() > MAX_LAYOUT_BYTES {
+                return Err(Error::Invalid("That layout is too large (2 MB at most).".into()));
+            }
+        }
+        profile.layout = layout;
+        self.put_profile(profile)
+    }
+
+    /// Sets (or with `None` resets) how a person looks in the Places world.
+    pub fn set_profile_character(&mut self, profile_id: &str, character: Option<serde_json::Value>) -> Result<Profile> {
+        let mut profile = self.profiles.get(profile_id).ok_or_else(|| Error::NotFound(format!("profile {profile_id}")))?.clone();
+        if !profile.is_person() {
+            return Err(Error::Invalid("Only people have a character.".into()));
+        }
+        if let Some(character) = &character {
+            if !character.is_object() {
+                return Err(Error::Invalid("A character is an object.".into()));
+            }
+            if character.to_string().len() > MAX_CHARACTER_BYTES {
+                return Err(Error::Invalid("That character is too large.".into()));
+            }
+        }
+        profile.character = character;
+        self.put_profile(profile)
+    }
+
     // ---- Product photo size ----
 
     /// Sets how large this page's product photos are stored, for photos added from now on.
@@ -1193,16 +1273,24 @@ impl Workspace {
         self.put_profile(profile)
     }
 
+    /// Sets whether this page's product photos are saved as 80% JPEGs, for photos added from now on.
+    pub fn set_product_photo_jpeg(&mut self, profile_id: &str, on: bool) -> Result<Profile> {
+        let mut profile = self.profiles.get(profile_id).ok_or_else(|| Error::NotFound(format!("profile {profile_id}")))?.clone();
+        profile.product_photo_jpeg = on;
+        self.put_profile(profile)
+    }
+
     /// A page's products, for shrinking one at a time. (Products in the Trash keep their photos.)
     pub fn product_ids_of(&self, shop_id: &str) -> Vec<String> {
         self.items.values().filter(|i| i.shop_id == shop_id).map(|i| i.id.clone()).collect()
     }
 
-    /// Re-encodes staged photos to fit `max`, where that makes them smaller.
-    fn fit_staged(&mut self, media: &mut [MediaRef], max: u32) {
+    /// Re-encodes staged photos to fit `max` (and as 80% JPEGs with
+    /// `compact`), where that makes them smaller.
+    fn fit_staged(&mut self, media: &mut [MediaRef], max: u32, compact: bool) {
         for m in media.iter_mut() {
             let Some(staged) = self.media.staged.get_mut(&m.id) else { continue };
-            if let Some(out) = media::fit_photo(&staged.bytes, max) {
+            if let Some(out) = media::fit_photo(&staged.bytes, max, compact) {
                 *m = MediaRef { size: out.len() as u64, mime: "image/jpeg".into(), name: media::jpeg_name(&m.name), ..m.clone() };
                 *staged = StagedMedia { media: m.clone(), bytes: Arc::new(Zeroizing::new(out)) };
             }
@@ -1214,13 +1302,13 @@ impl Workspace {
     /// so an interruption never leaves a product pointing at a missing photo.
     pub fn shrink_product_photos(&mut self, item_id: &str, report: &mut ShrinkReport) -> Result<()> {
         let mut item = self.items.get(item_id).ok_or_else(|| Error::NotFound(format!("item {item_id}")))?.clone();
-        let max = self.profiles.get(&item.shop_id).map_or(0, |p| p.product_photo_max);
+        let (max, compact) = self.profiles.get(&item.shop_id).map_or((0, false), |p| (p.product_photo_max, p.product_photo_jpeg));
         let mut replaced = Vec::new();
         for m in item.media.iter_mut().filter(|m| m.kind == MediaKind::Image) {
             report.photos += 1;
             report.bytes_before += m.size;
             let bytes = self.read_media_bytes(&m.id)?;
-            if let Some(out) = media::fit_photo(&bytes, max) {
+            if let Some(out) = media::fit_photo(&bytes, max, compact) {
                 let new = MediaRef { id: Uuid::new_v4().to_string(), size: out.len() as u64, mime: "image/jpeg".into(), name: media::jpeg_name(&m.name), ..m.clone() };
                 self.media.staged.insert(new.id.clone(), StagedMedia { media: new.clone(), bytes: Arc::new(Zeroizing::new(out)) });
                 replaced.push(std::mem::replace(m, new).id);
@@ -1238,6 +1326,53 @@ impl Workspace {
         self.reindex_media();
         for id in replaced {
             self.remove_media_file(&id)?;
+        }
+        Ok(())
+    }
+
+    // ---- Journal photo size ----
+
+    /// Posts with photos, for shrinking one at a time. (Posts in the Trash keep their photos.)
+    pub fn post_ids_with_photos(&self) -> Vec<String> {
+        self.posts.values().filter(|p| p.all_media().any(|m| m.kind == MediaKind::Image)).map(|p| p.id.clone()).collect()
+    }
+
+    /// Shrinks one post's photos (attachments and poll photos) to fit `max` ×
+    /// `max`, like `shrink_product_photos`: each smaller photo becomes a new
+    /// file, and the old one is deleted after the post is saved. Photos placed
+    /// in an article's text (`![caption](media:<id>)`) point at the new file.
+    pub fn shrink_post_photos(&mut self, post_id: &str, max: u32, report: &mut ShrinkReport) -> Result<()> {
+        if !(480..=8192).contains(&max) {
+            return Err(Error::Invalid("Choose a size between 480 and 8192 pixels.".into()));
+        }
+        let mut post = self.live_post(post_id)?;
+        let mut replaced = Vec::new();
+        let poll_photos = post.poll.iter_mut().flat_map(|p| p.options.iter_mut().filter_map(|o| o.image.as_mut()));
+        for m in post.media.iter_mut().chain(poll_photos).filter(|m| m.kind == MediaKind::Image) {
+            report.photos += 1;
+            report.bytes_before += m.size;
+            let bytes = self.read_media_bytes(&m.id)?;
+            if let Some(out) = media::fit_photo(&bytes, max, false) {
+                let new = MediaRef { id: Uuid::new_v4().to_string(), size: out.len() as u64, mime: "image/jpeg".into(), name: media::jpeg_name(&m.name), ..m.clone() };
+                self.media.staged.insert(new.id.clone(), StagedMedia { media: new.clone(), bytes: Arc::new(Zeroizing::new(out)) });
+                replaced.push((std::mem::replace(m, new).id, m.id.clone()));
+                report.shrunk += 1;
+            }
+            report.bytes_after += m.size;
+        }
+        if replaced.is_empty() {
+            return Ok(());
+        }
+        for (old, new) in &replaced {
+            post.content = post.content.replace(&format!("(media:{old})"), &format!("(media:{new})"));
+        }
+        let media: Vec<MediaRef> = post.all_media().cloned().collect();
+        self.seal_staged(&media)?;
+        self.put_post_quietly(post)?;
+        self.commit_staged(&media);
+        self.reindex_media();
+        for (old, _) in replaced {
+            self.remove_media_file(&old)?;
         }
         Ok(())
     }
@@ -1303,6 +1438,81 @@ impl Workspace {
             post.reactions.push(Reaction { profile_id: profile_id.into(), kind: kind.into(), created_at: now_millis() });
         }
         self.put_post_quietly(post)
+    }
+
+    /// Sets `profile_id`'s answers to a post's poll to exactly `option_ids`
+    /// (none takes their vote back). Answers they keep keep their time.
+    pub fn vote_poll(&mut self, post_id: &str, profile_id: &str, option_ids: &[String]) -> Result<Post> {
+        let mut post = self.live_post(post_id)?;
+        if !self.profiles.contains_key(profile_id) {
+            return Err(Error::NotFound(format!("profile {profile_id}")));
+        }
+        let poll = post.poll.as_mut().ok_or_else(|| Error::Invalid("This post has no poll.".into()))?;
+        let mut chosen: Vec<&String> = Vec::new();
+        for id in option_ids {
+            if !poll.options.iter().any(|o| &o.id == id) {
+                return Err(Error::NotFound(format!("poll option {id}")));
+            }
+            if !chosen.contains(&id) {
+                chosen.push(id);
+            }
+        }
+        if !poll.multiple && chosen.len() > 1 {
+            return Err(Error::Invalid("This poll takes one answer.".into()));
+        }
+        let (theirs, others): (Vec<PollVote>, Vec<PollVote>) = std::mem::take(&mut poll.votes).into_iter().partition(|v| v.profile_id == profile_id);
+        poll.votes = others;
+        let now = now_millis();
+        for id in chosen {
+            let created_at = theirs.iter().find(|v| &v.option_id == id).map_or(now, |v| v.created_at);
+            poll.votes.push(PollVote { profile_id: profile_id.into(), option_id: id.clone(), created_at });
+        }
+        self.put_post_quietly(post)
+    }
+
+    /// The poll a post will have: options matched to `previous` by id (keeping
+    /// their votes), photos from there or from staging. Blank options are dropped.
+    fn resolve_poll(&self, input: &PollInput, previous: Option<&Poll>, attached: &[MediaRef]) -> Result<Poll> {
+        let mut options: Vec<PollOption> = Vec::new();
+        for o in &input.options {
+            let old = o.id.as_ref().and_then(|id| previous?.options.iter().find(|x| &x.id == id));
+            let image = match &o.image_id {
+                None => None,
+                Some(id) => {
+                    let media = old
+                        .and_then(|x| x.image.as_ref())
+                        .filter(|m| &m.id == id)
+                        .or_else(|| self.media.staged.get(id).map(|s| &s.media))
+                        .ok_or_else(|| Error::NotFound(format!("poll photo {id}")))?;
+                    if media.kind != MediaKind::Image {
+                        return Err(Error::Invalid("A poll option can have a photo, not a video.".into()));
+                    }
+                    let taken = attached.iter().chain(options.iter().filter_map(|x| x.image.as_ref())).any(|m| m.id == media.id);
+                    if taken {
+                        return Err(Error::Invalid("Each poll option needs its own photo.".into()));
+                    }
+                    Some(MediaRef { caption: String::new(), tags: Vec::new(), ..media.clone() })
+                }
+            };
+            let text = short(&o.text, 200);
+            if text.is_empty() && image.is_none() {
+                continue;
+            }
+            let id = old.map_or_else(|| Uuid::new_v4().to_string(), |x| x.id.clone());
+            options.push(PollOption { id, text, image });
+        }
+        if options.len() < 2 {
+            return Err(Error::Invalid("A poll needs at least two options.".into()));
+        }
+        if options.len() > MAX_POLL_OPTIONS {
+            return Err(Error::Invalid(format!("A poll can have at most {MAX_POLL_OPTIONS} options.")));
+        }
+        let mut votes: Vec<PollVote> = previous.map(|p| p.votes.clone()).unwrap_or_default();
+        votes.retain(|v| options.iter().any(|o| o.id == v.option_id));
+        if !input.multiple {
+            keep_latest_vote(&mut votes);
+        }
+        Ok(Poll { options, multiple: input.multiple, votes })
     }
 
     /// Writes a post whose body didn't change, keeping `updated_at` (the "edited" marker).
@@ -1373,8 +1583,9 @@ impl Workspace {
         let content = input.content.trim().to_string();
         let title: String = input.title.trim().chars().take(300).collect();
         match input.kind {
+            PostKind::Status if input.poll.is_some() && content.is_empty() => return Err(Error::Invalid("Ask a question for the poll.".into())),
             // A story on its own ("📈 got promoted") is a post too.
-            PostKind::Status if content.is_empty() && input.media_ids.is_empty() && !input.activities.iter().any(|a| !a.object.trim().is_empty()) => {
+            PostKind::Status if content.is_empty() && input.media_ids.is_empty() && input.shared_post_id.is_none() && !input.activities.iter().any(|a| !a.object.trim().is_empty()) => {
                 return Err(Error::Invalid("Write something, tell the story or attach a photo or video.".into()))
             }
             PostKind::Article if title.is_empty() => return Err(Error::Invalid("An article needs a title.".into())),
@@ -1393,6 +1604,7 @@ impl Workspace {
             None => None,
         };
         let previous: &[MediaRef] = existing.as_ref().map_or(&[], |p| &p.media);
+        let previous_all: Vec<MediaRef> = existing.as_ref().map(|p| p.all_media().cloned().collect()).unwrap_or_default();
 
         // Resolve attachments: keep ones already on this post, take the rest from staging.
         let (max, what) = if input.kind == PostKind::Album { (media::MAX_MEDIA_PER_ALBUM, "album") } else { (media::MAX_MEDIA_PER_POST, "post") };
@@ -1402,6 +1614,31 @@ impl Workspace {
                 media.caption = caption.trim().chars().take(2000).collect();
             }
         }
+        let layered = input.kind == PostKind::Album && input.layered;
+        if layered && attached.len() < 2 {
+            return Err(Error::Invalid("Layers need at least two photos.".into()));
+        }
+        if layered && attached.iter().any(|m| m.kind != MediaKind::Image) {
+            return Err(Error::Invalid("Layers can be photos only, not videos.".into()));
+        }
+        let poll = match (&input.poll, input.kind) {
+            (Some(p), PostKind::Status) => Some(self.resolve_poll(p, existing.as_ref().and_then(|e| e.poll.as_ref()), &attached)?),
+            _ => None,
+        };
+
+        // Sharing a share shares the original memory; an edit may keep one since trashed.
+        let shared_post_id = match (&input.shared_post_id, input.kind) {
+            (Some(id), PostKind::Status) => {
+                let kept = existing.as_ref().and_then(|p| p.shared_post_id.as_ref()) == Some(id);
+                match self.posts.get(id) {
+                    Some(_) if Some(id) == input.id.as_ref() => return Err(Error::Invalid("A post can't share itself.".into())),
+                    Some(shared) => Some(shared.shared_post_id.clone().unwrap_or_else(|| id.clone())),
+                    None if kept => Some(id.clone()),
+                    None => return Err(Error::NotFound(format!("shared post {id}"))),
+                }
+            }
+            _ => None,
+        };
 
         let mut with_ids: Vec<String> = Vec::new();
         for id in &input.with_ids {
@@ -1484,20 +1721,24 @@ impl Workspace {
             content,
             occurred_at: input.occurred_at.or(existing.as_ref().map(|p| p.occurred_at)).unwrap_or(now),
             media: attached,
+            layered,
             // Comments and reactions have their own commands; edits keep them.
             comments: existing.as_ref().map(|p| p.comments.clone()).unwrap_or_default(),
             reactions: existing.as_ref().map(|p| p.reactions.clone()).unwrap_or_default(),
+            poll,
+            shared_post_id,
             created_at: existing.as_ref().map_or(now, |p| p.created_at),
             updated_at: now,
         };
 
         // Write new blobs first, then the post, then drop detached blobs. A crash
         // at any point leaves at worst an unreferenced file, never a dangling reference.
-        self.seal_staged(&post.media)?;
+        let owned: Vec<MediaRef> = post.all_media().cloned().collect();
+        self.seal_staged(&owned)?;
         self.write_post(&post)?;
-        self.commit_staged(&post.media);
+        self.commit_staged(&owned);
         let detached: Vec<String> =
-            previous.iter().filter(|m| !post.media.iter().any(|n| n.id == m.id)).map(|m| m.id.clone()).collect();
+            previous_all.iter().filter(|m| !owned.iter().any(|n| n.id == m.id)).map(|m| m.id.clone()).collect();
         self.posts.insert(post.id.clone(), post.clone());
         self.reindex_media();
         self.index_post(&post.id);
@@ -1605,11 +1846,11 @@ impl Workspace {
             "" => existing.as_ref().map(|i| i.source_url.clone()).unwrap_or_default(),
             url => short(url, 2000),
         };
-        let photo_max = shop.product_photo_max;
+        let (photo_max, photo_jpeg) = (shop.product_photo_max, shop.product_photo_jpeg);
         let previous: Vec<MediaRef> = existing.map(|i| i.media).unwrap_or_default();
         let mut media = self.resolve_media(&input.media_ids, &previous, MAX_MEDIA_PER_ITEM, "item")?;
-        // New photos are stored at the page's product photo size.
-        self.fit_staged(&mut media, photo_max);
+        // New photos are stored at the page's product photo size and format.
+        self.fit_staged(&mut media, photo_max, photo_jpeg);
         let item = Item {
             id: input.id.unwrap_or_else(|| Uuid::new_v4().to_string()),
             shop_id: input.shop_id,
@@ -1768,7 +2009,7 @@ impl Workspace {
             "post" => {
                 let post = self.trash.posts.remove(id).ok_or_else(|| Error::NotFound(format!("post {id} in the Trash")))?;
                 self.remove_record(Kind::Post, id)?;
-                for m in &post.media {
+                for m in post.all_media() {
                     self.remove_media_file(&m.id)?;
                 }
             }
@@ -1792,7 +2033,7 @@ impl Workspace {
                 }
                 self.remove_record(Kind::Profile, id)?;
                 self.trash.profiles.remove(id);
-                for m in [&profile.avatar, &profile.cover].into_iter().flatten() {
+                for m in profile.photos() {
                     self.remove_media_file(&m.id)?;
                 }
                 // Relationships with it, and tags of it in posts, go too.
@@ -1820,6 +2061,7 @@ impl Workspace {
                         || p.activities.iter().any(|a| a.with_ids.iter().any(|w| w == id))
                         || p.comments.iter().any(|c| c.author_id == id)
                         || p.reactions.iter().any(|r| r.profile_id == id)
+                        || p.poll.as_ref().is_some_and(|poll| poll.votes.iter().any(|v| v.profile_id == id))
                 })
         };
         let affected: Vec<(bool, Post)> = self
@@ -1844,6 +2086,9 @@ impl Workspace {
                 }
                 post.comments.retain(|c| c.author_id != id);
                 post.reactions.retain(|r| r.profile_id != id);
+                if let Some(poll) = &mut post.poll {
+                    poll.votes.retain(|v| v.profile_id != id);
+                }
             }
             self.write_post(&post)?;
             let id = post.id.clone();
@@ -1884,15 +2129,20 @@ impl Workspace {
     pub fn save_series(&mut self, input: SeriesInput) -> Result<Series> {
         let title = required(&input.title, "Series title")?;
         let now = now_millis();
-        let created_at = match &input.id {
-            Some(id) => self.series.get(id).ok_or_else(|| Error::NotFound(format!("series {id}")))?.created_at,
-            None => now,
+        let (created_at, newest_first, part_order) = match &input.id {
+            Some(id) => {
+                let existing = self.series.get(id).ok_or_else(|| Error::NotFound(format!("series {id}")))?;
+                (existing.created_at, existing.newest_first, existing.part_order.clone())
+            }
+            None => (now, false, Vec::new()),
         };
         let series = Series {
             id: input.id.unwrap_or_else(|| Uuid::new_v4().to_string()),
             title: title.chars().take(200).collect(),
             description: short(&input.description, 5000),
             color: short(&input.color, 20),
+            newest_first: input.newest_first.unwrap_or(newest_first),
+            part_order,
             created_at,
             updated_at: now,
         };
@@ -1906,24 +2156,69 @@ impl Workspace {
         Ok(series)
     }
 
-    /// Every series with its posts in date order (oldest first: part 1, part 2, …).
+    /// Every series with its posts in part order (part 1, part 2, …): by date,
+    /// oldest first, unless set by hand.
     pub fn series_summaries(&self) -> Vec<SeriesSummary> {
         let mut out: Vec<SeriesSummary> = self
             .series
             .values()
             .map(|x| {
-                let mut members: Vec<&Post> = self.posts.values().filter(|p| p.series_ids.contains(&x.id)).collect();
-                members.sort_by_key(|p| (p.occurred_at, p.created_at));
+                let members = order_parts(&x.part_order, self.posts.values().filter(|p| p.series_ids.contains(&x.id)).collect());
                 SeriesSummary {
                     series: x.clone(),
-                    from: members.first().map(|p| p.occurred_at),
-                    to: members.last().map(|p| p.occurred_at),
+                    from: members.iter().map(|p| p.occurred_at).min(),
+                    to: members.iter().map(|p| p.occurred_at).max(),
                     post_ids: members.iter().map(|p| p.id.clone()).collect(),
                 }
             })
             .collect();
         out.sort_by_key(|x| (x.from.unwrap_or(i64::MAX), x.series.title.to_lowercase()));
         out
+    }
+
+    /// Puts a series' parts in this order, by hand; empty goes back to date order.
+    /// Ids that aren't parts are ignored; parts left out slot in by date.
+    pub fn set_series_order(&mut self, id: &str, post_ids: &[String]) -> Result<Series> {
+        let mut series = self.series.get(id).ok_or_else(|| Error::NotFound(format!("series {id}")))?.clone();
+        let mut order: Vec<String> = Vec::new();
+        for pid in post_ids {
+            if self.posts.get(pid).is_some_and(|p| p.series_ids.contains(&series.id)) && !order.contains(pid) {
+                order.push(pid.clone());
+            }
+        }
+        series.part_order = order;
+        series.updated_at = now_millis();
+        self.write_record(Kind::Series, &series.id, &series, json!({}))?;
+        self.series.insert(series.id.clone(), series.clone());
+        Ok(series)
+    }
+
+    /// Adds a post to a series as a part, or takes it out. Added parts go in by date.
+    pub fn set_in_series(&mut self, post_id: &str, series_id: &str, member: bool) -> Result<Post> {
+        let mut series = self.series.get(series_id).ok_or_else(|| Error::NotFound(format!("series {series_id}")))?.clone();
+        let mut post = self.posts.get(post_id).ok_or_else(|| Error::NotFound(format!("post {post_id}")))?.clone();
+        if post.series_ids.iter().any(|s| s == series_id) == member {
+            return Ok(post);
+        }
+        if member {
+            if post.series_ids.len() >= MAX_SERIES_PER_POST {
+                return Err(Error::Invalid(format!("A post can be in at most {MAX_SERIES_PER_POST} series.")));
+            }
+            post.series_ids.push(series_id.into());
+        } else {
+            post.series_ids.retain(|s| s != series_id);
+            // Gone from the hand order too, so coming back puts it in by date.
+            if series.part_order.iter().any(|id| id == post_id) {
+                series.part_order.retain(|id| id != post_id);
+                self.write_record(Kind::Series, &series.id, &series, json!({}))?;
+                self.series.insert(series.id.clone(), series);
+            }
+        }
+        post.updated_at = now_millis();
+        self.write_post(&post)?;
+        self.posts.insert(post.id.clone(), post.clone());
+        self.index_post(post_id);
+        Ok(post)
     }
 
     /// Deletes a series; its posts stay, just no longer part of it.
@@ -1990,15 +2285,17 @@ impl Workspace {
             .collect::<Vec<_>>()
             .join(" ");
         let comments = post.comments.iter().map(|c| c.content.as_str()).collect::<Vec<_>>().join("\n");
+        let poll = post.poll.iter().flat_map(|p| p.options.iter().map(|o| o.text.as_str())).collect::<Vec<_>>().join("\n");
         let extra = format!(
-            "{} {} {} {} {} {} {}",
+            "{} {} {} {} {} {} {} {}",
             post.feeling.as_ref().map_or("", |f| f.text.as_str()),
             activities,
             post.event_type,
             post.also_event_types.join(" "),
             series,
             products,
-            comments
+            comments,
+            poll
         );
         let fields = [
             Field { text: &post.title, weight: 2.5 },
@@ -2645,6 +2942,26 @@ mod tests {
         assert_eq!(album.media[1].caption, "Sunrise over the dock");
         assert_eq!(files_in(&root.path().join("workspace_personal/media")), 2, "dropped photos deleted");
 
+        // Layers: photos of one subject, two or more, kept for albums only.
+        let layers = |ids: Vec<String>| PostInput { layered: true, ..kinded(PostKind::Album, "Watch, inside out", "", ids) };
+        assert!(ws.save_post(PostInput { id: Some(album.id.clone()), ..layers(vec![ids[1].clone()]) }).is_err(), "one photo is not layers");
+        let layered = ws.save_post(PostInput { id: Some(album.id.clone()), ..layers(vec![ids[1].clone(), ids[0].clone()]) }).unwrap();
+        assert!(layered.layered);
+        let clip = ws.stage_media("v.mp4", b"\0\0\0\x18ftypisom0000".to_vec()).unwrap();
+        assert!(ws.save_post(PostInput { id: Some(album.id.clone()), ..layers(vec![ids[1].clone(), clip.id.clone()]) }).is_err(), "photos only");
+        let flat = ws.save_post(PostInput { layered: true, ..kinded(PostKind::Status, "", "not an album", vec![]) }).unwrap();
+        assert!(!flat.layered, "statuses are never layered");
+        let album = ws.save_post(PostInput { id: Some(album.id.clone()), ..kinded(PostKind::Album, "Lake weekend", "", vec![ids[1].clone(), ids[0].clone()]) }).unwrap();
+        assert!(!album.layered, "edits can turn layers off");
+
+        // Converting: an album becomes an article (it needs text) and back, keeping its photos and captions.
+        let as_kind = |kind, content: &str| PostInput { id: Some(album.id.clone()), ..kinded(kind, "Lake weekend", content, vec![ids[1].clone(), ids[0].clone()]) };
+        assert!(ws.save_post(as_kind(PostKind::Article, "")).is_err(), "an article needs text");
+        let converted = ws.save_post(as_kind(PostKind::Article, "Two quiet days by the water.")).unwrap();
+        assert_eq!((converted.id.as_str(), converted.kind, converted.media[1].caption.as_str()), (album.id.as_str(), PostKind::Article, "Sunrise over the dock"));
+        let back = ws.save_post(as_kind(PostKind::Album, "Two quiet days by the water.")).unwrap();
+        assert_eq!((back.kind, back.media.len()), (PostKind::Album, 2));
+
         // Persisted, filterable and searchable.
         let ws = open_workspace(root.path(), "workspace_personal", "correct horse").unwrap();
         assert_eq!(ws.posts[&album.id].media[1].caption, "Sunrise over the dock");
@@ -2868,6 +3185,71 @@ mod tests {
         assert!(!media_dir.join(shard_of(&b.id)).join(format!("{}.enc", b.id)).exists(), "removing deletes the file");
     }
 
+    #[test]
+    fn layouts_belong_to_places_and_survive_edits() {
+        let root = tempfile::tempdir().unwrap();
+        let mut ws = create_workspace(root.path(), "", "Personal", "Alex", "correct horse", FAST).unwrap();
+        let owner = ws.owner_id().to_string();
+        let shop = ws.save_profile(person("River & Rose", ProfileKind::Shop)).unwrap();
+        let layout = json!({ "version": 2, "floors": [{ "name": "Ground", "width": 5, "depth": 4, "rooms": [{ "name": "Shop", "rect": [0, 0, 5, 4] }] }] });
+
+        assert!(ws.set_profile_layout(&owner, Some(layout.clone())).is_err(), "people have no layout");
+        assert!(ws.set_profile_layout(&shop.id, Some(json!({ "rooms": [] }))).is_err(), "a layout needs floors");
+        assert!(ws.set_profile_layout(&shop.id, Some(json!({ "floors": [] }))).is_err(), "at least one floor");
+        let saved = ws.set_profile_layout(&shop.id, Some(layout.clone())).unwrap();
+        assert_eq!(saved.layout, Some(layout.clone()));
+
+        // Editing the profile keeps the layout; it reloads from disk; None removes it.
+        let edited = ws.save_profile(ProfileInput { id: Some(shop.id.clone()), ..person("River & Rose", ProfileKind::Shop) }).unwrap();
+        assert_eq!(edited.layout, Some(layout.clone()));
+        let ws2 = open_workspace(root.path(), "workspace_personal", "correct horse").unwrap();
+        assert_eq!(ws2.profiles[&shop.id].layout, Some(layout));
+        assert_eq!(ws.set_profile_layout(&shop.id, None).unwrap().layout, None);
+    }
+
+    #[test]
+    fn old_floor_plans_are_dropped() {
+        let root = tempfile::tempdir().unwrap();
+        let mut ws = create_workspace(root.path(), "", "Personal", "Alex", "correct horse", FAST).unwrap();
+        let shop = ws.save_profile(person("River & Rose", ProfileKind::Shop)).unwrap();
+        let mut old = serde_json::to_value(&ws.profiles[&shop.id]).unwrap();
+        old["plan"] = json!({ "floors": [] });
+        let loaded: Profile = serde_json::from_value(old).unwrap();
+        assert_eq!(loaded.layout, None);
+        assert!(serde_json::to_value(&loaded).unwrap().get("plan").is_none());
+    }
+
+    #[test]
+    fn characters_and_face_views_belong_to_people() {
+        let root = tempfile::tempdir().unwrap();
+        let mut ws = create_workspace(root.path(), "", "Personal", "Alex", "correct horse", FAST).unwrap();
+        let shop = ws.save_profile(person("River & Rose", ProfileKind::Shop)).unwrap();
+        let june = ws.save_profile(person("June", ProfileKind::Person)).unwrap();
+        let look = json!({ "age": "elder", "figure": "feminine", "hair": { "style": "bun", "color": "#d4d4d4" } });
+
+        assert!(ws.set_profile_character(&shop.id, Some(look.clone())).is_err(), "places have no character");
+        assert!(ws.set_profile_character(&june.id, Some(json!("elder"))).is_err(), "an object");
+        assert_eq!(ws.set_profile_character(&june.id, Some(look.clone())).unwrap().character, Some(look.clone()));
+
+        let png = |n: u8| [&b"\x89PNG\r\n\x1a\n"[..], &[n; 64]].concat();
+        let front = ws.stage_media("front.png", png(1)).unwrap();
+        assert!(ws.set_profile_photo(&shop.id, PhotoSlot::FaceFront, Some(front.id.clone())).is_err(), "places have no face");
+        let saved = ws.set_profile_photo(&june.id, PhotoSlot::FaceFront, Some(front.id.clone())).unwrap();
+        assert_eq!(saved.faces.front.as_ref().unwrap().id, front.id);
+        assert!(matches!(ws.media_lookup(&front.id).unwrap().1, MediaSource::Ready(_)), "served by the protocol");
+
+        // Edits keep the character and faces; replacing a face deletes the old file.
+        let edited = ws.save_profile(ProfileInput { id: Some(june.id.clone()), ..person("June Morgan", ProfileKind::Person) }).unwrap();
+        assert_eq!((edited.character, edited.faces.front.map(|m| m.id)), (Some(look), Some(front.id.clone())));
+        let back = ws.stage_media("back.png", png(2)).unwrap();
+        ws.set_profile_photo(&june.id, PhotoSlot::FaceBack, Some(back.id.clone())).unwrap();
+        let ws2 = open_workspace(root.path(), "workspace_personal", "correct horse").unwrap();
+        assert_eq!(ws2.profiles[&june.id].faces.back.as_ref().unwrap().id, back.id);
+        let other = ws.stage_media("front2.png", png(3)).unwrap();
+        ws.set_profile_photo(&june.id, PhotoSlot::FaceFront, Some(other.id)).unwrap();
+        assert!(ws.media_lookup(&front.id).is_err(), "the old front view is gone");
+    }
+
     /// Writes a workspace exactly as Phase 1 (format 1) did.
     fn write_phase1_workspace(root: &Path) -> (String, String) {
         let dir = root.join("workspace_old");
@@ -2954,6 +3336,77 @@ mod tests {
     }
 
     #[test]
+    fn polls() {
+        let root = tempfile::tempdir().unwrap();
+        let mut ws = create_workspace(root.path(), "", "Personal", "Alex", "correct horse", FAST).unwrap();
+        let owner = ws.owner_id().to_string();
+        let sarah = ws.save_profile(person("Sarah", ProfileKind::Person)).unwrap();
+        let dev = ws.save_profile(person("Dev", ProfileKind::Person)).unwrap();
+        let media_dir = root.path().join("workspace_personal/media");
+        let png = |n: u8| [&b"\x89PNG\r\n\x1a\n"[..], &[n; 64]].concat();
+        let opt = |id: Option<&str>, text: &str, image: Option<&str>| PollOptionInput { id: id.map(Into::into), text: text.into(), image_id: image.map(Into::into) };
+        let ask = |content: &str, options: Vec<PollOptionInput>, multiple: bool| PostInput { poll: Some(PollInput { options, multiple }), ..post(&owner, content, vec![]) };
+
+        // A poll needs a question and two options; blank ones are dropped. Photos only.
+        assert!(ws.save_post(ask("", vec![opt(None, "Tea", None), opt(None, "Coffee", None)], false)).is_err());
+        assert!(ws.save_post(ask("Tea or coffee?", vec![opt(None, "Tea", None), opt(None, " ", None)], false)).is_err());
+        let video = ws.stage_media("v.mp4", b"\0\0\0\x18ftypisom0000".to_vec()).unwrap();
+        assert!(ws.save_post(ask("Tea or coffee?", vec![opt(None, "Tea", Some(&video.id)), opt(None, "Coffee", None)], false)).is_err());
+        let tea = ws.stage_media("tea.png", png(1)).unwrap();
+        let coffee = ws.stage_media("coffee.png", png(2)).unwrap();
+        assert!(ws.save_post(ask("Tea or coffee?", vec![opt(None, "Tea", Some(&tea.id)), opt(None, "Coffee", Some(&tea.id))], false)).is_err(), "one photo per option");
+        let p = ws
+            .save_post(ask("Tea or coffee?", vec![opt(None, "Tea", Some(&tea.id)), opt(None, "", Some(&coffee.id)), opt(None, "", None)], false))
+            .unwrap();
+        let poll = p.poll.clone().unwrap();
+        assert_eq!(poll.options.len(), 2);
+        assert!(media_dir.join(shard_of(&coffee.id)).join(format!("{}.enc", coffee.id)).exists(), "photos are sealed to disk");
+        assert_eq!(decrypt_saved(&mut ws, &tea.id), png(1));
+        assert_eq!(ws.search("tea", 10).posts.len(), 1, "options are searchable");
+        let (t, c) = (poll.options[0].id.clone(), poll.options[1].id.clone());
+
+        // One answer each unless the poll takes several; votes don't edit the post.
+        assert!(ws.vote_poll(&p.id, &owner, &[t.clone(), c.clone()]).is_err());
+        assert!(ws.vote_poll(&p.id, &owner, &["nope".into()]).is_err());
+        ws.vote_poll(&p.id, &owner, &[t.clone()]).unwrap();
+        ws.vote_poll(&p.id, &sarah.id, &[t.clone()]).unwrap();
+        let v = ws.vote_poll(&p.id, &owner, &[c.clone()]).unwrap();
+        assert_eq!(v.poll.as_ref().unwrap().votes.iter().map(|v| (v.profile_id.as_str(), v.option_id.as_str())).collect::<Vec<_>>(), [(sarah.id.as_str(), t.as_str()), (owner.as_str(), c.as_str())]);
+        assert_eq!(v.updated_at, p.updated_at);
+        let v = ws.vote_poll(&p.id, &sarah.id, &[]).unwrap();
+        assert_eq!(v.poll.as_ref().unwrap().votes.len(), 1, "taking a vote back");
+
+        // Editing: options keep their votes by id; a removed option takes its photo and votes with it.
+        let mut edit = ask("Tea or coffee?", vec![opt(Some(&t), "Tea", Some(&tea.id)), opt(Some(&c), "Coffee", Some(&coffee.id))], true);
+        edit.id = Some(p.id.clone());
+        let p = ws.save_post(edit).unwrap();
+        ws.vote_poll(&p.id, &dev.id, &[t.clone(), c.clone()]).unwrap();
+        let p = ws.vote_poll(&p.id, &sarah.id, &[t.clone(), c.clone()]).unwrap();
+        assert_eq!(p.poll.as_ref().unwrap().votes.len(), 5);
+        let juice = ws.stage_media("juice.png", png(3)).unwrap();
+        let mut edit = ask("Tea, juice or coffee?", vec![opt(Some(&t), "Tea", None), opt(None, "Juice", Some(&juice.id)), opt(Some(&c), "Coffee", Some(&coffee.id))], false);
+        edit.id = Some(p.id.clone());
+        let p = ws.save_post(edit).unwrap();
+        let poll = p.poll.clone().unwrap();
+        assert_eq!(poll.options.iter().map(|o| o.text.as_str()).collect::<Vec<_>>(), ["Tea", "Juice", "Coffee"]);
+        assert!(!media_dir.join(shard_of(&tea.id)).join(format!("{}.enc", tea.id)).exists(), "a removed photo is deleted");
+        assert_eq!(poll.votes.len(), 3, "one answer each again: their latest");
+        assert!(poll.votes.iter().all(|v| v.option_id == c));
+
+        // Purging a voter removes their votes; purging the post removes its photos.
+        ws.delete_profile(&dev.id).unwrap();
+        ws.purge("profile", &dev.id).unwrap();
+        assert_eq!(ws.posts[&p.id].poll.as_ref().unwrap().votes.len(), 2);
+        drop(ws);
+        let mut ws = open_workspace(root.path(), "workspace_personal", "correct horse").unwrap();
+        assert_eq!(ws.posts[&p.id].poll.as_ref().unwrap().options[1].image.as_ref().unwrap().id, juice.id);
+        assert_eq!(decrypt_saved(&mut ws, &juice.id), png(3));
+        ws.delete_post(&p.id).unwrap();
+        ws.purge("post", &p.id).unwrap();
+        assert_eq!(files_in(&media_dir), 0);
+    }
+
+    #[test]
     fn birthdays_and_anniversaries() {
         let root = tempfile::tempdir().unwrap();
         let mut ws = create_workspace(root.path(), "", "Personal", "Alex", "correct horse", FAST).unwrap();
@@ -3027,11 +3480,54 @@ mod tests {
         assert_eq!(dims(&mut ws, &shrunk.id), (720, 480));
         assert!(!root.path().join("workspace_personal").join(record_rel_path(Kind::Media, &old_id)).exists());
 
+        // 80% JPEG at any size: originals size, new format.
+        ws.set_product_photo_size(&shop.id, 0).unwrap();
+        ws.set_product_photo_jpeg(&shop.id, true).unwrap();
+        let photo = ws.stage_media("c.png", big.clone()).unwrap();
+        let compact = ws.save_item(input(vec![photo.id])).unwrap();
+        let m = &compact.media[0];
+        assert_eq!((m.mime.as_str(), m.name.as_str()), ("image/jpeg", "c.jpg"));
+        assert_eq!(dims(&mut ws, &m.id), (1500, 1000));
+
         // And it all survives a reopen.
         drop(ws);
         let mut ws = open_workspace(root.path(), "workspace_personal", "correct horse").unwrap();
-        assert_eq!(ws.profiles[&shop.id].product_photo_max, 720);
+        assert!(ws.profiles[&shop.id].product_photo_jpeg);
         assert_eq!(dims(&mut ws, &shrunk.id), (720, 480));
+    }
+
+    #[test]
+    fn shrink_post_photos_to_a_size() {
+        let root = tempfile::tempdir().unwrap();
+        let mut ws = create_workspace(root.path(), "", "Personal", "Alex", "correct horse", FAST).unwrap();
+        let owner = ws.owner_id().to_string();
+        let big = ws.stage_media("big.png", media::tests::photo_png(2400, 1200)).unwrap();
+        // A JPEG that already fits is left alone.
+        let small = ws.stage_media("small.jpg", media::fit_photo(&media::tests::photo_png(800, 600), 0, true).unwrap()).unwrap();
+        let content = format!("Intro\n\n![The view](media:{})\n\nEnd", big.id);
+        let saved = ws
+            .save_post(PostInput { kind: PostKind::Article, title: "Trip".into(), ..post(&owner, &content, vec![big.id.clone(), small.id.clone()]) })
+            .unwrap();
+        let edited_at = saved.updated_at;
+
+        assert!(ws.shrink_post_photos(&saved.id, 0, &mut ShrinkReport::default()).is_err());
+        let mut report = ShrinkReport::default();
+        for id in ws.post_ids_with_photos() {
+            ws.shrink_post_photos(&id, 1920, &mut report).unwrap();
+        }
+        // The small one already fits; the big one is a new, smaller file.
+        assert_eq!((report.photos, report.shrunk), (2, 1));
+        assert!(report.bytes_after < report.bytes_before);
+        let after = ws.posts[&saved.id].clone();
+        let shrunk = &after.media[0];
+        assert_ne!(shrunk.id, big.id);
+        assert_eq!(after.media[1].id, small.id);
+        let img = image::load_from_memory(&ws.read_media_bytes(&shrunk.id).unwrap()).unwrap();
+        assert_eq!((img.width(), img.height()), (1920, 960));
+        assert!(!root.path().join("workspace_personal").join(record_rel_path(Kind::Media, &big.id)).exists());
+        // The article's text points at the new file, and the post isn't marked edited.
+        assert_eq!(after.content, format!("Intro\n\n![The view](media:{})\n\nEnd", shrunk.id));
+        assert_eq!(after.updated_at, edited_at);
     }
 
     #[test]
@@ -3173,11 +3669,35 @@ mod tests {
     }
 
     #[test]
+    fn share_a_memory() {
+        let root = tempfile::tempdir().unwrap();
+        let mut ws = create_workspace(root.path(), "", "Personal", "Alex", "correct horse", FAST).unwrap();
+        let owner = ws.owner_id().to_string();
+        let old = ws.save_post(post(&owner, "At the lake", vec![])).unwrap();
+        let share = |id: &str| PostInput { shared_post_id: Some(id.into()), ..post(&owner, "", vec![]) };
+
+        let shared = ws.save_post(share(&old.id)).unwrap();
+        assert_eq!(shared.shared_post_id.as_deref(), Some(old.id.as_str()), "no caption needed");
+        let again = ws.save_post(share(&shared.id)).unwrap();
+        assert_eq!(again.shared_post_id.as_deref(), Some(old.id.as_str()), "shares the original");
+        assert!(ws.save_post(share("missing")).is_err());
+        assert!(ws.save_post(PostInput { id: Some(old.id.clone()), ..share(&old.id) }).is_err(), "not itself");
+        let article = PostInput { kind: PostKind::Article, title: "Then".into(), ..share(&old.id) };
+        assert!(ws.save_post(PostInput { content: "Text".into(), ..article }).unwrap().shared_post_id.is_none(), "statuses only");
+
+        // Edits keep a memory that has since gone to the Trash.
+        ws.delete_post(&old.id).unwrap();
+        let edited = ws.save_post(PostInput { id: Some(shared.id.clone()), content: "Missing this".into(), ..share(&old.id) }).unwrap();
+        assert_eq!(edited.shared_post_id.as_deref(), Some(old.id.as_str()));
+        assert!(ws.save_post(share(&old.id)).is_err(), "but new shares need a live post");
+    }
+
+    #[test]
     fn series_overlap_and_cleanup() {
         let root = tempfile::tempdir().unwrap();
         let mut ws = create_workspace(root.path(), "", "Personal", "Alex", "correct horse", FAST).unwrap();
         let owner = ws.owner_id().to_string();
-        let new = |title: &str| SeriesInput { id: None, title: title.into(), description: String::new(), color: "teal".into() };
+        let new = |title: &str| SeriesInput { id: None, title: title.into(), description: String::new(), color: "teal".into(), newest_first: None };
         assert!(ws.save_series(new("  ")).is_err(), "needs a title");
         let trip = ws.save_series(new("Japan trip")).unwrap();
         let wedding = ws.save_series(new("Wedding planning")).unwrap();
@@ -3190,6 +3710,10 @@ mod tests {
 
         // Renaming reindexes; the series is encrypted and survives a reopen.
         ws.save_series(SeriesInput { id: Some(trip.id.clone()), ..new("Kyoto trip") }).unwrap();
+        assert!(!ws.series[&trip.id].newest_first, "oldest first by default");
+        ws.save_series(SeriesInput { id: Some(trip.id.clone()), newest_first: Some(true), ..new("Kyoto trip") }).unwrap();
+        ws.save_series(SeriesInput { id: Some(trip.id.clone()), ..new("Kyoto trip") }).unwrap();
+        assert!(ws.series[&trip.id].newest_first, "edits that don't say keep the reading order");
         assert_eq!(ws.search("kyoto trip", 10).totals.posts, 1);
         assert_no_plaintext(&root.path().join("workspace_personal/series"), &["Kyoto"]);
         let mut ws = open_workspace(root.path(), "workspace_personal", "correct horse").unwrap();
@@ -3205,6 +3729,30 @@ mod tests {
         let filter = PostFilter { series_id: Some(trip.id.clone()), ..Default::default() };
         assert_eq!(ws.query_posts(&filter).len(), 2);
         assert!(ws.snapshot().series.iter().all(|s| s.series.id != wedding.id));
+
+        // Parts in an order set by hand (rough dates); parts added later slot in by date.
+        let parts = |ws: &Workspace| ws.series_summaries().into_iter().find(|x| x.series.id == trip.id).unwrap().post_ids;
+        ws.set_series_order(&trip.id, &[later.id.clone(), "not-a-part".into(), both.id.clone(), later.id.clone()]).unwrap();
+        assert_eq!(parts(&ws), vec![later.id.clone(), both.id.clone()], "hand order; strangers and repeats dropped");
+        let first = ws.save_post(PostInput { series_ids: vec![trip.id.clone()], occurred_at: Some(both.occurred_at - 1000), ..post(&owner, "Packing", vec![]) }).unwrap();
+        assert_eq!(parts(&ws), vec![first.id.clone(), later.id.clone(), both.id.clone()], "a new early part goes before the first later one");
+        ws.save_series(SeriesInput { id: Some(trip.id.clone()), ..new("Kyoto trip") }).unwrap();
+        assert_eq!(parts(&ws)[1], later.id, "edits keep the hand order");
+        ws.set_series_order(&trip.id, &[]).unwrap();
+        assert_eq!(parts(&ws), vec![first.id.clone(), both.id.clone(), later.id.clone()], "back to date order");
+        ws.delete_post(&first.id).unwrap();
+
+        // Adding and removing parts from the series itself.
+        let extra = ws.save_post(post(&owner, "Souvenirs", vec![])).unwrap();
+        ws.set_series_order(&trip.id, &[later.id.clone(), both.id.clone()]).unwrap();
+        assert_eq!(ws.set_in_series(&extra.id, &trip.id, true).unwrap().series_ids, vec![trip.id.clone()]);
+        assert!(parts(&ws).contains(&extra.id));
+        ws.set_in_series(&later.id, &trip.id, false).unwrap();
+        assert_eq!(ws.series[&trip.id].part_order, vec![both.id.clone()], "removed parts leave the hand order");
+        assert!(!parts(&ws).contains(&later.id));
+        assert!(ws.set_in_series(&extra.id, "missing", true).is_err());
+        ws.set_in_series(&later.id, &trip.id, true).unwrap();
+        ws.set_in_series(&extra.id, &trip.id, false).unwrap();
 
         // Series are re-encrypted by a key rotation.
         ws.change_password("correct horse", "battery staple", true, FAST).unwrap();

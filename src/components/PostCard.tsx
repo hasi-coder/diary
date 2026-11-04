@@ -1,19 +1,23 @@
 // A post in a feed. Statuses show inline; articles and albums show a teaser
 // that opens their own page (PostView).
 import { useState } from "react";
-import { ArrowRightIcon, DotsThreeIcon, PencilSimpleIcon, TrashIcon } from "@phosphor-icons/react";
+import { ArrowRightIcon, DotsThreeIcon, PencilSimpleIcon, PlayIcon, TrashIcon } from "@phosphor-icons/react";
 import { api, type Activity, type Post } from "../lib/api";
 import { useJournal } from "../lib/journal";
 import { formatPostDate, readingMinutes, subtitle } from "../lib/format";
+import { articleMedia } from "../lib/inlinePhotos";
 import { excerpt } from "../lib/mentions";
 import { Composer } from "./Composer";
+import { LayerViewer } from "./Layers";
 import { MediaGrid, MediaPreview } from "./Media";
 import { PostContent } from "./PostContent";
 import { PostHeadline } from "./PostExtras";
 import { PostFooter } from "./PostFooter";
+import { PollCard } from "./Poll";
 import { categoryOf } from "../lib/lifeEvents";
 import { lifeEventsIn, storyOf } from "../lib/story";
 import { SeriesBadges } from "./SeriesParts";
+import { SharedMemory } from "./SharedMemory";
 import { Avatar, ConfirmDialog } from "./ui";
 
 export function PostCard({ post, onTag }: { post: Post; onTag?: (tag: string) => void }) {
@@ -23,11 +27,15 @@ export function PostCard({ post, onTag }: { post: Post; onTag?: (tag: string) =>
   const edited = post.updatedAt - post.createdAt > 60_000;
   const count = post.media.length;
   const action =
-    post.kind === "album"
-      ? `added ${count} ${count === 1 ? "item" : "items"} to an album`
-      : post.kind === "article"
-        ? "wrote an article"
-        : null;
+    post.kind === "album" && post.layered
+      ? `shared ${count} layers`
+      : post.kind === "album"
+        ? `added ${count} ${count === 1 ? "item" : "items"} to an album`
+        : post.kind === "article"
+          ? "wrote an article"
+          : post.sharedPostId
+            ? "shared a memory"
+            : null;
   const story = storyOf(post);
 
   return (
@@ -64,16 +72,39 @@ export function PostCard({ post, onTag }: { post: Post; onTag?: (tag: string) =>
         <>
           <LifeEventBanner clauses={story} />
           {post.content && <PostContent content={post.content} onTag={onTag} />}
+          {post.poll && <PollCard post={post} poll={post.poll} />}
           {/* Photos run edge to edge, as on Facebook. */}
           <div className="-mx-4 [&>*]:rounded-none [&>*]:border-0">
             <MediaGrid post={post} />
           </div>
+          {post.sharedPostId && <SharedMemory id={post.sharedPostId} asOf={post.occurredAt} />}
         </>
       )}
       {/* Articles and albums edit in the full-screen composer. */}
       {editing && (post.kind === "article" || post.kind === "album") && <Composer editing={post} onDone={() => setEditing(false)} />}
+      {!editing && <OpenPlace post={post} />}
       {!editing && <PostFooter post={post} />}
     </article>
+  );
+}
+
+/** "Open Sunrise Clinic with June and Maya": walk the checked-in place with the post's people in it. */
+function OpenPlace({ post }: { post: Post }) {
+  const { profiles, navigate } = useJournal();
+  const place = post.placeId ? profiles.get(post.placeId) : undefined;
+  if (!place?.layout) return null;
+  const people = post.withIds.map((id) => profiles.get(id)).filter((p) => p && (p.kind === "person" || p.kind === "me"));
+  const names = people.map((p) => p!.name.split(" ")[0]);
+  const withText = names.length ? ` with ${names.length > 2 ? `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}` : names.join(" and ")}` : "";
+  return (
+    <button
+      onClick={() => navigate({ view: "world", placeId: place.id, postId: post.id })}
+      className="mt-3 flex w-full items-center gap-2 rounded-md bg-slate-100 px-3 py-2 text-left text-[15px] font-semibold text-slate-700 hover:bg-slate-200"
+    >
+      <PlayIcon weight="fill" className="text-brand-600" />
+      Open {place.name}
+      {withText}
+    </button>
   );
 }
 
@@ -101,20 +132,32 @@ export function LifeEventBanner({ clauses }: { clauses: Activity[] }) {
   );
 }
 
+/** Covers at least this wide (width / height) go across the top of an article's card. */
+const TEASER_WIDE = 1.25;
+/** The cover's box: tall 3:5 to panorama 2.4:1; beyond those it shows whole over a blurred fill. */
+const TEASER_ASPECT: [number, number] = [3 / 5, 2.4];
+
 function ArticleTeaser({ post }: { post: Post }) {
   const { profiles, navigate } = useJournal();
-  const cover = post.media[0];
+  // An article whose photos are all in the text shows its first one.
+  const cover = articleMedia(post).cover ?? post.media[0];
+  // The cover shows whole: a wide one across the top, shaped like itself; a tall or square one beside the text.
+  const [aspect, setAspect] = useState<number | null>(null);
+  const beside = aspect !== null && aspect < TEASER_WIDE;
   return (
     <button
       onClick={() => navigate({ view: "post", id: post.id })}
-      className="group block w-full overflow-hidden rounded-xl border border-slate-200 text-left transition-colors hover:bg-slate-50"
+      className={`group w-full overflow-hidden rounded-xl border border-slate-200 text-left transition-colors hover:bg-slate-50 ${beside ? "flex" : "block"}`}
     >
       {cover && (
-        <div className="h-56 overflow-hidden bg-slate-100">
-          <MediaPreview media={cover} className="transition-transform duration-500 group-hover:scale-105" />
+        <div
+          className={`shrink-0 overflow-hidden bg-slate-100 ${beside ? "w-48 self-start" : aspect === null ? "h-56" : "max-h-[26rem] w-full"}`}
+          style={aspect === null ? undefined : { aspectRatio: Math.min(Math.max(aspect, TEASER_ASPECT[0]), TEASER_ASPECT[1]) }}
+        >
+          <MediaPreview media={cover} fit={aspect === null ? "cover" : "contain"} onAspect={setAspect} />
         </div>
       )}
-      <div className="p-4">
+      <div className="min-w-0 flex-1 p-4">
         <div className="text-[11px] font-semibold uppercase tracking-wider text-brand-600">Article · {readingMinutes(post.content)} min read</div>
         <h3 className="mt-1 text-xl font-bold leading-snug text-slate-900">{post.title}</h3>
         <p className="mt-1.5 line-clamp-3 text-sm text-slate-500">{excerpt(post.content, profiles)}</p>
@@ -139,7 +182,7 @@ function AlbumTeaser({ post, onTag }: { post: Post; onTag?: (tag: string) => voi
           <PostContent content={post.content} onTag={onTag} />
         </div>
       )}
-      <MediaGrid post={post} />
+      {post.layered ? <LayerViewer post={post} /> : <MediaGrid post={post} />}
       <button onClick={open} className="mt-3 inline-flex items-center gap-1 text-sm font-medium text-brand-600 hover:underline">
         View album · {post.media.length} {post.media.length === 1 ? "item" : "items"} <ArrowRightIcon />
       </button>

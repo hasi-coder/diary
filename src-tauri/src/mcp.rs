@@ -155,6 +155,11 @@ fn tools() -> Value {
         Value::Object(m)
     };
     let id = json!({ "id": { "type": "string" } });
+    let face_view = |view: &str| json!({
+        "type": "object",
+        "properties": { "base64": { "type": "string" }, "fileName": { "type": "string" }, "url": { "type": "string" } },
+        "description": format!("The {view} view: base64 (or a data: URL), or an http(s) url")
+    });
     let tool = |name: &str, description: &str, properties: Value, required: &[&str]| {
         json!({ "name": name, "description": description, "inputSchema": { "type": "object", "properties": properties, "required": required, "additionalProperties": false } })
     };
@@ -166,8 +171,18 @@ fn tools() -> Value {
             merge(&merge(&page_fields, &json!({ "kind": { "type": "string", "enum": ["page", "shop"], "default": "page" } })),
                 &json!({ "avatarUrl": { "type": "string" }, "coverUrl": { "type": "string" } })), &["name"]),
         tool("update_page", "Update a page or shop. Only the fields given change.", merge(&id, &page_fields), &["id"]),
+        tool("merge_pages", "Merge a duplicate page/shop into another. Keeps destination details, fills blanks, preserves product ids, photos and references, and moves only the old profile to Trash. Product listings are not deduplicated. Only use when asked to merge.",
+            json!({ "sourceId": { "type": "string", "description": "Duplicate page/shop to merge away" }, "targetId": { "type": "string", "description": "Page/shop to keep" } }), &["sourceId", "targetId"]),
         tool("set_page_photo", "Set or remove a page's profile picture or cover photo.",
             json!({ "id": { "type": "string" }, "slot": { "type": "string", "enum": ["avatar", "cover"] }, "imageUrl": { "type": "string" }, "imageBase64": { "type": "string" }, "fileName": { "type": "string" }, "remove": { "type": "boolean" } }), &["id", "slot"]),
+        tool("set_place_layout", "Set or remove the walkable layout of a place, shop or page (the Places world). One cell is 1 m; x grows right, y grows down, as on a drawing. Shape: { version: 2, floors: [{ name, width, depth, entrance: [x,y], spawn: { at: [x,y], facing: 'N'|'NE'|…|'SE' }, rooms: [{ name, rect: [x1,y1,x2,y2], floor: '#hex', checker? }], doors: [{ edge: 'h:x:y' (north side of cell x,y) | 'v:x:y' (west side), kind?: 'door'|'arch', name?, locked?, partition?, cubicle?: [x,y] (the seat inside that locks it) }], partitions: ['v:x:y', …], items: [{ kind, x, y, w?, h?, facing?: 'N'|'S'|'E'|'W', color? }], spots?: { home: [Spot], work: [Spot], visit: [Spot] } }] }, Spot = { seat: [x,y] } | { cell: [x,y], facing }. Walls are drawn wherever two rooms (or a room and outside) meet. Item kinds: chair, armchair, sofa, bench, table, coffee, desk, counter, bed, hbed, couch, bedside, wardrobe, toilet, sink, bath, fridge, stove, kcounter, tv, shelf, plant, rug, cooler, cabinet, rack, mirror, till. Size spaces for groups: corridors 2 cells, cubicles and fitting rooms 2 x 2.",
+            json!({ "id": { "type": "string" }, "layout": { "type": ["object", "null"], "description": "The layout; null removes it" } }), &["id", "layout"]),
+        tool("set_person_faces", "Set the four head images (front, left, right, back) a person's character wears in the Places world. `left` and `right` are side profiles with the nose toward that edge of the image. Name the person exactly as in the journal, or give their profile id; this tool returns nothing else about the journal.",
+            json!({
+                "id": { "type": "string", "description": "Profile id (or use name)" },
+                "name": { "type": "string", "description": "The person's name, exactly as in the journal" },
+                "front": face_view("front"), "left": face_view("left"), "right": face_view("right"), "back": face_view("back")
+            }), &[]),
         tool("delete_page", "Move a page or shop (with its products and posts) to the user's Trash.", id.clone(), &["id"]),
         tool("list_products", "List products (metadata only).", json!({ "pageId": { "type": "string" }, "query": { "type": "string" }, "status": { "type": "string", "enum": ["available", "reserved", "sold"] } }), &[]),
         tool("get_product", "A product's metadata and photos.", id.clone(), &["id"]),
@@ -193,7 +208,22 @@ fn is_page(p: &Profile) -> bool {
 }
 
 fn page_of<'a>(ws: &'a Workspace, id: &str) -> Result<&'a Profile> {
-    ws.profiles.get(id).filter(|p| is_page(p)).ok_or_else(|| Error::NotFound(format!("page {id}")))
+    ws.profiles.get(id).or_else(|| ws.profiles.values().find(|p| p.merged_page_ids.iter().any(|old| old == id)))
+        .filter(|p| is_page(p)).ok_or_else(|| Error::NotFound(format!("page {id}")))
+}
+
+/// A person (or the owner) by id, or by their exact name (ignoring case).
+fn person_of(ws: &Workspace, id: Option<&str>, name: Option<&str>) -> Result<String> {
+    if let Some(id) = id.filter(|id| !id.is_empty()) {
+        return ws.profiles.get(id).filter(|p| p.is_person()).map(|p| p.id.clone()).ok_or_else(|| Error::NotFound(format!("person {id}")));
+    }
+    let name = name.map(str::trim).filter(|n| !n.is_empty()).ok_or_else(|| Error::Invalid("Give the person's id or name.".into()))?;
+    let found: Vec<&Profile> = ws.profiles.values().filter(|p| p.is_person() && p.name.eq_ignore_ascii_case(name)).collect();
+    match found.as_slice() {
+        [p] => Ok(p.id.clone()),
+        [] => Err(Error::NotFound(format!("No person named \"{name}\"."))),
+        _ => Err(Error::Invalid(format!("More than one person is named \"{name}\"; give the profile id."))),
+    }
 }
 
 fn photo_json(m: &Option<MediaRef>) -> Value {
@@ -204,7 +234,8 @@ fn page_json(ws: &Workspace, p: &Profile, full: bool) -> Value {
     let products: Vec<&Item> = ws.items.values().filter(|i| i.shop_id == p.id).collect();
     let mut v = json!({
         "id": p.id, "kind": p.kind, "name": p.name, "category": p.category, "tagline": p.tagline, "location": p.location,
-        "sellsProducts": p.can_sell(), "sourceUrl": p.source_url, "productCount": products.len(),
+        "sellsProducts": p.can_sell(), "sourceUrl": p.source_url, "sourceUrls": p.source_urls,
+        "mergedPageIds": p.merged_page_ids, "productCount": products.len(),
         "hasProfilePicture": p.avatar.is_some(), "hasCover": p.cover.is_some(), "updatedAt": p.updated_at,
     });
     if full {
@@ -342,9 +373,17 @@ pub fn call_tool(state: &AppState, name: &str, args: &Value) -> Result<(Value, S
         }),
         "find_by_source_url" => state.with_workspace(|ws| {
             let url = normalise_url(required_str(args, "url")?);
-            let pages: Vec<Value> = ws.profiles.values().filter(|p| is_page(p) && normalise_url(&p.source_url) == url).map(|p| page_json(ws, p, false)).collect();
+            let pages: Vec<Value> = ws.profiles.values().filter(|p| is_page(p)
+                && std::iter::once(&p.source_url).chain(&p.source_urls).any(|u| normalise_url(u) == url))
+                .map(|p| page_json(ws, p, false)).collect();
             let products: Vec<Value> = ws.items.values().filter(|i| normalise_url(&i.source_url) == url).map(|i| product_json(ws, i)).collect();
             Ok((json!({ "pages": pages, "products": products }), format!("looked up {url}")))
+        }),
+        "merge_pages" => state.with_workspace(|ws| {
+            let merged = ws.merge_pages(required_str(args, "sourceId")?, required_str(args, "targetId")?)?;
+            let summary = format!("merged page {} into \"{}\" ({} products moved)", merged.source_id, merged.page.name, merged.moved_products);
+            Ok((json!({ "page": page_json(ws, &merged.page, true), "sourceId": merged.source_id,
+                "movedProducts": merged.moved_products, "note": "Only the old profile was moved to Trash; products and references were preserved." }), summary))
         }),
         "create_page" => {
             let avatar = arg_str(args, "avatarUrl").map(fetch_image).transpose()?;
@@ -392,6 +431,40 @@ pub fn call_tool(state: &AppState, name: &str, args: &Value) -> Result<(Value, S
             let page = ws.save_profile(input)?;
             Ok((page_json(ws, &page, true), format!("updated page \"{}\"", page.name)))
         }),
+        "set_place_layout" => state.with_workspace(|ws| {
+            let page = page_of(ws, required_str(args, "id")?)?;
+            let layout = match args.get("layout") {
+                None | Some(Value::Null) => None,
+                Some(layout) => Some(layout.clone()),
+            };
+            let page = ws.set_profile_layout(&page.id.clone(), layout)?;
+            Ok((page_json(ws, &page, true), format!("set the layout of \"{}\"", page.name)))
+        }),
+        "set_person_faces" => {
+            let mut views = Vec::new();
+            for (key, slot) in [("front", PhotoSlot::FaceFront), ("left", PhotoSlot::FaceLeft), ("right", PhotoSlot::FaceRight), ("back", PhotoSlot::FaceBack)] {
+                let Some(v) = args.get(key).filter(|v| !v.is_null()) else { continue };
+                let image = match v.get("url").and_then(Value::as_str) {
+                    Some(url) => fetch_image(url)?,
+                    None => collect_images(&json!({ "images": [{ "base64": v.get("base64").and_then(Value::as_str).unwrap_or(""), "fileName": v.get("fileName").and_then(Value::as_str).unwrap_or(key) }] }), "-", "images")?
+                        .remove(0),
+                };
+                views.push((key, slot, image));
+            }
+            if views.is_empty() {
+                return Err(Error::Invalid("Give at least one of front, left, right or back.".into()));
+            }
+            state.with_workspace(|ws| {
+                let person = person_of(ws, arg_str(args, "id"), arg_str(args, "name"))?;
+                let staged = stage_all(ws, views.iter().map(|(_, _, img)| img.clone()).collect())?;
+                for ((_, slot, _), media) in views.iter().zip(staged) {
+                    ws.set_profile_photo(&person, *slot, Some(media))?;
+                }
+                let p = &ws.profiles[&person];
+                let set: Vec<&str> = views.iter().map(|(k, _, _)| *k).collect();
+                Ok((json!({ "id": p.id, "name": p.name, "set": set }), format!("set {} face view(s) of \"{}\"", set.len(), p.name)))
+            })
+        }
         "set_page_photo" => {
             let slot = match required_str(args, "slot")? {
                 "avatar" => PhotoSlot::Avatar,
@@ -738,6 +811,34 @@ mod tests {
     }
 
     #[test]
+    fn face_views_go_to_a_named_person_and_reveal_nothing_else() {
+        let (_root, state) = unlocked();
+        let june = state.with_workspace(|ws| {
+            let input = ProfileInput { kind: ProfileKind::Person, name: "June Morgan".into(), bio: "private".into(), ..profile_input(&ws.profiles[ws.owner_id()].clone()) };
+            let input = ProfileInput { id: None, ..input };
+            ws.save_profile(input)
+        }).unwrap();
+        let img = json!({ "base64": B64.encode(PNG), "fileName": "front.png" });
+
+        let (out, err) = call(&state, "set_person_faces", json!({ "name": "june morgan", "front": img.clone(), "left": img.clone() }));
+        assert!(!err, "{out}");
+        assert_eq!(out, json!({ "id": june.id, "name": "June Morgan", "set": ["front", "left"] }), "only what was set");
+        state.with_workspace(|ws| {
+            let p = &ws.profiles[&june.id];
+            assert!(p.faces.front.is_some() && p.faces.left.is_some() && p.faces.back.is_none());
+            Ok(())
+        }).unwrap();
+
+        let (_, err) = call(&state, "set_person_faces", json!({ "name": "Nobody", "front": img.clone() }));
+        assert!(err, "unknown names are refused");
+        let (page, _) = call(&state, "create_page", json!({ "name": "River & Rose", "kind": "shop" }));
+        let (_, err) = call(&state, "set_person_faces", json!({ "id": page["id"], "front": img.clone() }));
+        assert!(err, "pages have no faces");
+        let (_, err) = call(&state, "set_person_faces", json!({ "name": "June Morgan" }));
+        assert!(err, "at least one view");
+    }
+
+    #[test]
     fn protocol_basics() {
         let (_root, state) = unlocked();
         let init = handle_message(&state, &json!({ "jsonrpc": "2.0", "id": 0, "method": "initialize", "params": { "protocolVersion": PROTOCOL_VERSION } })).unwrap();
@@ -746,9 +847,50 @@ mod tests {
         let tools = handle_message(&state, &json!({ "jsonrpc": "2.0", "id": 2, "method": "tools/list" })).unwrap();
         let names: Vec<&str> = tools["result"]["tools"].as_array().unwrap().iter().map(|t| t["name"].as_str().unwrap()).collect();
         assert!(names.contains(&"create_product") && names.contains(&"add_product_photos"));
-        assert!(names.iter().all(|n| !n.contains("post") && !n.contains("person") && !n.contains("trash")), "pages and products only: {names:?}");
+        // Pages and products, plus one write-only tool for a person's face views.
+        assert!(names.iter().all(|n| !n.contains("post") && (!n.contains("person") || *n == "set_person_faces") && !n.contains("trash")), "pages and products only: {names:?}");
         let unknown = handle_message(&state, &json!({ "jsonrpc": "2.0", "id": 3, "method": "resources/list" })).unwrap();
         assert_eq!(unknown["error"]["code"], -32601);
+    }
+
+    #[test]
+    fn merge_pages_tool_preserves_ids_resolves_old_urls_and_stays_in_scope() {
+        let (_root, state) = unlocked();
+        let (source, err) = call(&state, "create_page", json!({ "name": "Duplicate", "kind": "shop", "sourceUrl": "https://india.example/" }));
+        assert!(!err);
+        let (target, err) = call(&state, "create_page", json!({ "name": "Keep", "kind": "shop", "sourceUrl": "https://lk.example/" }));
+        assert!(!err);
+        let (product, err) = call(&state, "create_product", json!({ "pageId": source["id"], "name": "Bra", "price": 695, "currency": "INR", "images": [{ "base64": B64.encode(PNG) }] }));
+        assert!(!err);
+        let (merged, err) = call(&state, "merge_pages", json!({ "sourceId": source["id"], "targetId": target["id"] }));
+        assert!(!err, "{merged}");
+        assert_eq!(merged["movedProducts"], 1);
+        assert_eq!(merged["page"]["id"], target["id"]);
+        assert_eq!(merged["page"]["productCount"], 1);
+        assert!(merged.get("posts").is_none());
+        assert!(merged["page"].get("relations").is_none());
+        let (after, err) = call(&state, "get_product", json!({ "id": product["id"] }));
+        assert!(!err);
+        assert_eq!(after["id"], product["id"]);
+        assert_eq!(after["pageId"], target["id"]);
+        assert_eq!(after["photos"], product["photos"]);
+        assert_eq!(after["currency"], "INR");
+        let (found, err) = call(&state, "find_by_source_url", json!({ "url": "https://india.example/" }));
+        assert!(!err);
+        assert_eq!(found["pages"][0]["id"], target["id"]);
+        let (old_link, err) = call(&state, "get_page", json!({ "id": source["id"] }));
+        assert!(!err);
+        assert_eq!(old_link["id"], target["id"]);
+        let (retry, err) = call(&state, "merge_pages", json!({ "sourceId": source["id"], "targetId": target["id"] }));
+        assert!(!err);
+        assert_eq!(retry["movedProducts"], 0);
+        let owner = state.with_workspace(|ws| Ok(ws.manifest.owner_profile_id.clone())).unwrap();
+        let (_, err) = call(&state, "merge_pages", json!({ "sourceId": owner, "targetId": target["id"] }));
+        assert!(err);
+        let edited = call(&state, "update_page", json!({"id": target["id"], "tagline": "Edited"}));
+        assert!(!edited.1);
+        let found = call(&state, "find_by_source_url", json!({"url": "https://india.example"}));
+        assert_eq!(found.0["pages"][0]["id"], target["id"]);
     }
 
     #[test]

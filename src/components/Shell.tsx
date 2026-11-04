@@ -1,13 +1,17 @@
 // App chrome, laid out like Facebook: a top bar with the main destinations in
 // the middle, a left menu (on list views), and the per-view page layout.
-import type { ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import {
+  ArrowClockwiseIcon,
+  ArrowLeftIcon,
+  ArrowRightIcon,
   BookOpenIcon,
   BooksIcon,
   GearIcon,
   HouseIcon,
   ImagesIcon,
   MagnifyingGlassIcon,
+  MapPinIcon,
   LockIcon,
   ShieldCheckIcon,
   StorefrontIcon,
@@ -22,6 +26,7 @@ import { Avatar } from "./ui";
 const DESTINATIONS: { icon: Icon; label: string; view: Route["view"]; color: string }[] = [
   { icon: HouseIcon, label: "Home", view: "timeline", color: "text-brand-500" },
   { icon: UsersThreeIcon, label: "Profiles", view: "profiles", color: "text-sky-500" },
+  { icon: MapPinIcon, label: "Places", view: "places", color: "text-rose-500" },
   { icon: ImagesIcon, label: "Media", view: "gallery", color: "text-emerald-500" },
   { icon: BooksIcon, label: "Series", view: "series", color: "text-violet-500" },
   { icon: StorefrontIcon, label: "Marketplace", view: "marketplace", color: "text-brand-500" },
@@ -47,6 +52,7 @@ export function TopBar({ onSearch }: { onSearch: () => void }) {
           <MagnifyingGlassIcon size={16} className="shrink-0" />
           <span className="hidden truncate xl:inline">Search My Diary</span>
         </button>
+        <HistoryButtons />
       </div>
 
       <nav className="flex h-14 items-stretch">
@@ -89,6 +95,84 @@ export function TopBar({ onSearch }: { onSearch: () => void }) {
         </button>
       </div>
     </header>
+  );
+}
+
+const isMac = /Mac|iPhone|iPad/.test(navigator.platform);
+const typing = (t: EventTarget | null) => t instanceof HTMLElement && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName));
+
+/**
+ * Back, forward and reload, with the browser's keys: ⌘[ ⌘] (Alt+← Alt+→
+ * elsewhere), the mouse's side buttons, and ⌘R / Ctrl+R / F5, which reload the
+ * journal's data instead of the window (that would lock it).
+ */
+function HistoryButtons() {
+  const { back, forward, canBack, canForward, refresh } = useJournal();
+  const [reloading, setReloading] = useState(false);
+  const reload = () => {
+    setReloading(true);
+    void refresh()
+      .catch(() => {})
+      .finally(() => setReloading(false));
+  };
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.defaultPrevented) return;
+      const mod = isMac ? e.metaKey : e.ctrlKey;
+      if (e.key === "F5" || (mod && !e.shiftKey && e.key.toLowerCase() === "r")) {
+        e.preventDefault();
+        reload();
+        return;
+      }
+      if (typing(e.target)) return;
+      const go = mod && e.key === "[" ? back : mod && e.key === "]" ? forward : null;
+      const alt = !isMac && e.altKey && !mod ? (e.key === "ArrowLeft" ? back : e.key === "ArrowRight" ? forward : null) : null;
+      const action = go ?? alt;
+      if (action) {
+        e.preventDefault();
+        action();
+      }
+    };
+    const onMouse = (e: MouseEvent) => {
+      if (e.button === 3) back();
+      else if (e.button === 4) forward();
+    };
+    window.addEventListener("keydown", onKey);
+    window.addEventListener("mouseup", onMouse);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      window.removeEventListener("mouseup", onMouse);
+    };
+  });
+
+  return (
+    <div className="ml-1 flex shrink-0 items-center gap-1">
+      <NavButton title={`Back (${isMac ? "⌘[" : "Alt+←"})`} disabled={!canBack} onClick={back}>
+        <ArrowLeftIcon size={18} weight="bold" />
+      </NavButton>
+      <NavButton title={`Forward (${isMac ? "⌘]" : "Alt+→"})`} disabled={!canForward} onClick={forward}>
+        <ArrowRightIcon size={18} weight="bold" />
+      </NavButton>
+      <NavButton title={`Reload (${isMac ? "⌘R" : "Ctrl+R"})`} disabled={reloading} onClick={reload}>
+        <ArrowClockwiseIcon size={18} weight="bold" className={reloading ? "animate-spin" : ""} />
+      </NavButton>
+    </div>
+  );
+}
+
+function NavButton(props: { title: string; disabled?: boolean; onClick: () => void; children: ReactNode }) {
+  return (
+    <button
+      type="button"
+      title={props.title}
+      aria-label={props.title}
+      disabled={props.disabled}
+      onClick={props.onClick}
+      className="flex h-9 w-9 items-center justify-center rounded-full text-slate-600 transition-colors hover:bg-slate-100 disabled:text-slate-300 disabled:hover:bg-transparent"
+    >
+      {props.children}
+    </button>
   );
 }
 

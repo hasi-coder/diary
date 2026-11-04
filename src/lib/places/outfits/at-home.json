@@ -1,0 +1,8 @@
+{
+  "label": "At home",
+  "description": "T-shirt and jeans, barefoot",
+  "wearing": [
+    { "garment": "tee", "color": "#10b981" },
+    { "garment": "jeans", "color": "#475569" }
+  ]
+}

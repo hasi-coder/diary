@@ -1,5 +1,7 @@
 // Typed wrappers around the Rust commands in src-tauri/src/commands.rs.
 import { convertFileSrc, invoke } from "@tauri-apps/api/core";
+import type { Character } from "./places/character";
+import type { Layout } from "./places/layout";
 
 export type ProfileKind = "me" | "person" | "page" | "shop" | "place";
 
@@ -30,9 +32,18 @@ export interface Profile {
   coverPosition: number;
   /** Pages and shops: long side, in pixels, that product photos are stored at (0 = original). */
   productPhotoMax: number;
+  productPhotoJpeg: boolean;
   relations: Relation[];
   /** Where a page or shop was imported from by an agent; absent when none. */
   sourceUrl?: string;
+  sourceUrls?: string[];
+  mergedPageIds?: string[];
+  /** Places, shops and pages: the walkable layout for the Places world; absent when none. */
+  layout?: Layout | null;
+  /** People: how they look in the Places world (missing fields come from the profile); absent when not set. */
+  character?: Partial<Character> | null;
+  /** People: the four head images their character wears; absent when none. */
+  faces?: Partial<Record<"front" | "left" | "right" | "back", MediaRef>>;
   createdAt: number;
   updatedAt: number;
 }
@@ -49,7 +60,16 @@ export interface Relation {
 
 export type RelationInput = Omit<Relation, "id"> & { id?: string };
 
-export type ProfileInput = Omit<Profile, "id" | "createdAt" | "updatedAt" | "avatar" | "cover" | "coverPosition" | "productPhotoMax" | "relations" | "sourceUrl"> & { id?: string };
+export type ProfileInput = Omit<Profile, "id" | "createdAt" | "updatedAt" | "avatar" | "cover" | "coverPosition" | "productPhotoMax" | "productPhotoJpeg" | "relations" | "sourceUrl" | "sourceUrls" | "mergedPageIds" | "layout" | "character" | "faces"> & { id?: string };
+
+/** A profile's own photos: picture, cover, and a person's four face views. */
+export type PhotoSlot = "avatar" | "cover" | "face_front" | "face_left" | "face_right" | "face_back";
+
+export interface PageMerge {
+  page: Profile;
+  sourceId: string;
+  movedProducts: number;
+}
 
 export type PostKind = "status" | "article" | "album" | "milestone";
 
@@ -103,10 +123,16 @@ export interface Post {
   /** Series it belongs to; absent when none. */
   seriesIds?: string[];
   media: MediaRef[];
+  /** Albums only: the photos are layers of one subject (before and after, outside and inside), viewed with a slider. */
+  layered?: boolean;
   /** Notes added later, oldest first; absent when none. */
   comments?: Comment[];
   /** At most one per profile; absent when none. */
   reactions?: Reaction[];
+  /** Statuses only: the post's text is the question. Absent when none. */
+  poll?: Poll;
+  /** Statuses only: an earlier post shared as a memory. Absent when none. */
+  sharedPostId?: string;
   createdAt: number;
   updatedAt: number;
 }
@@ -136,6 +162,34 @@ export interface Reaction {
   createdAt: number;
 }
 
+/** A question in a status post, answered by any profile. */
+export interface Poll {
+  options: PollOption[];
+  /** Whether a profile may pick more than one option. */
+  multiple: boolean;
+  /** One per profile and option, oldest first; absent when none. */
+  votes?: PollVote[];
+}
+
+/** Text, a photo, or both. */
+export interface PollOption {
+  id: string;
+  text: string;
+  image?: MediaRef;
+}
+
+export interface PollVote {
+  profileId: string;
+  optionId: string;
+  createdAt: number;
+}
+
+export interface PollInput {
+  /** `id` for options already on the poll (they keep their votes); `imageId` is a staged upload or the current photo. */
+  options: { id?: string; text: string; imageId: string | null }[];
+  multiple: boolean;
+}
+
 export interface PostInput {
   id?: string;
   kind: PostKind;
@@ -154,6 +208,12 @@ export interface PostInput {
   occurredAt?: number;
   /** Attachments in display order: staged uploads or media already on the post. */
   mediaIds: string[];
+  /** Albums only: show the photos as layers with a slider. */
+  layered: boolean;
+  /** Statuses only; null removes the poll. */
+  poll: PollInput | null;
+  /** Statuses only: the earlier post to share as a memory. */
+  sharedPostId?: string | null;
 }
 
 export type MediaKind = "image" | "video";
@@ -183,11 +243,16 @@ export interface Series {
   title: string;
   description: string;
   color: string;
+  /** Read latest part first, like a feed; absent means oldest first, like a story. */
+  newestFirst?: boolean;
+  /** Parts in an order set by hand; absent means by date. */
+  partOrder?: string[];
   createdAt: number;
   updatedAt: number;
 }
 
-export type SeriesInput = Pick<Series, "title" | "description" | "color"> & { id?: string };
+/** Leave `newestFirst` out to keep the series' reading order. */
+export type SeriesInput = Pick<Series, "title" | "description" | "color" | "newestFirst"> & { id?: string };
 
 /** A series with its posts in date order (part 1 first) and the span they cover. */
 export interface SeriesSummary extends Series {
@@ -198,6 +263,8 @@ export interface SeriesSummary extends Series {
 
 // Mirrors src-tauri/src/media.rs.
 export const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
+/** Photos and videos a post or article can have; albums take far more. */
+export const MAX_MEDIA_PER_POST = 20;
 export const MAX_VIDEO_BYTES = 20 * 1024 * 1024;
 
 /** URL the webview loads to get decrypted media from the Rust backend. */
@@ -383,11 +450,14 @@ export const api = {
   listPosts: (filter: PostFilter) => invoke<Post[]>("list_posts", { filter }),
   saveProfile: (input: ProfileInput) => invoke<Profile>("save_profile", { input }),
   deleteProfile: (id: string) => invoke<void>("delete_profile", { id }),
+  mergePages: (sourceId: string, targetId: string) => invoke<PageMerge>("merge_pages", { sourceId, targetId }),
   savePost: (input: PostInput) => invoke<Post>("save_post", { input }),
   addComment: (postId: string, authorId: string, content: string) => invoke<Post>("add_comment", { postId, authorId, content }),
   editComment: (postId: string, commentId: string, content: string) => invoke<Post>("edit_comment", { postId, commentId, content }),
   deleteComment: (postId: string, commentId: string) => invoke<Post>("delete_comment", { postId, commentId }),
   setReaction: (postId: string, profileId: string, kind: ReactionKind | null) => invoke<Post>("set_reaction", { postId, profileId, kind }),
+  /** Sets the profile's answers to exactly `optionIds`; [] takes the vote back. */
+  votePoll: (postId: string, profileId: string, optionIds: string[]) => invoke<Post>("vote_poll", { postId, profileId, optionIds }),
   deletePost: (id: string) => invoke<void>("delete_post", { id }),
   saveItem: (input: ItemInput) => invoke<Item>("save_item", { input }),
   deleteItem: (id: string) => invoke<void>("delete_item", { id }),
@@ -395,8 +465,11 @@ export const api = {
   listTrash: () => invoke<TrashEntry[]>("list_trash"),
   storageUsage: () => invoke<StorageUsage>("storage_usage"),
   setProductPhotoSize: (profileId: string, max: number) => invoke<Profile>("set_product_photo_size", { profileId, max }),
+  setProductPhotoJpeg: (profileId: string, on: boolean) => invoke<Profile>("set_product_photo_jpeg", { profileId, on }),
   /** Long-running; emits `photo-shrink-progress` as [done, total]. */
   shrinkProductPhotos: (shopId: string) => invoke<ShrinkReport>("shrink_product_photos", { shopId }),
+  /** Every post's photos, to fit `max` pixels. Long-running; emits `photo-shrink-progress` as [done, total]. */
+  shrinkJournalPhotos: (max: number) => invoke<ShrinkReport>("shrink_journal_photos", { max }),
   restoreFromTrash: (kind: TrashEntry["kind"], id: string) => invoke<void>("restore_from_trash", { kind, id }),
   purgeFromTrash: (kind: TrashEntry["kind"], id: string) => invoke<void>("purge_from_trash", { kind, id }),
   emptyTrash: () => invoke<number>("empty_trash"),
@@ -408,6 +481,10 @@ export const api = {
   syncNow: (force = false) => invoke<SyncReport>("sync_now", { force }),
   listBackups: () => invoke<BackupInfo[]>("list_backups"),
   restoreBackup: (name: string) => invoke<string>("restore_backup", { name }),
+  /** Parts in this order, by hand; [] goes back to date order. */
+  setSeriesOrder: (id: string, postIds: string[]) => invoke<Series>("set_series_order", { id, postIds }),
+  /** Adds a post to a series (it goes in by date), or takes it out. */
+  setInSeries: (postId: string, seriesId: string, member: boolean) => invoke<Post>("set_in_series", { postId, seriesId, member }),
   deleteSeries: (id: string) => invoke<void>("delete_series", { id }),
   runMigration: () => invoke<Snapshot>("run_migration"),
   /** Uploads a file as a raw binary body; it stays in memory until a post references it. */
@@ -418,9 +495,13 @@ export const api = {
   discardMedia: (ids: string[]) => invoke<void>("discard_media", { ids }),
   search: (query: string, limit = 20) => invoke<SearchResults>("search", { query, limit }),
   getPost: (id: string) => invoke<Post>("get_post", { id }),
-  setProfilePhoto: (profileId: string, slot: "avatar" | "cover", mediaId: string | null) =>
+  setProfilePhoto: (profileId: string, slot: PhotoSlot, mediaId: string | null) =>
     invoke<Profile>("set_profile_photo", { profileId, slot, mediaId }),
   setCoverPosition: (profileId: string, position: number) => invoke<Profile>("set_cover_position", { profileId, position }),
+  /** Sets a place's walkable layout; null removes it. */
+  setProfileLayout: (profileId: string, layout: Layout | null) => invoke<Profile>("set_profile_layout", { profileId, layout }),
+  /** Sets how a person looks in the Places world; null goes back to what their profile suggests. */
+  setProfileCharacter: (profileId: string, character: Partial<Character> | null) => invoke<Profile>("set_profile_character", { profileId, character }),
   stageMediaCopy: (mediaId: string) => invoke<MediaRef>("stage_media_copy", { mediaId }),
   saveRelation: (profileId: string, input: RelationInput) => invoke<Profile>("save_relation", { profileId, input }),
   deleteRelation: (profileId: string, relationId: string) => invoke<Profile>("delete_relation", { profileId, relationId }),

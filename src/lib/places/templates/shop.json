@@ -1,0 +1,54 @@
+{
+  "version": 2,
+  "name": "Clothing shop",
+  "floors": [
+    {
+      "name": "Ground floor",
+      "width": 14,
+      "depth": 10,
+      "entrance": [4, 9],
+      "spawn": {"at": [4, 9], "facing": "N"},
+      "rooms": [
+        {"name": "Shop floor", "rect": [0, 0, 10, 10], "floor": "#e3c9a0"},
+        {"name": "Fitting rooms", "rect": [10, 0, 14, 7], "floor": "#dccbe0"},
+        {"name": "Stockroom", "rect": [10, 7, 14, 10], "floor": "#c9c6bd"}
+      ],
+      "doors": [
+        {"edge": "h:4:10", "name": "Entrance"},
+        {"edge": "h:5:10", "name": "Entrance"},
+        {"edge": "v:10:2", "kind": "arch"},
+        {"edge": "v:10:3", "kind": "arch"},
+        {"edge": "v:10:8", "locked": true, "name": "Staff only"},
+        {"edge": "v:12:1", "partition": true, "cubicle": [13, 0], "name": "Fitting room 1"},
+        {"edge": "v:12:3", "partition": true, "cubicle": [13, 2], "name": "Fitting room 2"},
+        {"edge": "v:12:5", "partition": true, "cubicle": [13, 4], "name": "Fitting room 3"}
+      ],
+      "items": [
+        {"kind": "till", "x": 1, "y": 1, "w": 3, "facing": "S"},
+        {"kind": "table", "x": 7, "y": 1, "w": 2, "color": "#f5d0fe"},
+        {"kind": "rack", "x": 2, "y": 3, "w": 2, "facing": "S"},
+        {"kind": "rack", "x": 6, "y": 3, "w": 2, "facing": "S"},
+        {"kind": "rack", "x": 2, "y": 6, "w": 2, "facing": "S"},
+        {"kind": "rack", "x": 6, "y": 6, "w": 2, "facing": "S"},
+        {"kind": "mirror", "x": 0, "y": 5, "facing": "E"},
+        {"kind": "plant", "x": 0, "y": 9},
+        {"kind": "plant", "x": 9, "y": 9},
+        {"kind": "armchair", "x": 10, "y": 0, "facing": "E", "color": "#9d174d"},
+        {"kind": "plant", "x": 10, "y": 6},
+        {"kind": "bench", "x": 13, "y": 0, "facing": "W"},
+        {"kind": "mirror", "x": 13, "y": 1, "facing": "W"},
+        {"kind": "bench", "x": 13, "y": 2, "facing": "W"},
+        {"kind": "mirror", "x": 13, "y": 3, "facing": "W"},
+        {"kind": "bench", "x": 13, "y": 4, "facing": "W"},
+        {"kind": "mirror", "x": 13, "y": 5, "facing": "W"},
+        {"kind": "shelf", "x": 11, "y": 9, "w": 3, "facing": "N"}
+      ],
+      "partitions": ["h:12:2", "h:13:2", "h:12:4", "h:13:4", "h:12:6", "h:13:6", "v:12:0", "v:12:2", "v:12:4"],
+      "spots": {
+        "home": [],
+        "work": [{"cell": [2, 0], "facing": "SE"}],
+        "visit": [{"seat": [13, 2]}, {"cell": [12, 2], "facing": "E"}, {"cell": [12, 3], "facing": "E"}, {"seat": [10, 0]}, {"cell": [4, 4], "facing": "N"}]
+      }
+    }
+  ]
+}

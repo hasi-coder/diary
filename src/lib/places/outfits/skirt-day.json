@@ -1,0 +1,9 @@
+{
+  "label": "Skirt day",
+  "description": "Fitted T-shirt, A-line skirt and brown shoes",
+  "wearing": [
+    { "garment": "fitted_tee", "color": "#f8fafc" },
+    { "garment": "a_line_skirt", "color": "#db2777" },
+    { "garment": "shoes", "color": "#78350f" }
+  ]
+}

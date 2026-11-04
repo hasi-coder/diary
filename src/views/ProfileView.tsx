@@ -25,19 +25,24 @@ import { Composer } from "../components/Composer";
 import { ItemCard } from "../components/ItemCard";
 import { ProductPhotoSize } from "../components/Products";
 import { MediaGallery } from "../components/Media";
+import { MergePagesDialog } from "../components/MergePagesDialog";
+import { CharacterCard } from "../components/CharacterCard";
+import { PlaceTab } from "../components/PlaceTab";
 import { ItemForm, ProfileForm } from "../components/forms";
 import { PostCard } from "../components/PostCard";
 import { LifeEventsCard, PhotoDialog, RelationIntro, RelationshipsSection } from "../components/ProfileExtras";
 import { Page } from "../components/Shell";
 import { Avatar, Button, ConfirmDialog, CoverImage, EmptyState, KindBadge } from "../components/ui";
 
-type Tab = "posts" | "about" | "media" | "shop";
+type Tab = "posts" | "about" | "media" | "shop" | "place";
 
-export function ProfileView({ id, tab }: { id: string; tab?: Tab }) {
+export function ProfileView({ id: requestedId, tab }: { id: string; tab?: Tab }) {
   const { profiles, snapshot, navigate, refresh } = useJournal();
-  const profile = profiles.get(id);
+  const profile = profiles.get(requestedId) ?? snapshot.profiles.find((p) => p.mergedPageIds?.includes(requestedId));
+  const id = profile?.id ?? requestedId;
   const [editing, setEditing] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [merging, setMerging] = useState(false);
   const [photo, setPhoto] = useState<"avatar" | "cover" | null>(null);
   const [coverMenu, setCoverMenu] = useState(false);
   const [reposition, setReposition] = useState<number | null>(null);
@@ -53,7 +58,8 @@ export function ProfileView({ id, tab }: { id: string; tab?: Tab }) {
   const stats = snapshot.stats[id] ?? { posts: 0, mentions: 0 };
   const items = snapshot.items.filter((i) => i.shopId === id);
   const sells = canSell(profile);
-  const active: Tab = tab === "shop" && !sells ? "posts" : (tab ?? "posts");
+  const hasPlace = profile.kind === "place" || profile.kind === "shop" || profile.kind === "page";
+  const active: Tab = (tab === "shop" && !sells) || (tab === "place" && !hasPlace) ? "posts" : (tab ?? "posts");
   const KindIcon = KINDS[profile.kind].icon;
 
   const tabs: { key: Tab; label: string }[] = [
@@ -61,6 +67,7 @@ export function ProfileView({ id, tab }: { id: string; tab?: Tab }) {
     { key: "about", label: "About" },
     { key: "media", label: "Photos & videos" },
     ...(sells ? [{ key: "shop" as Tab, label: `Shop · ${items.length}` }] : []),
+    ...(hasPlace ? [{ key: "place" as Tab, label: "Place" }] : []),
   ];
 
   return (
@@ -157,10 +164,13 @@ export function ProfileView({ id, tab }: { id: string; tab?: Tab }) {
             </div>
             {profile.tagline && <p className="mt-1 text-sm text-slate-600">{profile.tagline}</p>}
           </div>
-          <div className="flex gap-2 pb-1">
+          <div className="flex flex-wrap gap-2 pb-1">
             <Button variant="outline" onClick={() => setEditing(true)}>
               <PencilSimpleIcon /> Edit profile
             </Button>
+            {(profile.kind === "page" || profile.kind === "shop") && (
+              <Button variant="outline" onClick={() => setMerging(true)}>Merge…</Button>
+            )}
             {profile.kind !== "me" && (
               <Button variant="outline" onClick={() => setDeleting(true)} aria-label="Delete profile" className="!px-3 text-rose-600">
                 <TrashIcon />
@@ -214,13 +224,16 @@ export function ProfileView({ id, tab }: { id: string; tab?: Tab }) {
           <div className="space-y-6">
             <AboutCard profile={profile} />
             <RelationshipsSection profile={profile} />
+            {(profile.kind === "person" || profile.kind === "me") && <CharacterCard key={profile.id} profile={profile} />}
           </div>
         )}
         {active === "media" && <MediaGallery profileId={profile.id} />}
         {active === "shop" && <ShopTab profile={profile} />}
+        {active === "place" && <PlaceTab profile={profile} />}
       </div>
 
       {editing && <ProfileForm profile={profile} onClose={() => setEditing(false)} />}
+      {merging && <MergePagesDialog source={profile} onClose={() => setMerging(false)} />}
       {photo && <PhotoDialog profile={profile} slot={photo} onClose={() => setPhoto(null)} />}
       {deleting && (
         <ConfirmDialog

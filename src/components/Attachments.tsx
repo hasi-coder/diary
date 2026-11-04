@@ -47,9 +47,12 @@ export function useAttachments(initial: MediaRef[]) {
   const update = (key: string, patch: Partial<Attachment>) =>
     setItems((xs) => xs.map((x) => (x.key === key ? { ...x, ...patch } : x)));
 
+  /** Starts uploading `files`; returns their keys. */
   const add = (files: Iterable<File>) => {
+    const keys: string[] = [];
     for (const original of files) {
       const key = crypto.randomUUID();
+      keys.push(key);
       setItems((xs) => [...xs, { key, name: original.name, caption: "", status: "uploading" }]);
       // Convert/resize first (Settings › Photo uploads), then check the size of what will be stored.
       prepareImage(original)
@@ -69,6 +72,7 @@ export function useAttachments(initial: MediaRef[]) {
         })
         .catch((e) => mounted.current && update(key, { status: "error", error: errorMessage(e) }));
     }
+    return keys;
   };
 
   const remove = (key: string) => {
@@ -151,6 +155,8 @@ export function AlbumEditor(props: {
   onCaption: (key: string, caption: string) => void;
   onMove: (key: string, delta: number | "first") => void;
   onAdd: () => void;
+  /** Layers: the first photo is the bottom layer and captions name the layers. */
+  layered?: boolean;
 }) {
   return (
     <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
@@ -168,11 +174,15 @@ export function AlbumEditor(props: {
                 <WarningIcon size={20} /> {a.error}
               </div>
             )}
-            {i === 0 && a.status === "ready" && (
-              <span className="absolute left-2 top-2 rounded-full bg-brand-600 px-2 py-0.5 text-[10px] font-semibold text-white">Cover</span>
+            {props.layered ? (
+              <span className="absolute left-2 top-2 rounded-full bg-black/60 px-2 py-0.5 text-[10px] font-semibold text-white">Layer {i + 1}</span>
+            ) : (
+              i === 0 && a.status === "ready" && (
+                <span className="absolute left-2 top-2 rounded-full bg-brand-600 px-2 py-0.5 text-[10px] font-semibold text-white">Cover</span>
+              )
             )}
             <div className="absolute right-1.5 top-1.5 flex gap-1">
-              {i > 0 && <TileButton title="Make cover" onClick={() => props.onMove(a.key, "first")}>★</TileButton>}
+              {i > 0 && !props.layered && <TileButton title="Make cover" onClick={() => props.onMove(a.key, "first")}>★</TileButton>}
               {i > 0 && <TileButton title="Move earlier" onClick={() => props.onMove(a.key, -1)}>←</TileButton>}
               {i < props.items.length - 1 && <TileButton title="Move later" onClick={() => props.onMove(a.key, 1)}>→</TileButton>}
               <TileButton title={`Remove ${a.name}`} onClick={() => props.onRemove(a.key)}>
@@ -183,7 +193,7 @@ export function AlbumEditor(props: {
           <textarea
             value={a.caption}
             onChange={(e) => props.onCaption(a.key, e.target.value)}
-            placeholder="Write a caption…"
+            placeholder={props.layered ? (i === 0 ? "Name this layer, e.g. Before" : "Name this layer, e.g. After") : "Write a caption…"}
             rows={2}
             className="block w-full resize-none border-t border-slate-100 px-2.5 py-2 text-xs text-slate-700 placeholder-slate-400 outline-none focus:bg-brand-50/40"
           />
@@ -194,7 +204,7 @@ export function AlbumEditor(props: {
         onClick={props.onAdd}
         className="flex aspect-square flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-slate-300 text-sm font-medium text-slate-500 hover:border-brand-400 hover:text-brand-600"
       >
-        <PlusIcon size={28} /> Add photos or videos
+        <PlusIcon size={28} /> {props.layered ? "Add layers" : "Add photos or videos"}
         <span className="text-xs font-normal text-slate-400">or drop them here</span>
       </button>
     </div>

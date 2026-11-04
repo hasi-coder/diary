@@ -196,6 +196,15 @@ export function ProductPhotoSize({ profile }: { profile: Profile }) {
       setResult(errorMessage(e));
     }
   };
+  const setJpeg = async (on: boolean) => {
+    setResult(null);
+    try {
+      await api.setProductPhotoJpeg(profile.id, on);
+      await refresh();
+    } catch (e) {
+      setResult(errorMessage(e));
+    }
+  };
   const shrink = async () => {
     setResult(null);
     setProgress([0, 0]);
@@ -203,7 +212,7 @@ export function ProductPhotoSize({ profile }: { profile: Profile }) {
       const r = await api.shrinkProductPhotos(profile.id);
       setResult(
         r.shrunk === 0
-          ? "All photos already fit this size."
+          ? "All photos are already as small as these settings make them."
           : `Shrank ${r.shrunk} of ${r.photos} photos: ${formatBytes(r.bytesBefore)} → ${formatBytes(r.bytesAfter)}.`,
       );
     } catch (e) {
@@ -221,7 +230,7 @@ export function ProductPhotoSize({ profile }: { profile: Profile }) {
         <div className="min-w-0 flex-1">
           <div className="text-[15px] font-semibold text-slate-800">Product photo size</div>
           <div className="text-[13px] text-slate-500">
-            {photos.length} photos · {formatBytes(bytes)}. New photos, yours or an agent's, are stored at this size.
+            {photos.length} photos · {formatBytes(bytes)}. New photos, yours or an agent's, are stored at this size and format.
           </div>
         </div>
         <select
@@ -237,13 +246,23 @@ export function ProductPhotoSize({ profile }: { profile: Profile }) {
             </option>
           ))}
         </select>
-        <Button variant="outline" disabled={!profile.productPhotoMax || !!progress} onClick={() => void shrink()}>
+        <label className="flex items-center gap-2 text-[14px] text-slate-700">
+          <input
+            type="checkbox"
+            className="h-4 w-4 accent-brand-600"
+            checked={profile.productPhotoJpeg}
+            disabled={!!progress}
+            onChange={(e) => void setJpeg(e.target.checked)}
+          />
+          Save as JPEG 80%
+        </label>
+        <Button variant="outline" disabled={(!profile.productPhotoMax && !profile.productPhotoJpeg) || !!progress} onClick={() => void shrink()}>
           {progress ? <CircleNotchIcon className="animate-spin" /> : <ArrowsInIcon />}
           {progress ? `Shrinking ${progress[0]}/${progress[1] || "…"}` : "Shrink existing photos"}
         </Button>
       </div>
       {result && <p className="mt-2 text-[13px] text-slate-600">{result}</p>}
-      {!!profile.productPhotoMax && !result && !progress && (
+      {(!!profile.productPhotoMax || profile.productPhotoJpeg) && !result && !progress && (
         <p className="mt-2 text-[13px] text-slate-500">
           Shrinking re-saves larger photos as JPEG and keeps any that wouldn't get smaller. It can't be undone.
         </p>

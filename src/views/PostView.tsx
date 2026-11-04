@@ -1,10 +1,12 @@
 // A single post's page: the article reader, the album page, or a status card.
 import { useEffect, useState } from "react";
 import { ArrowLeftIcon, ImagesSquareIcon, NotebookIcon } from "@phosphor-icons/react";
-import { api, errorMessage, type Post } from "../lib/api";
+import { api, errorMessage, type MediaRef, type Post } from "../lib/api";
+import { articleMedia } from "../lib/inlinePhotos";
 import { useJournal } from "../lib/journal";
 import { formatPostDate, readingMinutes } from "../lib/format";
 import { Composer } from "../components/Composer";
+import { LayerViewer } from "../components/Layers";
 import { MediaGrid, MediaPreview, MediaTile, Theater } from "../components/Media";
 import { PostCard, PostMenu } from "../components/PostCard";
 import { PostContent } from "../components/PostContent";
@@ -70,14 +72,22 @@ function Byline({ post, extra }: { post: Post; extra?: string }) {
 function ArticleReader({ post }: { post: Post }) {
   const { back } = useJournal();
   const [editing, setEditing] = useState(false);
-  const [viewing, setViewing] = useState(false);
-  const cover = post.media[0];
+  const [viewing, setViewing] = useState<number | null>(null);
+  const { cover, rest } = articleMedia(post);
+  const view = (m: MediaRef) => setViewing(post.media.indexOf(m));
+  // The cover shows whole, in a box shaped like it (within portrait 4:5 and panorama 2.4:1).
+  const [aspect, setAspect] = useState<number | null>(null);
 
   return (
     <article className="overflow-hidden rounded-2xl bg-white shadow-sm">
       {cover && (
-        <button onClick={() => setViewing(true)} className="block h-[26rem] w-full overflow-hidden bg-slate-100" aria-label="View cover">
-          <MediaPreview media={cover} />
+        <button
+          onClick={() => view(cover)}
+          className={`block w-full overflow-hidden bg-slate-100 ${aspect === null ? "h-[26rem]" : "max-h-[32rem]"}`}
+          style={aspect === null ? undefined : { aspectRatio: Math.min(Math.max(aspect, 4 / 5), 2.4) }}
+          aria-label="View cover"
+        >
+          <MediaPreview media={cover} fit={aspect === null ? "cover" : "contain"} onAspect={setAspect} />
         </button>
       )}
       <div className="px-6 py-8 sm:px-12">
@@ -88,14 +98,21 @@ function ArticleReader({ post }: { post: Post }) {
           <PostMenu post={post} onEdit={() => setEditing(true)} onDeleted={back} />
         </div>
         <div className="mt-8">
-          <PostContent content={post.content} large />
+          <PostContent
+            content={post.content}
+            large
+            media={post.media}
+            onOpenMedia={(id) => setViewing(post.media.findIndex((m) => m.id === id))}
+          />
         </div>
-        {post.media.length > 1 && <MediaGrid post={post} media={post.media.slice(1)} />}
+        {rest.length > 0 && <MediaGrid post={post} media={rest} />}
         <div className="mt-8">
           <PostFooter post={post} flush />
         </div>
       </div>
-      {viewing && <Theater items={post.media.map((m) => ({ media: m, post }))} index={0} onClose={() => setViewing(false)} />}
+      {viewing !== null && viewing >= 0 && (
+        <Theater items={post.media.map((m) => ({ media: m, post }))} index={viewing} onClose={() => setViewing(null)} />
+      )}
       {editing && <Composer editing={post} onDone={() => setEditing(false)} />}
     </article>
   );
@@ -107,7 +124,10 @@ function AlbumPage({ post }: { post: Post }) {
   const [open, setOpen] = useState<number | null>(null);
   // A lookbook puts each photo beside the products tagged on it.
   const hasLooks = post.media.some((m) => m.tags.some((t) => t.itemId));
-  const [layout, setLayout] = useState<"grid" | "lookbook">(hasLooks ? "lookbook" : "grid");
+  const layouts = post.layered ? (["layers", "grid", "lookbook"] as const) : (["grid", "lookbook"] as const);
+  const [layout, setLayout] = useState<"layers" | "grid" | "lookbook">(post.layered ? "layers" : hasLooks ? "lookbook" : "grid");
+  // Turning layers off in an edit leaves no "layers" tab to be on.
+  const shown = layout === "layers" && !post.layered ? "grid" : layout;
   const photos = post.media.filter((m) => m.kind === "image").length;
   const videos = post.media.length - photos;
   const counts = [photos && `${photos} photo${photos > 1 ? "s" : ""}`, videos && `${videos} video${videos > 1 ? "s" : ""}`].filter(Boolean).join(" · ");
@@ -139,18 +159,22 @@ function AlbumPage({ post }: { post: Post }) {
 
       <div className="mt-6 mb-3 flex justify-end">
         <div className="flex rounded-full bg-slate-100 p-0.5" role="group" aria-label="Album layout">
-          {(["grid", "lookbook"] as const).map((l) => (
+          {layouts.map((l) => (
             <button
               key={l}
               onClick={() => setLayout(l)}
-              className={`rounded-full px-3 py-1 text-xs font-semibold capitalize ${layout === l ? "bg-white text-slate-800 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
+              className={`rounded-full px-3 py-1 text-xs font-semibold capitalize ${shown === l ? "bg-white text-slate-800 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
             >
               {l}
             </button>
           ))}
         </div>
       </div>
-      {layout === "grid" ? (
+      {shown === "layers" ? (
+        <section className="rounded-2xl bg-white p-4 shadow-sm [&>div]:mt-0">
+          <LayerViewer post={post} className="max-h-[70vh]" withProducts />
+        </section>
+      ) : shown === "grid" ? (
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
           {post.media.map((m, i) => (
             <figure key={m.id}>
