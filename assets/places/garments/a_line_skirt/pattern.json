@@ -1,0 +1,12 @@
+{
+  "id": "a_line_skirt",
+  "label": "A-line skirt",
+  "layer": "base",
+  "kind": "skirt",
+  "prompt": "A-line skirt, knee length, sits at the natural waist, gentle flare",
+  "top": "waist",
+  "length": 0.58,
+  "ease": 1.04,
+  "flare": 1.45,
+  "fabric": "Seamless tileable cotton fabric texture, small white floral print on a light grey ground, flat lay, even lighting, no shadows, no folds"
+}
