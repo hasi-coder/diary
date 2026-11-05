@@ -1,5 +1,5 @@
 // The interaction library: every JSON file in this folder is one interaction.
-import { interactionProblems, interactionWarnings, type Interaction } from "../interaction";
+import { interactionProblems, interactionWarnings, mirrorInteraction, type Interaction } from "../interaction";
 import { interactionEnabled } from "../interactionPolicy";
 
 // Files named test_<name>.json are the owner's scratch animations: they load and show in the app like any
@@ -13,6 +13,8 @@ export const INTERACTIONS: Interaction[] = Object.values(files)
     return problems.length === 0;
   })
   .map((v) => v as Interaction)
+  // An action with `mirror: true` also comes in a left-right mirrored copy.
+  .flatMap((def) => (def.mirror ? [def, mirrorInteraction(def)] : [def]))
   .sort((a, b) => a.label.localeCompare(b.label));
 
 /** Available actions, evaluated when read so policy changes take effect. */

@@ -199,6 +199,8 @@ export interface Interaction {
    * or calves always needs an adult, declared or not (see `ageRequirement`).
    */
   requires?: { minAge?: number; wardrobe?: ClothingRegion[]; tier?: Tier };
+  /** Also offer a left-right mirrored copy of this action (id `<id>-mirrored`), made by `mirrorInteraction`. */
+  mirror?: boolean;
   /** Declare how it reads; lint warns when that disagrees with the tier. */
   content?: Content;
   /** Keeps roles at least this far apart (pushes the unanchored role, or lengthens an anchor). */
@@ -333,6 +335,7 @@ export function interactionProblems(value: unknown): string[] {
     }
   }
   if (v.requires && (typeof v.requires !== "object" || !(v.requires.minAge === undefined || (Number.isFinite(v.requires.minAge) && v.requires.minAge >= 0 && v.requires.minAge <= 120)) || !(v.requires.wardrobe === undefined || (Array.isArray(v.requires.wardrobe) && v.requires.wardrobe.every((r) => REGIONS.includes(r)))))) out.push(`${name}: requires needs an optional minAge in years and optional wardrobe regions (${REGIONS.join(", ")}).`);
+  if (v.mirror !== undefined && typeof v.mirror !== "boolean") out.push(`${name}: mirror must be true or false.`);
   if (v.requires?.tier !== undefined && !TIERS.includes(v.requires.tier)) out.push(`${name}: requires.tier must be ${TIERS.join(", ")}.`);
   if (v.wardrobe?.fallback !== undefined && !["dressed", "hide"].includes(v.wardrobe.fallback)) out.push(`${name}: wardrobe.fallback must be dressed or hide.`);
   if (v.requires?.tier === "intimate" && v.wardrobe?.fallback === "dressed") out.push(`${name}: an intimate action can only be hidden for people too young for it, never played dressed.`);
@@ -467,7 +470,7 @@ function oscillate(def: Interaction, role: string, beat: number, pose: Record<st
   }
 }
 
-const TOP_KEYS = ["content", "clearance", "camera", "anchors", "requires", "id", "label", "emoji", "category", "description", "target", "cutaway", "wardrobe", "outfitAt", "water", "people", "beat", "length", "loop", "stagger", "formation", "roles", "oscillators", "segments"];
+const TOP_KEYS = ["mirror", "content", "clearance", "camera", "anchors", "requires", "id", "label", "emoji", "category", "description", "target", "cutaway", "wardrobe", "outfitAt", "water", "people", "beat", "length", "loop", "stagger", "formation", "roles", "oscillators", "segments"];
 const KEY_FIELDS = new Set(["beat", "emote", "held", "face", "plant", ...Object.keys(NEUTRAL)]);
 
 /** Things that still load but are probably mistakes: unknown keys, wild angles, a placement for a role that isn't there. */
@@ -527,4 +530,63 @@ export function longestPlantHold(def: Pick<Interaction, "roles" | "length">): nu
     }
   }
   return longest;
+}
+
+// ── Mirroring ────────────────────────────────────────────────────────────────
+
+const swapSide = (name: string) => name.replace(/L(?=$|\.)/, "\0").replace(/R(?=$|\.)/, "L").replace("\0", "R");
+/** Channels whose sign flips in a mirror (a turn to the right becomes a turn to the left). */
+const FLIPS = new Set(["tilt", "twist", "turn", "move.0", "head.1", "head.2", "neck.1", "neck.2"]);
+
+const mirrorKey = (key: Key): Key => {
+  const out: Record<string, unknown> = {};
+  for (const [field, value] of Object.entries(key)) {
+    if (/^(arm|leg|elbow|knee|wrist|forearm|ankle)[LR]$/.test(field)) out[swapSide(field)] = value; // already side-relative: swap, don't negate
+    else if (field === "tilt" || field === "twist" || field === "turn") out[field] = -(value as number) || 0;
+    else if (field === "move") out[field] = [-(value as [number, number])[0] || 0, (value as [number, number])[1]];
+    else if (field === "head" || field === "neck") { const [nod, turn, tilt] = value as [number, number, number]; out[field] = [nod, -turn || 0, -tilt || 0]; }
+    else if (field === "plant") {
+      const plant: Record<string, unknown> = {};
+      for (const [limb, p] of Object.entries(value as Record<string, Plant>)) plant[swapSide(limb)] = { ...p, ...(p.point === "handL" || p.point === "handR" ? { point: swapSide(p.point) } : {}) };
+      out[field] = plant;
+    } else out[field] = value;
+  }
+  return out as unknown as Key;
+};
+
+/**
+ * The same action left to right: every left and right channel swapped, turns, tilts, twists, head and neck yaw
+ * and roll and the sideways step negated, plants moved to the other limb (and handL / handR swapped), formation
+ * spots and furniture sides flipped. Returns a copy with id `<id>-mirrored`; it carries no `mirror` of its own.
+ */
+export function mirrorInteraction(def: Interaction): Interaction {
+  const { mirror: _unused, ...rest } = def;
+  void _unused;
+  const copy = structuredClone(rest) as Interaction;
+  copy.id = `${def.id}-mirrored`;
+  copy.label = `${def.label} (mirrored)`;
+  copy.roles = Object.fromEntries(Object.entries(def.roles).map(([role, keys]) => [role, keys.map(mirrorKey)]));
+  if (def.oscillators) {
+    copy.oscillators = Object.fromEntries(Object.entries(def.oscillators).map(([role, list]) => [role, list.map((o) => {
+      const [field, index] = o.channel.split(".");
+      const flips = FLIPS.has(o.channel) || (index === undefined && FLIPS.has(field));
+      return { ...o, channel: swapSide(field) + (index !== undefined ? `.${index}` : ""), amplitude: flips ? -o.amplitude || 0 : o.amplitude };
+    })]));
+  }
+  const f = copy.formation;
+  if (f.type === "spots") f.spots = f.spots.map((spot) => ({ ...spot, at: [-spot.at[0] || 0, spot.at[1]] as [number, number], facing: -spot.facing || 0 }));
+  else if (f.type === "ring" && f.spin) f.spin = -f.spin;
+  const flipSide = (side?: "left" | "right" | "center") => (side === "left" ? "right" : side === "right" ? "left" : side);
+  const flipAnchor = (a: Anchor): Anchor => ({ ...a, at: a.at === "left" ? "right" : a.at === "right" ? "left" : a.at, ...(a.angle !== undefined ? { angle: -a.angle || 0 } : {}) });
+  if (copy.target?.roles) {
+    copy.target.roles = Object.fromEntries(Object.entries(copy.target.roles).map(([role, place]) => [role, {
+      ...place,
+      ...(place.side ? { side: flipSide(place.side) } : {}),
+      ...(place.facing !== undefined ? { facing: -place.facing || 0 } : {}),
+      ...(place.anchor ? { anchor: flipAnchor(place.anchor) } : {}),
+    }]));
+  }
+  if (copy.anchors) copy.anchors = Object.fromEntries(Object.entries(copy.anchors).map(([role, a]) => [role, flipAnchor(a)]));
+  if (copy.camera?.offset) copy.camera.offset = [-copy.camera.offset[0] || 0, copy.camera.offset[1]];
+  return copy;
 }

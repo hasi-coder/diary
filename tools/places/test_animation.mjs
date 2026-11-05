@@ -29,6 +29,7 @@ try {
         export { categoryTree, categoriesOf } from './src/lib/places/interactions/categories';
         export { furnitureToUse, usable } from './src/lib/places/furnitureActions';
         export { longestPlantHold } from './src/lib/places/interaction';
+        export { mirrorInteraction } from './src/lib/places/interaction';
         export { lengthOf, interactionWarnings } from './src/lib/places/interaction';
         export { solveTwoBone, KNEEL_DROP, KNEEL_ANKLE } from './src/components/world/ik';
         export { CLOTHING_CATALOG } from './src/lib/places/clothingCatalog';
@@ -45,7 +46,7 @@ try {
 } finally {
   await rm(scratch, { recursive: true, force: true });
 }
-const { poseAt, interactionProblems, INTERACTION_POLICY, interactionEnabled, interactionPolicyProblem, setInteractionEnabled, setInteractionMinimumAge, subscribeInteractionPolicy, OUTFITS, outfitProblems, applyOutfit, outfitOf, withSlot, GARMENTS, CLOTHING_LAYERS, CLOTHING_STYLES, clothingProblems, normalizeWorn, garment, CLOTHING_CATALOG, solveTwoBone, KNEEL_DROP, KNEEL_ANKLE, ageRequirement, furnitureToUse, interactionAccess, categoryTree, categoriesOf, longestPlantHold, setShowLockedActions, interactionGate, interactionHidden, interactionDressed, lengthOf, interactionWarnings, FACE_DEFS, FACE_VIEWS, FALLBACK_VIEW, FACE_SLOTS, World, Body, THREE, GLTFLoader } = animation;
+const { poseAt, interactionProblems, INTERACTION_POLICY, interactionEnabled, interactionPolicyProblem, setInteractionEnabled, setInteractionMinimumAge, subscribeInteractionPolicy, OUTFITS, outfitProblems, applyOutfit, outfitOf, withSlot, GARMENTS, CLOTHING_LAYERS, CLOTHING_STYLES, clothingProblems, normalizeWorn, garment, CLOTHING_CATALOG, solveTwoBone, KNEEL_DROP, KNEEL_ANKLE, ageRequirement, mirrorInteraction, furnitureToUse, interactionAccess, categoryTree, categoriesOf, longestPlantHold, setShowLockedActions, interactionGate, interactionHidden, interactionDressed, lengthOf, interactionWarnings, FACE_DEFS, FACE_VIEWS, FALLBACK_VIEW, FACE_SLOTS, World, Body, THREE, GLTFLoader } = animation;
 const { normalizeClothingFit, withClothingFit } = animation;
 const json = async (path) => JSON.parse(await readFile(join(root, path), "utf8"));
 const interaction = (keys, loop = false) => ({
@@ -489,6 +490,42 @@ await test("Home lists the furniture in the place that can be used, nearest of e
   const near = furnitureToUse(two.place.items, defs, [2.5, 2.5]).find((i) => i.kind === "bed");
   assert.equal(near.x, 2, "the bed beside you, not the one across the room");
   assert.deepEqual(furnitureToUse([], defs, [0, 0]), [], "no furniture, nothing listed");
+});
+
+await test("a mirrored clip is exactly a hand-mirrored one", () => {
+  const clip = {
+    id: "c", label: "C", people: { min: 2, max: 2 }, beat: 1, length: 4, loop: false, mirror: true,
+    formation: { type: "spots", spots: [{ role: "a", at: [0.2, 0], facing: 30 }, { role: "b", at: [-0.2, 0.5], facing: 150 }] },
+    target: { kinds: ["bed"], posture: "lie", roles: { a: { posture: "stand", side: "left", across: 0.3, anchor: { role: "b", at: "left", distance: 0.4, angle: 20 } }, b: { posture: "lie", side: "right" } } },
+    roles: {
+      a: [{ beat: 0, armL: [10, 20], armR: [30, 40], elbowL: 5, elbowR: 6, legL: 1, legR: 2, kneeL: 3, kneeR: 4, wristL: [1, 2, 3], wristR: [4, 5, 6], head: [7, 8, 9], neck: [1, 2, 3], tilt: 5, twist: -6, turn: 30, move: [0.1, 0.2], plant: { armL: { on: "role:b", point: "handR", weight: 1 }, armR: { on: "role:b", point: "head" } } }, { beat: 4 }],
+      b: [{ beat: 0 }, { beat: 4 }],
+    },
+    oscillators: { a: [{ channel: "armL.0", amplitude: 3, period: 2 }, { channel: "tilt", amplitude: 4, period: 2 }, { channel: "move.0", amplitude: 0.05, period: 2 }] },
+    camera: { offset: [0.5, 0.2] },
+  };
+  const control = {
+    id: "c-mirrored", label: "C (mirrored)", people: { min: 2, max: 2 }, beat: 1, length: 4, loop: false,
+    formation: { type: "spots", spots: [{ role: "a", at: [-0.2, 0], facing: -30 }, { role: "b", at: [0.2, 0.5], facing: -150 }] },
+    target: { kinds: ["bed"], posture: "lie", roles: { a: { posture: "stand", side: "right", across: 0.3, anchor: { role: "b", at: "right", distance: 0.4, angle: -20 } }, b: { posture: "lie", side: "left" } } },
+    roles: {
+      a: [{ beat: 0, armR: [10, 20], armL: [30, 40], elbowR: 5, elbowL: 6, legR: 1, legL: 2, kneeR: 3, kneeL: 4, wristR: [1, 2, 3], wristL: [4, 5, 6], head: [7, -8, -9], neck: [1, -2, -3], tilt: -5, twist: 6, turn: -30, move: [-0.1, 0.2], plant: { armR: { on: "role:b", point: "handL", weight: 1 }, armL: { on: "role:b", point: "head" } } }, { beat: 4 }],
+      b: [{ beat: 0 }, { beat: 4 }],
+    },
+    oscillators: { a: [{ channel: "armR.0", amplitude: 3, period: 2 }, { channel: "tilt", amplitude: -4, period: 2 }, { channel: "move.0", amplitude: -0.05, period: 2 }] },
+    camera: { offset: [-0.5, 0.2] },
+  };
+  const mirrored = mirrorInteraction(clip);
+  assert.equal(JSON.stringify(mirrored), JSON.stringify(control), "byte-identical to the hand-mirrored control");
+  assert.equal(clip.mirror, true, "the original is untouched");
+  assert.equal(mirrored.mirror, undefined, "a mirrored copy does not mirror again");
+  assert.deepEqual(interactionProblems(mirrored).filter((p) => !/keyframes|requires/.test(p)), [], "and it is still a valid action");
+  // Mirroring twice gives the original back (apart from the id and label).
+  const twice = mirrorInteraction({ ...mirrored, id: "c", mirror: true });
+  assert.equal(JSON.stringify(twice.roles), JSON.stringify(clip.roles));
+  assert.equal(JSON.stringify(twice.formation), JSON.stringify(clip.formation));
+  assert.equal(JSON.stringify(twice.target), JSON.stringify(clip.target));
+  assert.equal(interactionProblems({ ...clip, mirror: "yes" }).some((p) => /mirror must be/.test(p)), true);
 });
 
 await test("clearance holds two roles apart: it lengthens an anchor, and eases free roles apart without jitter", async () => {
