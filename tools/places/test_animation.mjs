@@ -25,6 +25,7 @@ try {
         export { ageRequirement } from './src/lib/places/interaction';
         export { setShowLockedActions } from './src/lib/interactionSettings';
         export { interactionGate, interactionHidden, interactionDressed } from './src/lib/places/interactionPolicy';
+        export { longestPlantHold } from './src/lib/places/interaction';
         export { lengthOf, interactionWarnings } from './src/lib/places/interaction';
         export { solveTwoBone, KNEEL_DROP, KNEEL_ANKLE } from './src/components/world/ik';
         export { CLOTHING_CATALOG } from './src/lib/places/clothingCatalog';
@@ -41,7 +42,7 @@ try {
 } finally {
   await rm(scratch, { recursive: true, force: true });
 }
-const { poseAt, interactionProblems, INTERACTION_POLICY, interactionEnabled, interactionPolicyProblem, setInteractionEnabled, setInteractionMinimumAge, subscribeInteractionPolicy, OUTFITS, outfitProblems, applyOutfit, outfitOf, withSlot, GARMENTS, CLOTHING_LAYERS, CLOTHING_STYLES, clothingProblems, normalizeWorn, garment, CLOTHING_CATALOG, solveTwoBone, KNEEL_DROP, KNEEL_ANKLE, ageRequirement, setShowLockedActions, interactionGate, interactionHidden, interactionDressed, lengthOf, interactionWarnings, FACE_DEFS, FACE_VIEWS, FALLBACK_VIEW, FACE_SLOTS, World, Body, THREE, GLTFLoader } = animation;
+const { poseAt, interactionProblems, INTERACTION_POLICY, interactionEnabled, interactionPolicyProblem, setInteractionEnabled, setInteractionMinimumAge, subscribeInteractionPolicy, OUTFITS, outfitProblems, applyOutfit, outfitOf, withSlot, GARMENTS, CLOTHING_LAYERS, CLOTHING_STYLES, clothingProblems, normalizeWorn, garment, CLOTHING_CATALOG, solveTwoBone, KNEEL_DROP, KNEEL_ANKLE, ageRequirement, longestPlantHold, setShowLockedActions, interactionGate, interactionHidden, interactionDressed, lengthOf, interactionWarnings, FACE_DEFS, FACE_VIEWS, FALLBACK_VIEW, FACE_SLOTS, World, Body, THREE, GLTFLoader } = animation;
 const { normalizeClothingFit, withClothingFit } = animation;
 const json = async (path) => JSON.parse(await readFile(join(root, path), "utf8"));
 const interaction = (keys, loop = false) => ({
@@ -388,6 +389,29 @@ await test("per-role wardrobe changes one role, with a guard for lower-body clot
   assert.notDeepEqual(interactionProblems({ ...fitting, wardrobe: { ...fitting.wardrobe, roles: { partner: { remove: ["sleeves"] } } } }), []);
 });
 
+await test("removing a layer is not 'needs an adult': the age rule follows what actually comes off", async () => {
+  const fitting = await action("care-fitting");
+  assert.equal(ageRequirement(fitting), 0, "a jacket off is open to every age");
+  const { me, partner } = household();
+  const kid = { ...partner, profile: { ...partner.profile, birthday: "2018-06-01" }, look: { ...partner.look, age: "child" } };
+  assert.equal(interactionGate(fitting, [me, kid]).hidden, false);
+  assert.equal(interactionGate(fitting, [me, kid]).dressed, false, "not even played dressed: nothing is gated");
+  assert.equal(ageRequirement({ wardrobe: { at: 0, restoreAt: 1, remove: ["outer", "accessories", "footwear"] } }), 0);
+  assert.equal(ageRequirement({ wardrobe: { at: 0, restoreAt: 1, roles: { a: { remove: ["hips"] } } } }), 18, "a region of the lower body in any role's step still counts");
+  // A child pair keeps the jacket-off behaviour; only lower-body garments are protected.
+  const layered = OUTFITS.find((o) => o.id === "layered-masculine").wearing;
+  const w = household();
+  w.me.profile.birthday = "2018-01-01"; w.me.look = { ...w.me.look, age: "child", wearing: layered };
+  w.partner.profile.birthday = "2018-02-01"; w.partner.look = { ...w.partner.look, age: "child", wearing: layered };
+  const outerOff = (a) => !outfitOf(a.look).some((g) => garment(g.garment).layer === "outer" && !garment(g.garment).covers.some((r) => ["hips", "thighs", "calves"].includes(r)));
+  assert.equal(w.world.startActivity(fitting, [w.me, w.partner]), true);
+  advance(w.world, () => w.world.activity?.state === "playing");
+  for (let i = 0; i < 100; i++) w.world.update(0.05);
+  assert.equal(outerOff(w.partner), true, "a child's jacket comes off in a fitting");
+  assert.ok(outfitOf(w.partner.look).some((g) => garment(g.garment).covers.includes("hips")), "but their trousers stay");
+  w.world.stopActivity();
+});
+
 await test("clearance holds two roles apart: it lengthens an anchor, and eases free roles apart without jitter", async () => {
   const fitting = structuredClone(await action("care-fitting"));
   fitting.wardrobe = undefined;
@@ -459,12 +483,20 @@ await test("kneel, floor targets and the content lint", async () => {
   world.stopActivity();
   assert.equal(me.kneel, false);
   // Content lint: where the gate can't see motion, the declaration can.
-  const base = { ...steady };
+  const base = { ...steady, requires: { tier: "casual" }, content: undefined };
   assert.ok(interactionWarnings({ ...base, content: { motion: "repetitive" } }).some((w) => /repetitive/.test(w)));
   assert.ok(interactionWarnings({ ...base, content: { contact: "sustained" } }).some((w) => /sustained/.test(w)));
-  assert.equal(interactionWarnings({ ...base, content: { motion: "cyclic", contact: "incidental", witness: "fine" } }).length, 0);
+  assert.equal(interactionWarnings({ ...base, requires: { tier: "affectionate" }, content: { motion: "cyclic", contact: "sustained", witness: "fine" } }).length, 0);
   assert.equal(interactionWarnings({ ...base, requires: { tier: "intimate" }, content: { motion: "repetitive", contact: "sustained" } }).some((w) => /casual/.test(w)), false, "fine under a higher tier");
   assert.notDeepEqual(interactionProblems({ ...base, content: { motion: "frantic" } }), []);
+  // Sustained contact is read from the keyframes too: a casual clip that holds a hand on another body for a long stretch is flagged.
+  const haircut = await action("care-haircut");
+  assert.ok(longestPlantHold(haircut) >= 20, "the haircut holds its hands on the head for about twenty beats");
+  const casualHaircut = { ...haircut, requires: { tier: "casual" }, content: undefined };
+  assert.ok(interactionWarnings(casualHaircut).some((w) => /sustained contact/.test(w)), "casual + a long plant is flagged");
+  assert.ok(interactionWarnings({ ...casualHaircut, content: { contact: "incidental" } }).some((w) => /says incidental/.test(w)), "a declaration that disagrees is flagged");
+  assert.ok(interactionWarnings({ ...casualHaircut, content: { contact: "sustained" } }).some((w) => /doesn't read as casual/.test(w)));
+  assert.deepEqual(interactionWarnings(haircut), [], "declared sustained under an affectionate tier is fine");
 });
 
 await test("woohoo eligibility is centralized and applies to direct playback", async () => {
@@ -934,6 +966,14 @@ await test("a planted arm reaches its point at short and tall scales, clamps out
     reset();
     solveTwoBone(u, l, e, target, 0); body.root.updateMatrixWorld(true);
     assert.ok(at("hand_l").distanceTo(keyed) < 1e-6, "weight 0 is the keyed pose");
+    // At every weight the hand is within 2 / weight cm of the point (2 cm held, looser as it is released).
+    for (const weight of [1, 0.8, 0.6, 0.3, 0.1]) {
+      reset();
+      const near = keyed.clone().add(new THREE.Vector3(0.06 * scale, 0.03 * scale, 0.05 * scale)); // a point the keyed pose is close to
+      solveTwoBone(u, l, e, near, weight); body.root.updateMatrixWorld(true);
+      const limit = 0.02 / weight * Math.max(1, scale);
+      assert.ok(at("hand_l").distanceTo(near) <= limit, `scale ${scale}, weight ${weight}: ${(at("hand_l").distanceTo(near) * 100).toFixed(1)} cm <= ${(limit * 100).toFixed(1)} cm`);
+    }
     // Out of reach: the arm straightens toward the point instead of snapping or bending backwards.
     reset();
     const far = shoulder.clone().add(new THREE.Vector3(0.1, 0.1, 3 * scale));

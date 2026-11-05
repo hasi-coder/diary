@@ -495,9 +495,32 @@ export function interactionWarnings(value: unknown): string[] {
   const tier = v.requires?.tier ?? (v.requires?.minAge !== undefined ? "minAge" : "none");
   if (tier === "casual" && v.content?.motion === "repetitive") out.push(`${name}: repetitive motion doesn't read as casual; raise the tier.`);
   if (tier === "casual" && v.content?.contact === "sustained") out.push(`${name}: sustained contact doesn't read as casual; raise the tier.`);
+  // Contact the keyframes imply: a limb held on another body for a long stretch is sustained contact, declared or not.
+  const held = longestPlantHold(v as Interaction);
+  if (held >= 6 && v.content?.contact === undefined && tier === "casual") out.push(`${name}: a limb is held on another body for ${Math.round(held)} beats (sustained contact); declare content.contact and a tier that fits.`);
+  if (held >= 6 && (v.content?.contact === "none" || v.content?.contact === "incidental")) out.push(`${name}: content.contact says ${v.content.contact}, but a limb is held on another body for ${Math.round(held)} beats.`);
   if (v.clearance?.min !== undefined && v.clearance.min < 0.05) out.push(`${name}: clearance.min is under 5 cm, which lets bodies intersect.`);
   for (const [role, place] of Object.entries(v.target?.roles ?? {})) if (place?.posture && !["stand", "sit", "lie", "inside", "kneel"].includes(place.posture)) out.push(`${name}: role "${role}" has a posture with no placement rule.`);
   for (const role of Object.keys(v.target?.roles ?? {})) if (!roles.has(role)) out.push(`${name}: target.roles names "${role}", which has no keyframes.`);
   for (const role of Object.keys(v.oscillators ?? {})) if (!roles.has(role)) out.push(`${name}: oscillators name "${role}", which has no keyframes.`);
   return out;
+}
+
+/** The longest stretch, in beats, that any role holds a limb (weight 0.5 or more) on another role's body. */
+export function longestPlantHold(def: Pick<Interaction, "roles" | "length">): number {
+  let longest = 0;
+  for (const keys of Object.values(def.roles ?? {})) {
+    for (const limb of LIMBS) {
+      let since: number | null = null;
+      for (const key of Array.isArray(keys) ? keys : []) {
+        const plant = key.plant?.[limb];
+        if (!plant) continue;
+        const strong = (plant.weight ?? 1) >= 0.5 && plant.on.startsWith("role:");
+        if (strong && since === null) since = key.beat;
+        else if (!strong && since !== null) { longest = Math.max(longest, key.beat - since); since = null; }
+      }
+      if (since !== null) longest = Math.max(longest, def.length - since);
+    }
+  }
+  return longest;
 }

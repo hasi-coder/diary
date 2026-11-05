@@ -5,6 +5,7 @@
   "category": "casual",
   "description": "Two on a bench, one talking, one listening.",
   "requires": { "tier": "casual" },
+  "content": { "motion": "cyclic", "contact": "none", "witness": "fine" },
   "people": { "min": 2, "max": 2 },
   "beat": 0.85,
   "length": 24,
