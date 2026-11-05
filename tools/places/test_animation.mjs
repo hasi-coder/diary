@@ -176,6 +176,20 @@ await test("bathing takes everything off, the toilet only the lower body, and cl
   }
 });
 
+await test("a role can sit on a bed's surface while another stands beside it", async () => {
+  const { world, me, partner } = household();
+  const def = structuredClone(await action("therapy-leg-massage"));
+  def.target = { kinds: ["bed"], posture: "sit", roles: { therapist: { posture: "stand", side: "right", along: 0.5 }, client: { posture: "sit", side: "center", across: 0.25, facing: 90 } } };
+  assert.deepEqual(interactionProblems(def), []);
+  assert.equal(world.startActivity(def, [me, partner]), true);
+  advance(world, () => world.activity?.state === "playing");
+  assert.ok(!me.rest, "the standing role stays up");
+  assert.equal(partner.rest.pitch, 0, "sitting is upright");
+  assert.ok(partner.rest.height > 0.62, "hips rest above the mattress");
+  world.stopActivity();
+  assert.equal(partner.rest, null);
+});
+
 await test("woohoo eligibility is centralized and applies to direct playback", async () => {
   const { world, me, partner } = household();
   const def = await action("woohoo");

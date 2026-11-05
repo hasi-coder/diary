@@ -90,6 +90,8 @@ export interface RolePlacement {
   across?: number;
   /** Metres from the middle toward the feet (negative toward the head). */
   along?: number;
+  /** Degrees from the furniture's facing the role looks. Left out: along the furniture lying, outward when sitting on it, toward it standing. */
+  facing?: number;
 }
 
 
@@ -170,7 +172,7 @@ export function interactionProblems(value: unknown): string[] {
   const postures = ["stand", "sit", "lie", "inside"];
   if (v.target && (!Array.isArray(v.target.kinds) || !v.target.kinds.length || v.target.kinds.some((kind) => typeof kind !== "string") || !postures.includes(v.target.posture))) out.push(`${name}: target needs furniture kinds and a stand, sit, lie or inside posture.`);
   for (const [role, place] of Object.entries(v.target?.roles ?? {})) {
-    if (!postures.includes(place?.posture) || (place.side !== undefined && !["left", "right", "center"].includes(place.side)) || ([place.along, place.across].some((n) => n !== undefined && !Number.isFinite(n)))) out.push(`${name}: target role "${role}" needs a posture, an optional left or right side and numeric across and along.`);
+    if (!postures.includes(place?.posture) || (place.side !== undefined && !["left", "right", "center"].includes(place.side)) || ([place.along, place.across, place.facing].some((n) => n !== undefined && !Number.isFinite(n)))) out.push(`${name}: target role "${role}" needs a posture, an optional left or right side and numeric across, along and facing.`);
   }
   if (v.cutaway && (!Number.isFinite(v.cutaway.from) || !Number.isFinite(v.cutaway.to) || v.cutaway.from < 0 || v.cutaway.to <= v.cutaway.from || v.cutaway.to > v.length! || typeof v.cutaway.label !== "string")) out.push(`${name}: cutaway needs a label and a time range inside the animation.`);
   if (v.cutaway && v.outfitAt === undefined) out.push(`${name}: a cutaway is only for actions that change outfit (set outfitAt).`);

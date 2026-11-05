@@ -524,10 +524,10 @@ export class World {
         const sign = place?.side === "right" ? -1 : place?.side === "center" ? 0 : 1;
         const across = place?.across ?? (lies ? 0 : half);
         const along = place?.along ?? 0;
-        const wanted: Vec | null = place && (!lies || place.across !== undefined || place.along !== undefined)
+        const wanted: Vec | null = place && (!lies || place.across !== undefined || place.along !== undefined || place.side !== undefined)
           ? [centre[0] + bedSide[0] * sign * across + bedFacing[0] * along, centre[1] + bedSide[1] * sign * across + bedFacing[1] * along]
           : null;
-        const entries = posture === "sit" ? seatEntries : edgeEntries;
+        const entries = posture === "sit" && seatEntries.length ? seatEntries : edgeEntries;
         const currentIndex = this.activity?.members.findIndex((member) => member.actor === person) ?? -1;
         const currentExit = currentIndex >= 0 && this.activity?.state === "playing" ? this.activity.placements?.[currentIndex].exit : undefined;
         const [sx, sy] = currentExit ? currentExit.map(Math.floor) : person.path[0] ?? this.cellOf(person);
@@ -544,14 +544,24 @@ export class World {
         const length = Math.hypot(...toward) || 1;
         let at = exit;
         let facing: Vec = entry.seat ? [...DIRS[entry.seat.facing]] : [toward[0] / length, toward[1] / length];
+        // Sitting on furniture with no seats (a bed's edge) or a role with its own rest: on the surface.
+        const onSurface = lies || (posture === "sit" && !entry.seat) || !!place?.rest;
         if (lies) {
           facing = bedFacing;
           const offset = (lyingSeen++ - (lyingCount - 1) / 2) * 0.55;
           at = wanted ?? [centre[0] + bedSide[0] * offset, centre[1] + bedSide[1] * offset];
+        } else if (onSurface) {
+          // Sits facing out from the middle line, or along the furniture when on it.
+          facing = sign ? [bedSide[0] * sign, bedSide[1] * sign] : bedFacing;
+          at = wanted ?? centre;
         } else if (wanted && Math.hypot(wanted[0] - exit[0], wanted[1] - exit[1]) < 0.8) at = wanted;
+        if (place?.facing !== undefined) facing = rotate(bedFacing, place.facing);
+        const base = target.kind === "bed" ? 0.62 : 0.68;
         const custom = place?.rest ?? spec.rest;
-        const rest = custom ? { height: custom.height, pitch: (custom.pitch * Math.PI) / 180 } : posture === "lie" ? { height: target.kind === "bed" ? 0.62 : 0.68, pitch: -Math.PI / 2 } : undefined;
-        placements.push({ at, facing, exit, seat: entry.seat, rest: lies ? rest : undefined });
+        const rest = custom ? { height: custom.height, pitch: (custom.pitch * Math.PI) / 180 }
+          : posture === "lie" ? { height: base, pitch: -Math.PI / 2 }
+          : onSurface ? { height: base + 0.06, pitch: 0 } : undefined;
+        placements.push({ at, facing, exit, seat: entry.seat, rest: onSurface ? rest : undefined });
       }
       if (placements.length !== people.length) continue;
       if (people.length === 2 && spec.posture === "stand") {

@@ -102,7 +102,7 @@ add a Shower from the Bathroom furniture group to use that action there.
 | `water` | Show water droplets at the target fixture while playing |
 
 Furniture actions reserve distinct entry positions, require reachable paths, and
-use the furniture's orientation. `sit` uses real seats; `lie` rotates about the
+use the furniture's orientation. `sit` uses real seats, and on furniture without any (a bed) sits on its surface at the role's `side` / `across` / `along`, hips at `rest.height` (default just above the surface); `lie` rotates about the
 hips on the bed surface; `inside` stands at the middle of the fixture. Nobody is ever hidden. Set
 `target.leaveSeat` to true for an action that should get up afterwards. On stopping
 a surface action, people return to their entry positions. Furniture controls
