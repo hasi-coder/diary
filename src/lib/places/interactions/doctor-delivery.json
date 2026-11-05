@@ -3,6 +3,7 @@
   "label": "Deliver a baby",
   "emoji": "\ud83d\udc76",
   "category": "care",
+  "requires": { "tier": "casual" },
   "description": "The patient lies on the bed with knees bent and breathes through the pushes while the doctor at the foot of the bed delivers the baby and places the newborn in their arms.",
   "people": {
     "min": 2,

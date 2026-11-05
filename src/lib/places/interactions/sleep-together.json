@@ -3,6 +3,7 @@
   "label": "Sleep beside each other",
   "emoji": "🌙",
   "category": "household",
+  "requires": { "tier": "affectionate" },
   "description": "Rest side by side on the bed. Stop to get up.",
   "people": {
     "min": 2,

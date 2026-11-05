@@ -3,6 +3,7 @@
   "label": "Hug",
   "emoji": "🤗",
   "category": "social",
+  "requires": { "tier": "affectionate" },
   "description": "Step in, wrap your arms around each other, sway.",
   "people": {"min": 2, "max": 2},
   "beat": 0.5,

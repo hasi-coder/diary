@@ -3,6 +3,7 @@
   "label": "Bow",
   "emoji": "🙇",
   "category": "social",
+  "requires": { "tier": "casual" },
   "description": "Everyone turns to the middle and bows.",
   "people": {"min": 2, "max": 12},
   "beat": 0.5,

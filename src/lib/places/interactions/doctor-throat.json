@@ -3,6 +3,7 @@
  "label": "Check the throat",
  "emoji": "🔦",
   "category": "care",
+  "requires": { "tier": "casual" },
  "description": "A doctor shines a light into the patient's open mouth and looks at the throat.",
  "people": {
   "min": 2,

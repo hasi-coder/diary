@@ -3,6 +3,7 @@
  "label": "Take temperature",
  "emoji": "🌡️",
   "category": "care",
+  "requires": { "tier": "casual" },
  "description": "A nurse rests a hand on the patient's forehead, then reads a thermometer.",
  "people": {
   "min": 2,

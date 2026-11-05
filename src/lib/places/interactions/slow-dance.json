@@ -3,6 +3,7 @@
   "label": "Slow dance",
   "emoji": "🎶",
   "category": "dance",
+  "requires": { "tier": "affectionate" },
   "description": "Close together, swaying and slowly turning.",
   "people": {"min": 2, "max": 2},
   "beat": 0.9,

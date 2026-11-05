@@ -3,6 +3,7 @@
   "label": "Twirl",
   "emoji": "🌀",
   "category": "dance",
+  "requires": { "tier": "casual" },
   "description": "One holds a hand up, the other spins under it.",
   "people": {"min": 2, "max": 2},
   "beat": 0.45,

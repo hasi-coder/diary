@@ -3,6 +3,7 @@
   "label": "Wave hello",
   "emoji": "👋",
   "category": "social",
+  "requires": { "tier": "casual" },
   "description": "Everyone waves, one after another.",
   "people": {"min": 2, "max": 12},
   "beat": 0.3,

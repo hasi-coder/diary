@@ -3,6 +3,7 @@
  "label": "Bandage a wound",
  "emoji": "🩹",
   "category": "care",
+  "requires": { "tier": "casual" },
  "description": "A nurse wraps a bandage round the patient's forearm.",
  "people": {
   "min": 2,

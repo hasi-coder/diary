@@ -50,16 +50,15 @@
       "hips",
       "thighs",
       "calves"
-    ]
+    ],
+    "fallback": "dressed"
   },
   "requires": {
+    "tier": "casual",
     "wardrobe": [
       "hips",
       "thighs",
       "calves"
     ]
-  },
-  "gate": {
-    "onFail": "dressed"
   }
 }

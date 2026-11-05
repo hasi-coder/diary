@@ -3,6 +3,7 @@
   "label": "Wash face",
   "emoji": "💦",
   "category": "household",
+  "requires": { "tier": "casual" },
   "description": "Wash face at the sink.",
   "people": {
     "min": 1,

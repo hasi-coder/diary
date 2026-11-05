@@ -3,6 +3,7 @@
   "label": "Kiss on the forehead",
   "emoji": "💗",
   "category": "romantic",
+  "requires": { "tier": "affectionate" },
   "description": "Kiss on the forehead gently, then step back.",
   "people": {
     "min": 2,

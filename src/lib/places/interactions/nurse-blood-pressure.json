@@ -3,6 +3,7 @@
  "label": "Check blood pressure",
  "emoji": "🩺",
   "category": "care",
+  "requires": { "tier": "casual" },
  "description": "A nurse fits a cuff on the patient's upper arm and squeezes the bulb.",
  "people": {
   "min": 2,

@@ -129,9 +129,11 @@ export interface Interaction {
   /**
    * Temporary outfit change, restored when the scene ends. Give an `outfitId` to swap
    * in a preset, `remove` to take off whatever covers those body regions (a bath takes
-   * everything off; the toilet only the lower body), or both.
+   * everything off; the toilet only the lower body), or both. `fallback` is what happens for people too
+   * young to see the undressing: "dressed" plays the action clothed, "hide" removes it. Default: "hide"
+   * when the action declares a `minAge` or is intimate, otherwise "dressed".
    */
-  wardrobe?: { at: number; restoreAt: number; outfitId?: string; remove?: ClothingRegion[]; preferUnderlayers?: boolean };
+  wardrobe?: { at: number; restoreAt: number; outfitId?: string; remove?: ClothingRegion[]; preferUnderlayers?: boolean; fallback?: "dressed" | "hide" };
   /** Change to the outfit selected when starting, at this beat. */
   outfitAt?: number;
   water?: boolean;
@@ -152,35 +154,42 @@ export interface Interaction {
    * regions it undresses (declared, so no clip can forget it). Taking clothes off the hips, thighs
    * or calves always needs an adult, declared or not (see `ageRequirement`).
    */
-  requires?: { minAge?: number; wardrobe?: ClothingRegion[] };
-  /** What happens to people who don't meet `requires`: hide the action (default), or play it clothed. */
-  gate?: { onFail?: "hide" | "dressed" };
+  requires?: { minAge?: number; wardrobe?: ClothingRegion[]; tier?: Tier };
   /** Periodic modifiers per role, added on top of the keyframes. */
   oscillators?: Record<string, Oscillator[]>;
   /** An intro / repeating middle / outro split of the keyed beats. */
   segments?: Segments;
 }
 
+export type Tier = "casual" | "affectionate" | "intimate";
+/** The youngest age each tier may be seen at. */
+export const TIER_AGE: Record<Tier, number> = { casual: 0, affectionate: 0, intimate: 18 };
+export const TIERS = Object.keys(TIER_AGE) as Tier[];
+
 /** Regions whose clothes may only come off for adults. */
 export const ADULT_REGIONS: ClothingRegion[] = ["hips", "thighs", "calves"];
 export const ADULT_AGE = 18;
 
-/**
- * The youngest age (years) this action may be done at: what it declares, and 18 whenever it
- * undresses the hips, thighs or calves (by `wardrobe.remove` or `requires.wardrobe`).
- */
-export function ageRequirement(def: Pick<Interaction, "requires" | "wardrobe">): number {
-  const regions = [...(def.wardrobe?.remove ?? []), ...(def.requires?.wardrobe ?? [])];
-  return Math.max(def.requires?.minAge ?? 0, regions.some((r) => ADULT_REGIONS.includes(r)) ? ADULT_AGE : 0);
-}
+type Requiring = Pick<Interaction, "requires" | "wardrobe">;
+
+/** The youngest age that may see the action at all: its tier, raised by a declared `minAge`. */
+export const viewAge = (def: Requiring) => Math.max(def.requires?.minAge ?? 0, TIER_AGE[def.requires?.tier ?? "casual"]);
 
 /**
- * Whether an action that fails its age requirement may play with everyone clothed instead.
- * Only actions whose undressing is incidental (a bath, the toilet): never one that declares
- * an age of its own or is romantic. Those are hidden.
+ * The youngest age that may do the action as authored: `viewAge`, and 18 whenever it undresses the
+ * hips, thighs or calves (by `wardrobe.remove` or `requires.wardrobe`), whatever its tier.
  */
-export const mayPlayDressed = (def: Pick<Interaction, "requires" | "category" | "gate">) =>
-  def.gate?.onFail === "dressed" && def.requires?.minAge === undefined && def.category !== "romantic";
+export function ageRequirement(def: Requiring): number {
+  const regions = [...(def.wardrobe?.remove ?? []), ...(def.requires?.wardrobe ?? [])];
+  return Math.max(viewAge(def), regions.some((r) => ADULT_REGIONS.includes(r)) ? ADULT_AGE : 0);
+}
+
+/** What happens for someone old enough to see the action but not its undressing. */
+export const wardrobeFallback = (def: Requiring): "dressed" | "hide" =>
+  def.wardrobe?.fallback ?? (def.requires?.minAge !== undefined || def.requires?.tier === "intimate" ? "hide" : "dressed");
+
+/** Whether the action may play clothed for people too young for its undressing. Never for an intimate one. */
+export const mayPlayDressed = (def: Requiring) => !!def.wardrobe && def.requires?.tier !== "intimate" && wardrobeFallback(def) === "dressed";
 
 /** Beats the action plays for: `length`, plus the extra repeats of a segmented middle. */
 export const lengthOf = (def: Interaction) => def.length + (def.segments ? ((def.segments.repeat ?? 1) - 1) * def.segments.loop : 0);
@@ -251,8 +260,9 @@ export function interactionProblems(value: unknown): string[] {
     }
   }
   if (v.requires && (typeof v.requires !== "object" || !(v.requires.minAge === undefined || (Number.isFinite(v.requires.minAge) && v.requires.minAge >= 0 && v.requires.minAge <= 120)) || !(v.requires.wardrobe === undefined || (Array.isArray(v.requires.wardrobe) && v.requires.wardrobe.every((r) => REGIONS.includes(r)))))) out.push(`${name}: requires needs an optional minAge in years and optional wardrobe regions (${REGIONS.join(", ")}).`);
-  if (v.gate && !(v.gate.onFail === undefined || v.gate.onFail === "hide" || v.gate.onFail === "dressed")) out.push(`${name}: gate.onFail must be hide or dressed.`);
-  if (v.gate?.onFail === "dressed" && !mayPlayDressed(v as Interaction)) out.push(`${name}: an action with its own minimum age, or a romantic one, can only be hidden for people who don't meet it, never played dressed.`);
+  if (v.requires?.tier !== undefined && !TIERS.includes(v.requires.tier)) out.push(`${name}: requires.tier must be ${TIERS.join(", ")}.`);
+  if (v.wardrobe?.fallback !== undefined && !["dressed", "hide"].includes(v.wardrobe.fallback)) out.push(`${name}: wardrobe.fallback must be dressed or hide.`);
+  if (v.requires?.tier === "intimate" && v.wardrobe?.fallback === "dressed") out.push(`${name}: an intimate action can only be hidden for people too young for it, never played dressed.`);
   const f = v.formation;
   const roles = f?.type === "spots" ? f.spots.map((s) => s.role) : f?.type === "ring" || f?.type === "stay" ? [f.role] : null;
   if (!roles) out.push(`${name}: formation type must be spots, ring or stay.`);
@@ -327,7 +337,7 @@ function oscillate(def: Interaction, role: string, beat: number, pose: Record<st
   }
 }
 
-const TOP_KEYS = ["requires", "gate", "id", "label", "emoji", "category", "description", "target", "cutaway", "wardrobe", "outfitAt", "water", "people", "beat", "length", "loop", "stagger", "formation", "roles", "oscillators", "segments"];
+const TOP_KEYS = ["requires", "id", "label", "emoji", "category", "description", "target", "cutaway", "wardrobe", "outfitAt", "water", "people", "beat", "length", "loop", "stagger", "formation", "roles", "oscillators", "segments"];
 const KEY_FIELDS = new Set(["beat", "emote", "held", "face", ...Object.keys(NEUTRAL)]);
 
 /** Things that still load but are probably mistakes: unknown keys, wild angles, a placement for a role that isn't there. */
@@ -346,6 +356,8 @@ export function interactionWarnings(value: unknown): string[] {
       }
     }
   }
+  if (v.requires?.tier === undefined && v.requires?.minAge === undefined) out.push(`${name}: declare requires.tier (casual, affectionate or intimate) or requires.minAge.`);
+  if ((v.wardrobe?.remove?.length || v.requires?.wardrobe?.length) && v.wardrobe?.fallback === undefined && v.requires?.minAge === undefined && v.requires?.tier !== "intimate") out.push(`${name}: it undresses; declare wardrobe.fallback ("dressed" or "hide") or requires.minAge.`);
   const undressed = (v.wardrobe?.remove ?? []).filter((r) => ADULT_REGIONS.includes(r));
   const declared = v.requires?.wardrobe ?? [];
   if (undressed.some((r) => !declared.includes(r))) out.push(`${name}: it undresses ${undressed.join(", ")}; declare that in requires.wardrobe (it is adult-only either way).`);

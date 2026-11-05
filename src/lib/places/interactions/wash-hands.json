@@ -3,6 +3,7 @@
   "label": "Wash hands",
   "emoji": "🫧",
   "category": "household",
+  "requires": { "tier": "casual" },
   "description": "Wash hands at the sink.",
   "people": {
     "min": 1,

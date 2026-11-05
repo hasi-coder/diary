@@ -3,6 +3,7 @@
   "label": "Cuddle on the sofa",
   "emoji": "🛋️",
   "category": "romantic",
+  "requires": { "tier": "affectionate" },
   "description": "Sit together, put an arm around each other and lean close.",
   "people": {
     "min": 2,

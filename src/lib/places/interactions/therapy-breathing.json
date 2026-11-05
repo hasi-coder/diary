@@ -3,6 +3,7 @@
  "label": "Guided breathing",
  "emoji": "🧘",
   "category": "care",
+  "requires": { "tier": "casual" },
  "description": "A therapist leads the client through slow breathing: arms rise on the in-breath and lower on the out-breath.",
  "people": {
   "min": 2,

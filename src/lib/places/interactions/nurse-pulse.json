@@ -3,6 +3,7 @@
  "label": "Check pulse",
  "emoji": "💓",
   "category": "care",
+  "requires": { "tier": "casual" },
  "description": "A nurse holds the patient's wrist and counts the pulse against a watch.",
  "people": {
   "min": 2,

@@ -3,6 +3,7 @@
  "label": "Physiotherapy stretch",
  "emoji": "🤸",
   "category": "care",
+  "requires": { "tier": "casual" },
  "description": "A physiotherapist supports the client's arm through a slow overhead shoulder stretch.",
  "people": {
   "min": 2,

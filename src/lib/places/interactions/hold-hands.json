@@ -3,6 +3,7 @@
   "label": "Hold hands",
   "emoji": "🤝",
   "category": "social",
+  "requires": { "tier": "affectionate" },
   "description": "Stand side by side and hold hands.",
   "people": {
     "min": 2,

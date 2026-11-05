@@ -38,8 +38,7 @@
     ],
     "posture": "lie"
   },
-  "requires": { "minAge": 18 },
-  "gate": { "onFail": "hide" },
+  "requires": { "tier": "intimate", "minAge": 18 },
   "wardrobe": {
     "at": 4,
     "restoreAt": 15,

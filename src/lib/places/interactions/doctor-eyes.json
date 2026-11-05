@@ -3,6 +3,7 @@
  "label": "Check the eyes",
  "emoji": "👁️",
   "category": "care",
+  "requires": { "tier": "casual" },
  "description": "A doctor checks the patient's eyes with a small light, left then right.",
  "people": {
   "min": 2,

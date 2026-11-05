@@ -3,6 +3,7 @@
   "label": "Kiss",
   "emoji": "💋",
   "category": "romantic",
+  "requires": { "tier": "affectionate" },
   "description": "Kiss gently, then step back.",
   "people": {
     "min": 2,

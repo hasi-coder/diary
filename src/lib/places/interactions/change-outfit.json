@@ -3,6 +3,7 @@
   "label": "Change outfit",
   "emoji": "👕",
   "category": "household",
+  "requires": { "tier": "casual" },
   "description": "Walk to the wardrobe and change into the outfit you choose.",
   "people": {
     "min": 1,

@@ -61,9 +61,11 @@
       "feet",
       "neck",
       "wrists"
-    ]
+    ],
+    "fallback": "dressed"
   },
   "requires": {
+    "tier": "casual",
     "wardrobe": [
       "torso",
       "upperArms",
@@ -75,8 +77,5 @@
       "neck",
       "wrists"
     ]
-  },
-  "gate": {
-    "onFail": "dressed"
   }
 }

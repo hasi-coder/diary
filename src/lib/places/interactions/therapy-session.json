@@ -3,6 +3,7 @@
  "label": "Talk therapy session",
  "emoji": "💭",
   "category": "care",
+  "requires": { "tier": "casual" },
  "description": "A therapist listens and takes notes while the patient talks things through.",
  "people": {
   "min": 2,

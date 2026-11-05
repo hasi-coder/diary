@@ -3,6 +3,7 @@
   "label": "High five",
   "emoji": "✋",
   "category": "social",
+  "requires": { "tier": "casual" },
   "description": "Raise a hand and slap it.",
   "people": {"min": 2, "max": 2},
   "beat": 0.4,

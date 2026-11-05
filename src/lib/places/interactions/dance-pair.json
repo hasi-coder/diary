@@ -3,6 +3,7 @@
   "label": "Dance together",
   "emoji": "💃",
   "category": "dance",
+  "requires": { "tier": "casual" },
   "description": "Face to face, swaying side to side with arms up.",
   "people": {"min": 2, "max": 2},
   "beat": 0.45,

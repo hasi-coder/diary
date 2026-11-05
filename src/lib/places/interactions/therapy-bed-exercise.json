@@ -3,6 +3,7 @@
   "label": "Bed exercises with a therapist",
   "emoji": "🧘",
   "category": "care",
+  "requires": { "tier": "casual" },
   "description": "The client lies on the bed bending the knees and raising the hands while the therapist stands at the side, guiding each knee and massaging the legs.",
   "people": { "min": 2, "max": 2 },
   "beat": 0.8,

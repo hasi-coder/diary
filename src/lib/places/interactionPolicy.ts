@@ -1,4 +1,4 @@
-import { ageRequirement, mayPlayDressed, type Interaction } from "./interaction";
+import { ageRequirement, mayPlayDressed, viewAge, type Interaction } from "./interaction";
 import type { Age } from "./character";
 import { INTERACTION_SETTINGS } from "../interactionSettings";
 
@@ -39,14 +39,16 @@ export function yearsOf(person: InteractionPerson, now = new Date()): number {
   return Math.min(years, band.maximum);
 }
 
-type Gated = Pick<Interaction, "id" | "requires" | "wardrobe" | "gate" | "category">;
+type Gated = Pick<Interaction, "id" | "requires" | "wardrobe">;
 
 /** The age an action needs and how old the group is (the youngest of them counts). */
 export function interactionGate(def: Gated, people: InteractionPerson[], now = new Date()) {
   const minimum = ageRequirement(def);
   const age = people.length ? Math.min(...people.map((p) => yearsOf(p, now))) : Infinity;
   const met = age >= minimum;
-  return { minimum, age, met, dressed: !met && mayPlayDressed(def), hidden: !met && !mayPlayDressed(def) };
+  // Old enough to see it, not to see it undressed: the action's fallback decides.
+  const dressed = !met && age >= viewAge(def) && mayPlayDressed(def);
+  return { minimum, age, met, dressed, hidden: !met && !dressed };
 }
 
 /** True when this group plays the action clothed because they don't meet its age requirement. */

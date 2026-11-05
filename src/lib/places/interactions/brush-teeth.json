@@ -3,6 +3,7 @@
   "label": "Brush teeth",
   "emoji": "🪥",
   "category": "household",
+  "requires": { "tier": "casual" },
   "description": "Brush teeth at the sink.",
   "people": {
     "min": 1,
