@@ -62,5 +62,21 @@
       "neck",
       "wrists"
     ]
+  },
+  "requires": {
+    "wardrobe": [
+      "torso",
+      "upperArms",
+      "forearms",
+      "hips",
+      "thighs",
+      "calves",
+      "feet",
+      "neck",
+      "wrists"
+    ]
+  },
+  "gate": {
+    "onFail": "dressed"
   }
 }

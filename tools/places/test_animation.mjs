@@ -22,6 +22,8 @@ try {
         export { OUTFITS } from './src/lib/places/outfits';
         export { outfitProblems, applyOutfit } from './src/lib/places/outfits';
         export { outfitOf, withSlot, GARMENTS, CLOTHING_LAYERS, CLOTHING_STYLES, clothingProblems, normalizeWorn, garment } from './src/lib/places/garments';
+        export { ageRequirement } from './src/lib/places/interaction';
+        export { interactionGate, interactionHidden, interactionDressed } from './src/lib/places/interactionPolicy';
         export { lengthOf, interactionWarnings } from './src/lib/places/interaction';
         export { CLOTHING_CATALOG } from './src/lib/places/clothingCatalog';
         export { FACE_DEFS, FACE_VIEWS, FALLBACK_VIEW, FACE_SLOTS } from './src/lib/places/character';
@@ -37,7 +39,7 @@ try {
 } finally {
   await rm(scratch, { recursive: true, force: true });
 }
-const { poseAt, interactionProblems, INTERACTION_POLICY, interactionEnabled, interactionPolicyProblem, setInteractionEnabled, setInteractionMinimumAge, subscribeInteractionPolicy, OUTFITS, outfitProblems, applyOutfit, outfitOf, withSlot, GARMENTS, CLOTHING_LAYERS, CLOTHING_STYLES, clothingProblems, normalizeWorn, garment, CLOTHING_CATALOG, lengthOf, interactionWarnings, FACE_DEFS, FACE_VIEWS, FALLBACK_VIEW, FACE_SLOTS, World, Body, THREE, GLTFLoader } = animation;
+const { poseAt, interactionProblems, INTERACTION_POLICY, interactionEnabled, interactionPolicyProblem, setInteractionEnabled, setInteractionMinimumAge, subscribeInteractionPolicy, OUTFITS, outfitProblems, applyOutfit, outfitOf, withSlot, GARMENTS, CLOTHING_LAYERS, CLOTHING_STYLES, clothingProblems, normalizeWorn, garment, CLOTHING_CATALOG, ageRequirement, interactionGate, interactionHidden, interactionDressed, lengthOf, interactionWarnings, FACE_DEFS, FACE_VIEWS, FALLBACK_VIEW, FACE_SLOTS, World, Body, THREE, GLTFLoader } = animation;
 const { normalizeClothingFit, withClothingFit } = animation;
 const json = async (path) => JSON.parse(await readFile(join(root, path), "utf8"));
 const interaction = (keys, loop = false) => ({
@@ -214,6 +216,61 @@ await test("oscillators, segments and lint", async () => {
     if (!file.endsWith(".json") || file === "categories.json" || file === "text.json") continue;
     assert.deepEqual(interactionWarnings(await json(`${folder}/${file}`)), [], file);
   }
+});
+
+await test("the age gate follows what an action does, not its id", async () => {
+  const child = (a) => { a.profile.birthday = "2018-06-01"; a.look = { ...a.look, age: "child" }; };
+  const undress = async (extra = {}) => ({ ...structuredClone(await action("therapy-leg-massage")), id: "renamed", wardrobe: { at: 1, restoreAt: 10, remove: ["hips", "thighs"] }, requires: { wardrobe: ["hips", "thighs"] }, ...extra });
+  // Undressing the hips needs an adult, whatever the clip is called or declares.
+  assert.equal(ageRequirement(await undress({ requires: undefined })), 18);
+  assert.equal(ageRequirement({ requires: { minAge: 21 } }), 21);
+  assert.equal(ageRequirement({ requires: { minAge: 21 }, wardrobe: { remove: ["hips"] } }), 21, "an explicit age raises it");
+  assert.equal(ageRequirement({ wardrobe: { remove: ["torso"] } }), 0, "a top alone is not adult-only");
+  // An adult pair plays it, undressed.
+  {
+    const { world, me, partner } = household();
+    const def = await undress({ gate: { onFail: "dressed" } });
+    assert.equal(interactionPolicyProblem(def, [me, partner]), null);
+    assert.equal(world.startActivity(def, [me, partner]), true);
+    advance(world, () => world.activity?.state === "playing");
+    advance(world, () => world.activity?.wardrobeApplied);
+    assert.ok(!outfitOf(me.look).some((w) => garment(w.garment).covers.includes("hips")));
+    world.stopActivity();
+  }
+  // A child pair gets the same clip clothed (the mechanics don't change), or not at all when it hides.
+  for (const [pair, who] of [["child + child", (me, p) => (child(me), child(p))], ["child + adult", (me, p) => child(p)]]) {
+    const { world, me, partner } = household();
+    who(me, partner);
+    const dressed = await undress({ gate: { onFail: "dressed" } });
+    const before = [me.look, partner.look];
+    assert.equal(interactionPolicyProblem(dressed, [me, partner]), null, pair);
+    assert.equal(interactionGate(dressed, [me, partner]).dressed, true, `${pair} plays dressed`);
+    assert.equal(world.startActivity(dressed, [me, partner]), true, pair);
+    advance(world, () => world.activity?.state === "playing");
+    for (let i = 0; i < 80; i++) world.update(0.05);
+    assert.equal(world.activity.wardrobeApplied ?? false, false, `${pair}: nothing comes off`);
+    assert.deepEqual([me.look, partner.look], before, `${pair}: still dressed`);
+    world.stopActivity();
+    const hidden = await undress();
+    assert.match(interactionPolicyProblem(hidden, [me, partner]), /18\+/, `${pair} hidden by default`);
+    assert.equal(world.startActivity(hidden, [me, partner]), false, pair);
+    assert.equal(interactionHidden(hidden, [me, partner]), true);
+  }
+  // The youngest counts.
+  {
+    const { me, partner } = household();
+    child(partner);
+    assert.equal(interactionGate({ requires: { minAge: 18 } }, [me, partner]).age, interactionGate({}, [partner]).age, "the group is as old as its youngest");
+    assert.equal(interactionGate({ requires: { minAge: 18 } }, [me, partner]).met, false);
+  }
+  // An action with its own minimum age, or a romantic one, can only be hidden, never played dressed.
+  const woohoo = await action("woohoo");
+  assert.notDeepEqual(interactionProblems({ ...woohoo, gate: { onFail: "dressed" } }), []);
+  assert.notDeepEqual(interactionProblems({ ...(await undress()), category: "romantic", gate: { onFail: "dressed" } }), []);
+  { const { world, me, partner } = household(); child(partner); assert.equal(world.startActivity(woohoo, [me, partner]), false, "woohoo is hidden for a child"); }
+  // Lint: undressing without declaring it is caught.
+  assert.equal(interactionWarnings({ ...(await undress()), requires: undefined }).some((w) => /requires\.wardrobe/.test(w)), true);
+  assert.equal(interactionWarnings(await undress()).some((w) => /requires\.wardrobe/.test(w)), false);
 });
 
 await test("woohoo eligibility is centralized and applies to direct playback", async () => {

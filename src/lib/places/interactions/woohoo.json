@@ -38,6 +38,8 @@
     ],
     "posture": "lie"
   },
+  "requires": { "minAge": 18 },
+  "gate": { "onFail": "hide" },
   "wardrobe": {
     "at": 4,
     "restoreAt": 15,

@@ -1,7 +1,7 @@
 import { useSyncExternalStore } from "react";
 import { MusicNotesIcon } from "@phosphor-icons/react";
 import { INTERACTIONS, categoriesOf } from "../lib/places/interactions";
-import { actionAgeChoices, INTERACTION_SETTINGS, interactionSettingsRevision, setInteractionEnabled, setInteractionMinimumAge, subscribeInteractionSettings } from "../lib/interactionSettings";
+import { actionAgeChoices, INTERACTION_SETTINGS, interactionSettingsRevision, setInteractionEnabled, setInteractionMinimumAge, setShowLockedActions, subscribeInteractionSettings } from "../lib/interactionSettings";
 
 export function InteractionSettingsCard() {
   useSyncExternalStore(subscribeInteractionSettings, interactionSettingsRevision, interactionSettingsRevision);
@@ -12,6 +12,10 @@ export function InteractionSettingsCard() {
       <label className="mb-4 flex cursor-pointer items-center gap-3 rounded-lg bg-slate-100 p-3 text-sm font-semibold">
         <input type="checkbox" checked={INTERACTION_SETTINGS.enabled} onChange={(e) => setInteractionEnabled(null, e.target.checked)} className="h-4 w-4 accent-brand-600" />
         Enable Places animations and actions
+      </label>
+      <label className="mb-3 flex cursor-pointer items-center gap-3 rounded-lg bg-slate-100 p-3 text-sm font-semibold">
+        <input type="checkbox" checked={INTERACTION_SETTINGS.showLocked} onChange={(e) => setShowLockedActions(e.target.checked)} className="h-4 w-4 accent-brand-600" />
+        Show age-locked actions with a lock instead of hiding them
       </label>
       <p className="mb-3 text-xs text-slate-500">{INTERACTIONS.length} animations in {categoriesOf(INTERACTIONS).length} groups. A new group is just a new <code>category</code> word on an action file.</p>
       {categoriesOf(INTERACTIONS).map((group) => (

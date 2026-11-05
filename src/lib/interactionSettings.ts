@@ -3,6 +3,8 @@ export interface InteractionSettings {
   enabled: boolean;
   actions: Record<string, boolean>;
   minimumAges: Record<string, number>;
+  /** Show actions that people's ages rule out, with a lock, instead of hiding them. */
+  showLocked: boolean;
 }
 
 export const DEFAULT_MINIMUM_AGES = [0, 13, 16, 18, 21, 65] as const;
@@ -14,6 +16,7 @@ export const actionAgeChoices = (id: string): readonly number[] => ACTION_AGE_MA
 export const INTERACTION_SETTINGS: InteractionSettings = {
   enabled: true,
   actions: {},
+  showLocked: false,
   minimumAges: Object.fromEntries(Object.entries(ACTION_AGE_MAPPING).map(([id, mapping]) => [id, mapping.defaultMinimumAge])),
 };
 
@@ -24,6 +27,7 @@ let revision = 0;
 try {
   const saved = typeof localStorage === "undefined" ? null : JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "null");
   if (typeof saved?.enabled === "boolean") INTERACTION_SETTINGS.enabled = saved.enabled;
+  if (typeof saved?.showLocked === "boolean") INTERACTION_SETTINGS.showLocked = saved.showLocked;
   if (saved?.actions && typeof saved.actions === "object") for (const [id, value] of Object.entries(saved.actions)) {
     if (typeof value === "boolean") INTERACTION_SETTINGS.actions[id] = value;
   }
@@ -54,4 +58,8 @@ export function setInteractionMinimumAge(id: string, minimumAge: number): boolea
   INTERACTION_SETTINGS.minimumAges[id] = minimumAge;
   save();
   return true;
+}
+export function setShowLockedActions(show: boolean) {
+  INTERACTION_SETTINGS.showLocked = show;
+  save();
 }

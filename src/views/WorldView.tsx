@@ -26,6 +26,7 @@ import { useJournal } from "../lib/journal";
 import type { Interaction } from "../lib/places/interaction";
 import { ActionWheel, type WheelNode } from "../components/ActionWheel";
 import { INTERACTIONS, categoriesOf, enabledInteractions, interactionsFor } from "../lib/places/interactions";
+import { interactionGate, interactionHidden } from "../lib/places/interactionPolicy";
 import { interactionSettingsRevision, subscribeInteractionSettings } from "../lib/interactionSettings";
 import { applyOutfit, OUTFITS, type Outfit } from "../lib/places/outfits";
 import { DressingRoom } from "../components/DressingRoom";
@@ -185,19 +186,29 @@ function Playing(props: { world: World; place: Profile; post: Post | null; loadE
   };
 
   // ── The action wheel's rings ───────────────────────────────────────────────
-  const groupNodes = (defs: Interaction[], make: (def: Interaction) => WheelNode): WheelNode[] =>
-    categoriesOf(defs).map((c) => ({ id: c.id, label: c.label, emoji: c.emoji, hint: `${c.defs.length} action${c.defs.length === 1 ? "" : "s"}`, children: c.defs.map(make) }));
+  const groupNodes = (defs: Interaction[], make: (def: Interaction) => WheelNode | null): WheelNode[] =>
+    categoriesOf(defs).flatMap((c) => {
+      const nodes = c.defs.map(make).filter((n): n is WheelNode => !!n);
+      return nodes.length ? [{ id: c.id, label: c.label, emoji: c.emoji, hint: `${nodes.length} action${nodes.length === 1 ? "" : "s"}`, children: nodes }] : [];
+    });
+
+  /** Actions the group's ages rule out are left off the wheel, or shown with a lock when Settings says so. */
+  const ageLocked = (def: Interaction, people: Actor[]) => (interactionGate(def, people).hidden ? `Needs everyone to be ${interactionGate(def, people).minimum}+` : undefined);
 
   /** One action as a wheel node: chosen straight away, or after picking an outfit or who to do it with. */
-  const defNode = (def: Interaction, others: Actor[], target?: PlacedItem): WheelNode => {
-    const base = { id: def.id, label: def.label, emoji: def.emoji ?? "✨", hint: def.description };
+  const defNode = (def: Interaction, others: Actor[], target?: PlacedItem): WheelNode | null => {
     const together = def.people.max > 1;
+    const hidden = together && others.length ? others.every((a) => interactionHidden(def, [me, a])) : interactionHidden(def, [me]);
+    if (hidden) return null;
+    const base = { id: def.id, label: def.label, emoji: def.emoji ?? "✨", hint: def.description };
     const needed = def.people.min - 1;
     if (together && others.length < needed) return { ...base, disabled: `Invite ${needed === 1 ? "someone" : `${needed} people`} first` };
     const withOutfit = (people: Actor[]): WheelNode =>
       def.outfitAt !== undefined
         ? { ...base, children: OUTFITS.map((o) => ({ id: o.id, label: o.label, emoji: "👗", hint: o.description, onSelect: () => start(def, people, o) })) }
         : { ...base, onSelect: () => start(def, people) };
+    const lockedBy = ageLocked(def, together ? [me, ...others.slice(0, def.people.max - 1)] : [me]);
+    if (lockedBy) return { ...base, disabled: `🔒 ${lockedBy}` };
     const problem = world.activityProblem(def, together ? [me, ...others.slice(0, def.people.max - 1)] : [me], target);
     if (problem && (!together || others.length === 1 || others.length <= def.people.max - 1)) return { ...base, disabled: problem };
     if (!together || others.length === 1 || def.people.max > others.length + 1) return withOutfit(together ? others.slice(0, def.people.max - 1) : []);
@@ -225,12 +236,14 @@ function Playing(props: { world: World; place: Profile; post: Post | null; loadE
           world.goTo(me, seat.x, seat.y, seat);
         } } as WheelNode]
       : []),
-    ...enabledInteractions().filter((def) => def.target?.kinds.includes(target.kind)).map((def) => defNode(def, world.actors.filter((a) => a !== me), target)),
+    ...enabledInteractions().filter((def) => def.target?.kinds.includes(target.kind)).map((def) => defNode(def, world.actors.filter((a) => a !== me), target)).filter((n): n is WheelNode => !!n),
   ];
 
   const personNodes = (who: Actor): WheelNode[] => [
     ...groupNodes(interactionsFor(2), (def) => {
-      const problem = world.activityProblem(def, [me, who]);
+      if (interactionHidden(def, [me, who])) return null;
+      const locked = ageLocked(def, [me, who]);
+      const problem = locked ? `🔒 ${locked}` : world.activityProblem(def, [me, who]);
       return { id: def.id, label: def.label, emoji: def.emoji ?? "✨", hint: def.description, disabled: problem ?? undefined, onSelect: () => start(def, [who]) };
     }),
     { id: "clothes", label: "Clothes", emoji: "👗", hint: "Change what they wear", onSelect: () => (setDressing({ id: who.id, room: false }), setSelected(null)) },

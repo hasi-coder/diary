@@ -51,5 +51,15 @@
       "thighs",
       "calves"
     ]
+  },
+  "requires": {
+    "wardrobe": [
+      "hips",
+      "thighs",
+      "calves"
+    ]
+  },
+  "gate": {
+    "onFail": "dressed"
   }
 }

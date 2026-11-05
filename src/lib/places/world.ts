@@ -4,7 +4,7 @@
 import type { Profile } from "../api";
 import { characterOf, type Character } from "./character";
 import { lengthOf, poseAt, type FullPose, type HeldItem, type Interaction, type Posture } from "./interaction";
-import { interactionPolicyProblem } from "./interactionPolicy";
+import { interactionDressed, interactionPolicyProblem } from "./interactionPolicy";
 import { applyOutfit, OUTFITS, type Outfit } from "./outfits";
 import { garment, legacyFields, outfitOf, underwearOf } from "./garments";
 import {
@@ -85,6 +85,8 @@ export interface Activity {
   originalLooks?: Character[];
   outfitApplied?: boolean;
   wardrobeApplied?: boolean;
+  /** Played clothed: someone is under the age its undressing needs. */
+  dressed?: boolean;
 }
 
 type Vec = [number, number];
@@ -609,7 +611,7 @@ export class World {
       role: def.formation.type === "spots" ? def.formation.spots[index].role : def.formation.role,
       start: [actor.x, actor.y] as Vec,
     }));
-    const act: Activity = { def, members, anchor: [lead.x, lead.y], forward: [0, -1], state: "gathering", since: this.t };
+    const act: Activity = { def, members, anchor: [lead.x, lead.y], forward: [0, -1], state: "gathering", since: this.t, dressed: interactionDressed(def, people) };
     if (furniture) {
       act.target = furniture.target;
       act.placements = furniture.placements;
@@ -738,7 +740,7 @@ export class World {
       for (const { actor } of members) actor.look = { ...actor.look, ...applyOutfit(act.outfit, actor.look.wearing) };
       act.outfitApplied = true;
     }
-    if (def.wardrobe && act.originalLooks) {
+    if (def.wardrobe && act.originalLooks && !act.dressed) {
       const active = elapsed >= def.wardrobe.at && elapsed < def.wardrobe.restoreAt;
       if (active && !act.wardrobeApplied) {
         const outfit = def.wardrobe.outfitId ? OUTFITS.find((outfit) => outfit.id === def.wardrobe!.outfitId)! : null;
