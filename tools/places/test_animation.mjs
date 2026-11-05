@@ -285,6 +285,11 @@ await test("the age gate follows what an action does, not its id", async () => {
     assert.match(interactionPolicyProblem(clothed, [me, partner]), /18\+/, "still blocked");
     assert.equal(world.startActivity(clothed, [me, partner]), false, "and still cannot play");
     setShowLockedActions(false); }
+  // No declared tier: an undressing clip is hidden from children, never quietly played dressed.
+  { const { me, partner } = household(); child(partner);
+    const bare = { ...(await undress()), requires: undefined };
+    assert.equal(interactionGate(bare, [me, partner]).hidden, true);
+    assert.equal(interactionGate(bare, [me, me]).hidden, false); }
   // Lint: every clip states its tier or age; undressing needs a stated fallback.
   assert.equal(interactionWarnings({ ...(await undress()), requires: undefined }).some((w) => /declare requires\.tier/.test(w)), true);
   assert.equal(interactionWarnings(await undress()).some((w) => /wardrobe\.fallback/.test(w)), true, "undressing with no fallback and no age");

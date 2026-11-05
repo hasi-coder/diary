@@ -7,6 +7,7 @@ import type { Worn } from "./garments";
 export type Age = "child" | "teen" | "adult" | "elder";
 export type Figure = "feminine" | "masculine" | "neutral";
 export type Build = "slim" | "average" | "broad";
+export type Anatomy = "auto" | "none" | "vulva" | "penis";
 export type HairStyle = "short" | "long" | "bun" | "curly" | "bald";
 /**
  * The head images. `left` and `right` are 90° profiles with the nose toward that
@@ -30,6 +31,8 @@ export interface Character {
   skirt?: boolean;
   glasses?: boolean;
   beard?: boolean;
+  /** Adult resting anatomy; auto follows the figure preset. Independent of gender. */
+  anatomy?: Anatomy;
   /** Fine body sliders (-1 … 1, `shape` 0 feminine … 1 masculine); left out, `figure` and `build` decide. */
   body?: BodySliders;
   /** What they wear; left out, a tee and jeans (or a skirt) in the top and bottom colours. */
@@ -121,6 +124,7 @@ export function characterOf(profile: Profile): Character {
     skirt: saved.skirt ?? false,
     glasses: saved.glasses ?? false,
     beard: saved.beard ?? false,
+    ...(saved.anatomy ? { anatomy: saved.anatomy } : {}),
     ...(saved.body ? { body: saved.body } : {}),
     ...(saved.wearing ? { wearing: saved.wearing } : {}),
   };

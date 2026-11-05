@@ -5,7 +5,8 @@
 import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { clone as cloneSkinned } from "three/examples/jsm/utils/SkeletonUtils.js";
-import { ageFromBirthday, type Age, type Character } from "../../lib/places/character";
+import { ageFromBirthday, type Age, type Anatomy, type Character } from "../../lib/places/character";
+import { BodyAnatomy } from "./bodyAnatomy";
 import { clothingOrder, garment, normalizeWorn, type Worn } from "../../lib/places/garments";
 import { clothingFaceKey, coveredBodyFaces, makeClothing, projectClothing, uncoveredIndex, type ClothingPiece } from "./clothingGeometry";
 import { fittedGarment, normalizeClothingFit } from "../../lib/places/clothingFit";
@@ -20,6 +21,8 @@ export interface BodyShape {
   height: number;
   proportions: number;
   bust: number;
+  anatomy?: Anatomy;
+  adult?: boolean;
 }
 
 /** Joint angles in radians, index 0 the right side and 1 the left, as `Figure` poses its box body. */
@@ -58,8 +61,11 @@ export function presetSliders(look: Pick<Character, "figure" | "build">) {
 /** The body shape for a character: its sliders over its figure and build; birthday gives the exact age when known. */
 export function shapeOf(look: Character, birthday = ""): BodyShape {
   const m = /^(\d{4})-/.exec(birthday);
-  const years = m && ageFromBirthday(birthday) === look.age ? new Date().getFullYear() - Number(m[1]) : YEARS[look.age];
-  return { ...presetSliders(look), ...look.body, years, proportions: 0.3 };
+  const birthdayAge = ageFromBirthday(birthday);
+  const years = m && birthdayAge === look.age ? new Date().getFullYear() - Number(m[1]) : YEARS[look.age];
+  const anatomy = look.anatomy === "auto" || !look.anatomy ? { feminine: "vulva", masculine: "penis", neutral: "none" }[look.figure] as Anatomy : look.anatomy;
+  const adult = (look.age === "adult" || look.age === "elder") && birthdayAge !== "child" && birthdayAge !== "teen";
+  return { ...presetSliders(look), ...look.body, years, proportions: 0.3, anatomy, adult };
 }
 
 interface BodyMeta {
@@ -148,6 +154,7 @@ export class Body {
   private clothingFits = new Map<string, string>();
   private templates = new Map<string, THREE.SkinnedMesh>();
   private shapeWeights: Record<string, number> = {};
+  private anatomy: BodyAnatomy;
   /** At rest, in the root's own units (before `root.scale`): the hip joints' height, the top of the head, and the head's length. */
   hipHeight = 0;
   top = 0;
@@ -170,6 +177,7 @@ export class Body {
     body.geometry = body.geometry.clone();
     body.material = this.skin;
     this.bodyIndex = body.geometry.index!.clone();
+    this.anatomy = new BodyAnatomy(body, this.skin, src.meta.joints.neutral);
     for (const [name, mesh] of this.meshes) if (name !== "body") this.templates.set(name, mesh.clone(false));
   }
 
@@ -217,6 +225,7 @@ export class Body {
     for (const child of rig.children) if (child instanceof THREE.Bone) visit(child);
     for (const mesh of this.meshes.values()) mesh.skeleton.calculateInverses();
     this.captureRest();
+    this.anatomy.setShape(shape, weights);
   }
 
   /** The bones `pose` turns, with the child that gives each its direction. */
@@ -302,6 +311,7 @@ export class Body {
   }
 
   dispose() {
+    this.anatomy.dispose();
     this.meshes.get("body")?.geometry.dispose();
     this.skin.dispose();
     for (const [name, mesh] of this.meshes) if (name !== "body") {
@@ -429,5 +439,6 @@ export class Body {
       keep.push(...tri);
     }
     body.geometry.setIndex(keep);
+    this.anatomy.cover(this.worn);
   }
 }

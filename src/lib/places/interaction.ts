@@ -140,7 +140,8 @@ export interface Interaction {
    * in a preset, `remove` to take off whatever covers those body regions (a bath takes
    * everything off; the toilet only the lower body), or both. `fallback` is what happens for people too
    * young to see the undressing: "dressed" plays the action clothed, "hide" removes it. Default: "hide"
-   * when the action declares a `minAge` or is intimate, otherwise "dressed".
+   * when the action declares a `minAge`, is intimate or declares no tier at all; "dressed" only for an
+   * action that states it is casual or affectionate.
    */
   wardrobe?: { at: number; restoreAt: number; outfitId?: string; remove?: ClothingRegion[]; preferUnderlayers?: boolean; fallback?: "dressed" | "hide" };
   /** Change to the outfit selected when starting, at this beat. */
@@ -197,7 +198,7 @@ export function ageRequirement(def: Requiring): number {
 
 /** What happens for someone old enough to see the action but not its undressing. */
 export const wardrobeFallback = (def: Requiring): "dressed" | "hide" =>
-  def.wardrobe?.fallback ?? (def.requires?.minAge !== undefined || def.requires?.tier === "intimate" ? "hide" : "dressed");
+  def.wardrobe?.fallback ?? (def.requires?.minAge !== undefined || def.requires?.tier === undefined || def.requires.tier === "intimate" ? "hide" : "dressed");
 
 /** Whether the action may play clothed for people too young for its undressing. Never for an intimate one. */
 export const mayPlayDressed = (def: Requiring) => !!def.wardrobe && def.requires?.tier !== "intimate" && wardrobeFallback(def) === "dressed";

@@ -78,6 +78,7 @@ export function CharacterCard({ profile }: { profile: Profile }) {
           <details className="rounded-lg bg-slate-50 px-3 py-2">
             <summary className="cursor-pointer text-xs font-semibold text-slate-600">Fine-tune the body</summary>
             <div className="mt-2 grid gap-x-6 gap-y-2 sm:grid-cols-2">
+              {(look.age === "adult" || look.age === "elder") && <Choice label="Anatomy" options={{ auto: "Follow figure", none: "None", vulva: "Vulva", penis: "Penis" }} value={look.anatomy ?? "auto"} onChange={(anatomy) => set({ anatomy: anatomy as Character["anatomy"] })} />}
               {SLIDERS.map((s) => (
                 <label key={s.key} className="text-xs text-slate-600">
                   <div className="flex justify-between">

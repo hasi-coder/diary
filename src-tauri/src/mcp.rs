@@ -221,6 +221,7 @@ fn tools() -> Value {
                 "name": { "type": "string", "description": "The person's name, exactly as in the journal" },
                 "age": { "type": "string", "enum": ["child", "teen", "adult", "elder"] },
                 "figure": { "type": "string", "enum": ["feminine", "masculine", "neutral"], "description": "Body shape only, never gender" },
+                "anatomy": { "type": "string", "enum": ["auto", "none", "vulva", "penis"], "description": "Resting anatomy, rendered only on adult and elder bodies; auto follows the figure preset" },
                 "build": { "type": "string", "enum": ["slim", "average", "broad"] },
                 "skin": { "type": "string", "description": "#rrggbb; the Monk scale runs #f6ede4 #f3e7db #f7ead0 #eadaba #d7bd96 #a07e56 #825c43 #604134 #3a312a #292420" },
                 "hair": { "type": "object", "properties": { "style": { "type": "string", "enum": ["short", "long", "bun", "curly", "bald"] }, "color": { "type": "string", "description": "#rrggbb" } } },
@@ -448,7 +449,7 @@ fn character_patch(current: Value, args: &Value) -> Result<(Value, Vec<&'static 
     };
     let mut set = Vec::new();
     let given = |key: &str| args.get(key).filter(|v| !v.is_null());
-    for (key, allowed) in [("age", &["child", "teen", "adult", "elder"][..]), ("figure", &["feminine", "masculine", "neutral"]), ("build", &["slim", "average", "broad"])] {
+    for (key, allowed) in [("age", &["child", "teen", "adult", "elder"][..]), ("figure", &["feminine", "masculine", "neutral"]), ("build", &["slim", "average", "broad"]), ("anatomy", &["auto", "none", "vulva", "penis"])] {
         if let Some(v) = given(key) {
             c.insert(key.into(), json!(choice(v, key, allowed)?));
             set.push(key);
@@ -1202,6 +1203,19 @@ mod tests {
         assert!(err, "pages have no faces");
         let (_, err) = call(&state, "set_person_faces", json!({ "name": "June Morgan" }));
         assert!(err, "at least one view");
+    }
+
+    #[test]
+    fn anatomy_patch_is_independent_of_figure_and_preserves_other_fields() {
+        let original = json!({ "figure": "feminine", "age": "adult", "anatomy": "auto", "skin": "#825c43" });
+        for anatomy in ["auto", "none", "vulva", "penis"] {
+            let (patched, fields) = character_patch(original.clone(), &json!({ "anatomy": anatomy })).unwrap();
+            assert_eq!(patched["anatomy"], anatomy);
+            assert_eq!(patched["figure"], original["figure"]);
+            assert_eq!(patched["skin"], original["skin"]);
+            assert_eq!(fields, vec!["anatomy"]);
+        }
+        assert!(character_patch(original, &json!({ "anatomy": "unknown" })).is_err());
     }
 
     #[test]
