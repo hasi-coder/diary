@@ -1,0 +1,231 @@
+{
+ "id": "nurse-bandage",
+ "label": "Bandage a wound",
+ "emoji": "🩹",
+  "category": "care",
+ "description": "A nurse wraps a bandage round the patient's forearm.",
+ "people": {
+  "min": 2,
+  "max": 2
+ },
+ "beat": 0.8,
+ "length": 12,
+ "loop": false,
+ "formation": {
+  "type": "spots",
+  "spots": [
+   {
+    "role": "nurse",
+    "at": [
+     0,
+     0
+    ],
+    "facing": 0
+   },
+   {
+    "role": "patient",
+    "at": [
+     0,
+     0.7
+    ],
+    "facing": 180
+   }
+  ]
+ },
+ "roles": {
+  "nurse": [
+   {
+    "beat": 0
+   },
+   {
+    "beat": 1,
+    "armL": [
+     42,
+     6
+    ],
+    "elbowL": 20,
+    "armR": [
+     42,
+     6
+    ],
+    "elbowR": 20,
+    "head": [
+     16,
+     0,
+     0
+    ],
+    "emote": "🩹"
+   },
+   {
+    "beat": 3,
+    "wristR": [
+     0,
+     0,
+     35
+    ],
+    "wristL": [
+     0,
+     0,
+     -35
+    ],
+    "forearmR": 25,
+    "forearmL": -25,
+    "head": [
+     16,
+     0,
+     0
+    ],
+    "armL": [
+     42,
+     6
+    ],
+    "elbowL": 20,
+    "armR": [
+     42,
+     6
+    ],
+    "elbowR": 20
+   },
+   {
+    "beat": 5,
+    "wristR": [
+     0,
+     0,
+     -35
+    ],
+    "wristL": [
+     0,
+     0,
+     35
+    ],
+    "forearmR": -25,
+    "forearmL": 25,
+    "head": [
+     16,
+     0,
+     0
+    ],
+    "armL": [
+     42,
+     6
+    ],
+    "elbowL": 20,
+    "armR": [
+     42,
+     6
+    ],
+    "elbowR": 20
+   },
+   {
+    "beat": 7,
+    "wristR": [
+     0,
+     0,
+     35
+    ],
+    "wristL": [
+     0,
+     0,
+     -35
+    ],
+    "forearmR": 25,
+    "forearmL": -25,
+    "head": [
+     16,
+     0,
+     0
+    ],
+    "armL": [
+     42,
+     6
+    ],
+    "elbowL": 20,
+    "armR": [
+     42,
+     6
+    ],
+    "elbowR": 20
+   },
+   {
+    "beat": 9,
+    "armL": [
+     42,
+     6
+    ],
+    "armR": [
+     42,
+     6
+    ],
+    "head": [
+     18,
+     0,
+     0
+    ],
+    "elbowL": 20,
+    "elbowR": 20
+   },
+   {
+    "beat": 11,
+    "armL": [
+     22,
+     10
+    ],
+    "armR": [
+     22,
+     10
+    ],
+    "head": [
+     0,
+     0,
+     0
+    ],
+    "emote": "✅"
+   },
+   {
+    "beat": 12,
+    "emote": ""
+   }
+  ],
+  "patient": [
+   {
+    "beat": 0
+   },
+   {
+    "beat": 1,
+    "armR": [
+     20,
+     10
+    ],
+    "elbowR": 30,
+    "head": [
+     12,
+     0,
+     0
+    ]
+   },
+   {
+    "beat": 10,
+    "armR": [
+     20,
+     10
+    ],
+    "elbowR": 30,
+    "head": [
+     12,
+     0,
+     0
+    ]
+   },
+   {
+    "beat": 11,
+    "armR": [
+     8,
+     10
+    ]
+   },
+   {
+    "beat": 12
+   }
+  ]
+ }
+}

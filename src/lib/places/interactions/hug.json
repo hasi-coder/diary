@@ -2,6 +2,7 @@
   "id": "hug",
   "label": "Hug",
   "emoji": "🤗",
+  "category": "social",
   "description": "Step in, wrap your arms around each other, sway.",
   "people": {"min": 2, "max": 2},
   "beat": 0.5,

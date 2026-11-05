@@ -1,0 +1,30 @@
+{
+  "label": "Sri Lankan school · white shorts",
+  "description": "White shirt and white primary-school shorts. Shoes, socks, belt and colours remain configurable.",
+  "wearing": [
+    {
+      "garment": "masculine_underwear_vest",
+      "color": "#f1f5f9"
+    },
+    {
+      "garment": "masculine_underwear_briefs",
+      "color": "#64748b"
+    },
+    {
+      "garment": "neutral_base_school_shirt",
+      "color": "#f8fafc"
+    },
+    {
+      "garment": "masculine_base_school_shorts",
+      "color": "#f8fafc"
+    },
+    {
+      "garment": "masculine_footwear_crew_socks",
+      "color": "#f8fafc"
+    },
+    {
+      "garment": "masculine_footwear_school_shoes",
+      "color": "#292524"
+    }
+  ]
+}

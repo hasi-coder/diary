@@ -3,10 +3,10 @@
 // people as small bodies with a head image that turns to the camera.
 import * as THREE from "three";
 import { RoundedBoxGeometry } from "three/examples/jsm/geometries/RoundedBoxGeometry.js";
-import { AGES, type FaceView } from "../../lib/places/character";
+import { AGES, FACE_VIEWS, FALLBACK_VIEW, type Character, type FaceView } from "../../lib/places/character";
 import { DIRS, itemBoxes, parseEdge, type DoorState, type Place, type PlacedItem } from "../../lib/places/layout";
 import type { Actor } from "../../lib/places/world";
-import { outfitOf } from "../../lib/places/garments";
+import { garment, outfitOf } from "../../lib/places/garments";
 import { Body, loadBody, loadedBody, shapeOf, type Limbs } from "./body";
 import { drawnHead, photoHead } from "./faces";
 
@@ -274,9 +274,12 @@ export function viewFor(facingAngle: number, azimuth: number): FaceView {
   let d = facingAngle - azimuth;
   while (d > Math.PI) d -= 2 * Math.PI;
   while (d < -Math.PI) d += 2 * Math.PI;
+  // People face eight ways and the camera sits on a diagonal, so turns come in 45° steps.
   const deg = (d * 180) / Math.PI;
-  if (Math.abs(deg) <= 30) return "front";
-  if (Math.abs(deg) >= 120) return "back";
+  const a = Math.abs(deg);
+  if (a <= 22.5) return "front";
+  if (a >= 112.5) return "back";
+  if (a <= 67.5) return deg < 0 ? "frontRight" : "frontLeft";
   return deg < 0 ? "right" : "left";
 }
 
@@ -286,20 +289,32 @@ export class Figure {
   /** The MakeHuman body once body.glb has loaded; until then (or if it can't load) the box body. */
   private skinned: Body | null = null;
   private disposed = false;
+  /** How far out (radians) the MakeHuman body's arms hang so they clear the hips. */
+  private armClearance = 0.12;
   private body = new THREE.Group();
+  private posture = new THREE.Group();
+  private lastLook: Character | null = null;
+  private held: THREE.Group | null = null;
+  private heldKind = "";
   /** Torso, arms and neck: leans and tilts at the hips. */
   private upper = new THREE.Group();
   private thighs: THREE.Group[] = [];
   private knees: THREE.Group[] = [];
+  private feet: THREE.Group[] = [];
   private arms: THREE.Group[] = [];
+  private elbows: THREE.Group[] = [];
+  private wrists: THREE.Group[] = [];
+  private neckPivot = new THREE.Group();
+  private headPivot = new THREE.Group();
+  private headAnchor = new THREE.Object3D();
   private head: THREE.Sprite;
+  private headSize = 1;
   private textures = new Map<FaceView, THREE.Texture>();
   private tag: THREE.Sprite | null = null;
   private tagText = "";
   private emote: THREE.Sprite | null = null;
   private emoteText = "";
-  /** Head height above the hips, and the forward stoop people stand with (elders). */
-  private neckLength: number;
+  /** The forward stoop people stand with (elders). */
   private stoop: number;
   private ring: THREE.Mesh;
   private legLength: number;
@@ -323,26 +338,41 @@ export class Figure {
       const thigh = new THREE.Group();
       thigh.position.set(side * bw * 0.24, leg, 0);
       const upper = new THREE.Mesh(rounded(0.12 * s, leg * 0.52, 0.13 * s), bottom);
+      upper.userData.clothing = "bottom";
+      const briefs = new THREE.Mesh(rounded(0.135 * s, leg * 0.25, 0.15 * s), bottom);
+      briefs.position.y = -leg * 0.125;
+      briefs.userData.underwearBottom = true;
+      briefs.visible = false;
       upper.position.y = -leg * 0.26;
       const knee = new THREE.Group();
       knee.position.y = -leg * 0.5;
       const lower = new THREE.Mesh(rounded(0.11 * s, leg * 0.5, 0.12 * s), bottom);
+      lower.userData.clothing = "bottom";
       lower.position.y = -leg * 0.25;
       const foot = new THREE.Mesh(rounded(0.12 * s, 0.07, 0.2 * s), shoe);
-      foot.position.set(0, -leg * 0.48, 0.04);
-      knee.add(lower, foot);
-      thigh.add(upper, knee);
+      foot.userData.clothing = "feet";
+      const ankle = new THREE.Group();
+      ankle.position.y = -leg * 0.48;
+      foot.position.z = 0.04;
+      ankle.add(foot);
+      knee.add(lower, ankle);
+      thigh.add(upper, knee, briefs);
       this.thighs.push(thigh);
       this.knees.push(knee);
+      this.feet.push(ankle);
       this.body.add(thigh);
     }
     this.upper.position.y = leg;
     this.body.add(this.upper);
     const chest = new THREE.Mesh(rounded(bw, torso, 0.22 * s), top);
+    chest.userData.clothing = "top";
     chest.position.y = torso / 2;
     this.upper.add(chest);
-    if (look.skirt) {
+    {
       const skirt = new THREE.Mesh(new THREE.CylinderGeometry(bw * 0.48, bw * 0.66, leg * 0.5, 12), bottom);
+      skirt.userData.clothing = "bottom";
+      skirt.userData.skirt = true;
+      skirt.visible = !!look.skirt;
       skirt.position.y = leg - leg * 0.22;
       this.body.add(skirt);
     }
@@ -351,30 +381,55 @@ export class Figure {
       arm.position.set(side * (bw / 2 + 0.05 * s), torso - 0.05, 0);
       // Forward first, then out to the side.
       arm.rotation.order = "ZXY";
-      const sleeve = new THREE.Mesh(rounded(0.09 * s, torso * 0.85, 0.1 * s), top);
-      sleeve.position.y = -torso * 0.42;
-      const hand = new THREE.Mesh(new THREE.SphereGeometry(0.05 * s, 8, 6), skin);
-      hand.position.y = -torso * 0.88;
-      arm.add(sleeve, hand);
+      const sleeve = new THREE.Mesh(rounded(0.09 * s, torso * 0.43, 0.1 * s), top);
+      sleeve.userData.clothing = "top";
+      sleeve.userData.sleeve = true;
+      sleeve.position.y = -torso * 0.215;
+      const elbow = new THREE.Group();
+      elbow.position.y = -torso * 0.43;
+      elbow.rotation.order = "XZY";
+      const forearm = new THREE.Mesh(rounded(0.075 * s, torso * 0.4, 0.08 * s), skin);
+      forearm.position.y = -torso * 0.2;
+      const wrist = new THREE.Group();
+      wrist.position.y = -torso * 0.4;
+      wrist.rotation.order = "XZY";
+      const hand = new THREE.Mesh(rounded(0.08 * s, 0.1 * s, 0.04 * s), skin);
+      hand.position.y = -0.05 * s;
+      wrist.add(hand);
+      elbow.add(forearm, wrist);
+      arm.add(sleeve, elbow);
       this.arms.push(arm);
+      this.elbows.push(elbow);
+      this.wrists.push(wrist);
       this.upper.add(arm);
     }
     const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.045 * s, 0.05 * s, 0.08, 8), skin);
     neck.position.y = torso + 0.03;
     this.upper.add(neck);
+    this.neckPivot.position.y = torso + 0.03;
+    this.headPivot.position.y = 0.04;
+    this.headAnchor.position.y = headR * 0.95 - 0.07;
+    this.headPivot.add(this.headAnchor);
+    this.neckPivot.add(this.headPivot);
+    this.upper.add(this.neckPivot);
     this.stoop = look.age === "elder" ? 0.08 : 0;
-    this.neckLength = torso + headR * 0.95;
     shadowed(this.body);
     this.body.traverse((o) => (o.userData.pick = actor.id));
 
     this.head = new THREE.Sprite(new THREE.SpriteMaterial({ transparent: true }));
-    this.head.scale.setScalar(headR / 0.36);
+    this.headSize = headR / 0.36;
+    this.head.scale.setScalar(this.headSize);
     this.head.position.y = leg + torso + headR * 0.95;
     this.head.userData.pick = actor.id;
-    for (const view of ["front", "left", "right", "back"] as FaceView[]) {
-      const t = new THREE.CanvasTexture(drawnHead(look, view, 128));
-      t.colorSpace = THREE.SRGBColorSpace;
-      this.textures.set(view, t);
+    const hasPhotos = FACE_VIEWS.some((view) => actor.profile.faces?.[view]);
+    for (const view of FACE_VIEWS) {
+      // Optional views get a texture from a photo; without any photos the drawn face stands in for all of
+      // them (closed eyes when asleep). With photos, a missing view shows its fallback instead.
+      if (!FALLBACK_VIEW[view] || !hasPhotos) {
+        const t = new THREE.CanvasTexture(drawnHead(look, view, 128));
+        t.colorSpace = THREE.SRGBColorSpace;
+        this.textures.set(view, t);
+      }
       const photo = actor.profile.faces?.[view];
       if (photo)
         void photoHead(photo.id).then((canvas) => {
@@ -392,7 +447,8 @@ export class Figure {
     this.ring = new THREE.Mesh(new THREE.RingGeometry(0.3, 0.36, 28), new THREE.MeshBasicMaterial({ color: 0xfbbf24, depthWrite: false }));
     this.ring.rotation.x = -Math.PI / 2;
     this.ring.position.y = 0.016;
-    this.group.add(shadow, this.ring, this.body, this.head);
+    this.posture.add(this.body);
+    this.group.add(shadow, this.ring, this.posture, this.head);
     const ready = loadedBody();
     if (ready) this.useBody(new Body(ready));
     else
@@ -425,13 +481,72 @@ export class Figure {
       if (o instanceof THREE.Mesh) o.castShadow = true;
     });
     this.legLength = body.hipHeight * scale;
-    this.head.scale.setScalar(body.headLength * scale * 4.2);
+    this.armClearance = 0.12 + 0.16 * Math.max(0, shape.weight) + 0.08 * Math.max(0, shape.muscle);
+    this.headSize = body.headLength * scale * 4.2;
+    this.head.scale.setScalar(this.headSize);
     this.skinned = body;
+    if (this.held) body.bone("hand_r")!.add(this.held);
   }
 
   /** Moves and poses the figure; `azimuth` is where the camera is, for the head. */
   update(azimuth: number, t: number, opts: { selected: boolean; tag: string | null; tagColor?: string }) {
     const a = this.actor;
+    this.group.visible = !a.hidden;
+    if (a.look !== this.lastLook) {
+      if (this.skinned) this.skinned.wear(outfitOf(a.look));
+      else {
+        const worn = outfitOf(a.look);
+        const outerTop = worn.some((w) => garment(w.garment)?.slot === "top");
+        const outerBottom = worn.some((w) => garment(w.garment)?.slot === "bottom");
+        this.body.traverse((object) => {
+          const mesh = object as THREE.Mesh;
+          const slot = mesh.userData.clothing;
+          let color = a.look.skin;
+          // The bare body shows through wherever nothing is worn.
+          const chest = worn.filter((w) => { const g = garment(w.garment); return g && g.layer !== "accessories" && g.covers.includes("torso"); }).pop();
+          const hips = worn.filter((w) => { const g = garment(w.garment); return g && g.layer !== "accessories" && g.covers.includes("hips"); }).pop();
+          if (slot === "top" && chest && !(mesh.userData.sleeve && !outerTop)) color = chest.color;
+          if (slot === "bottom" && hips) color = hips.color;
+          if (slot === "feet") color = worn.find((w) => garment(w.garment)?.slot === "feet")?.color ?? a.look.skin;
+          if (slot) mesh.material = material(color);
+          if (mesh.userData.underwearBottom) {
+            const briefs = worn.find((w) => garment(w.garment)?.slot === "underwearBottom");
+            mesh.visible = !!briefs && !outerBottom;
+            mesh.material = material(briefs?.color ?? a.look.bottom);
+          }
+          if (mesh.userData.skirt) mesh.visible = !!a.look.skirt;
+        });
+      }
+      this.lastLook = a.look;
+    }
+    if ((a.held ?? "") !== this.heldKind) {
+      this.held?.removeFromParent();
+      this.held = null;
+      this.heldKind = a.held ?? "";
+      if (a.held === "toothbrush") {
+        this.held = new THREE.Group();
+        const handle = new THREE.Mesh(unitBox, material("#38bdf8"));
+        handle.scale.set(0.012, 0.12, 0.012);
+        handle.position.y = -0.08;
+        const bristles = new THREE.Mesh(unitBox, material("#f8fafc"));
+        bristles.scale.set(0.025, 0.03, 0.02);
+        bristles.position.set(0, -0.14, 0.01);
+        this.held.add(handle, bristles);
+      } else if (a.held === "baby") {
+        // A swaddled newborn cradled in the hand: wrap, head and a little hat.
+        this.held = new THREE.Group();
+        const wrap = new THREE.Mesh(new THREE.CapsuleGeometry(0.07, 0.2, 4, 8), material("#fde68a"));
+        wrap.rotation.z = Math.PI / 2;
+        wrap.position.set(0, -0.06, 0.08);
+        const head = new THREE.Mesh(new THREE.SphereGeometry(0.06, 10, 8), material("#f2c9a8"));
+        head.position.set(0.17, -0.05, 0.08);
+        const hat = new THREE.Mesh(new THREE.SphereGeometry(0.063, 10, 6, 0, Math.PI * 2, 0, Math.PI / 2), material("#fda4af"));
+        hat.position.copy(head.position);
+        hat.rotation.z = -Math.PI / 2;
+        this.held.add(wrap, head, hat);
+      }
+      if (this.held) (this.skinned?.bone("hand_r") ?? this.wrists[0]).add(this.held);
+    }
     const pose = a.pose;
     const walking = a.path.length > 0 && !pose;
     // Seated people (cheering from a chair) keep sitting and move their upper body.
@@ -445,11 +560,25 @@ export class Figure {
     while (d < -Math.PI) d += 2 * Math.PI;
     // Poses are already smooth; follow them closely, ease into walking turns.
     this.angle += d * (pose ? 0.6 : 0.25);
-    this.body.rotation.y = this.angle;
+    if (a.rest) {
+      this.posture.position.y = a.rest.height;
+      this.posture.rotation.set(a.rest.pitch, this.angle, 0, "YXZ");
+      this.body.position.y = -this.legLength;
+      this.body.rotation.y = 0;
+    } else {
+      this.posture.position.y = 0;
+      this.posture.rotation.set(0, 0, 0);
+      this.body.position.y = 0;
+      this.body.rotation.y = this.angle;
+    }
     const deg = Math.PI / 180;
     // Index 0 is the right side (−x when facing +z), 1 the left.
     const half = Math.PI / 2;
-    const limbs: Limbs = { legs: [0, 0], knees: [0, 0], arms: [[0, 0], [0, 0]], lean: this.stoop, tilt: 0 };
+    const limbs: Limbs = {
+      legs: [0, 0], knees: [0, 0], arms: [[0, 0], [0, 0]],
+      elbows: [0, 0], forearms: [0, 0], wrists: [[0, 0, 0], [0, 0, 0]], ankles: [[0, 0], [0, 0]],
+      lean: this.stoop, tilt: 0, twist: 0, neck: [0, 0, 0], head: [0, 0, 0],
+    };
     if (pose) {
       limbs.legs = sitting ? [half, half] : [pose.legR * deg, pose.legL * deg];
       limbs.knees = sitting ? [half, half] : [pose.kneeR * deg, pose.kneeL * deg];
@@ -457,8 +586,15 @@ export class Figure {
         [pose.armR[0] * deg, pose.armR[1] * deg],
         [pose.armL[0] * deg, pose.armL[1] * deg],
       ];
+      limbs.elbows = [pose.elbowR * deg, pose.elbowL * deg];
+      limbs.forearms = [pose.forearmR * deg, pose.forearmL * deg];
+      limbs.wrists = [pose.wristR.map((n) => n * deg), pose.wristL.map((n) => n * deg)] as Limbs["wrists"];
+      limbs.ankles = [pose.ankleR.map((n) => n * deg), pose.ankleL.map((n) => n * deg)] as Limbs["ankles"];
       limbs.lean += pose.lean * deg;
       limbs.tilt = pose.tilt * deg;
+      limbs.twist = pose.twist * deg;
+      limbs.neck = pose.neck.map((n) => n * deg) as Limbs["neck"];
+      limbs.head = pose.head.map((n) => n * deg) as Limbs["head"];
     } else {
       const swing = walking ? Math.sin((t + this.phase) * 11) * 0.55 : 0;
       const bend = Math.max(0, Math.abs(swing) * 0.5);
@@ -466,33 +602,66 @@ export class Figure {
       limbs.knees = sitting ? [half, half] : [bend, bend];
       limbs.arms = sitting ? [[0.5, 0], [0.5, 0]] : [[-swing * 0.7, 0], [swing * 0.7, 0]];
     }
-    const { lean, tilt } = limbs;
+    const { lean, tilt, twist } = limbs;
+    const headUp = new THREE.Vector3(0, 1, 0);
+    const headForward = new THREE.Vector3(0, 0, 1);
     if (this.skinned) {
-      // Arms hang just clear of the hips.
-      limbs.arms = limbs.arms.map(([f, o]) => [f, Math.max(o, 0.12)]) as Limbs["arms"];
+      // Arms hang just clear of the hips, wider for heavier bodies.
+      if (!pose) limbs.arms = limbs.arms.map(([f, o]) => [f, Math.max(o, this.armClearance)]) as Limbs["arms"];
       this.skinned.pose(limbs);
       this.group.updateMatrixWorld(true);
       this.head.position.copy(this.group.worldToLocal(this.skinned.headPosition(new THREE.Vector3())));
+      const headQuat = this.skinned.bone("head")!.getWorldQuaternion(new THREE.Quaternion());
+      headUp.applyQuaternion(headQuat);
+      headForward.applyQuaternion(headQuat);
     } else {
       this.thighs.forEach((g, i) => (g.rotation.x = -limbs.legs[i]));
       this.knees.forEach((g, i) => (g.rotation.x = limbs.knees[i]));
+      this.feet.forEach((g, i) => g.rotation.set(-limbs.ankles[i][0], 0, (i === 0 ? -1 : 1) * limbs.ankles[i][1]));
       this.arms[0].rotation.set(-limbs.arms[0][0], 0, -limbs.arms[0][1]);
       this.arms[1].rotation.set(-limbs.arms[1][0], 0, limbs.arms[1][1]);
-      this.upper.rotation.set(lean, 0, tilt);
-      // The head is a sprite, so it follows the lean by hand.
-      const lx = -this.neckLength * Math.sin(tilt);
-      const lz = this.neckLength * Math.sin(lean);
-      const ly = this.neckLength * Math.cos(lean) * Math.cos(tilt);
-      this.head.position.set(lx * Math.cos(this.angle) + lz * Math.sin(this.angle), this.legLength + ly, -lx * Math.sin(this.angle) + lz * Math.cos(this.angle));
+      this.elbows.forEach((g, i) => g.rotation.set(-limbs.elbows[i], (i === 0 ? -1 : 1) * limbs.forearms[i], 0));
+      this.wrists.forEach((g, i) => {
+        const [bend, spread, turn] = limbs.wrists[i];
+        const sign = i === 0 ? -1 : 1;
+        g.rotation.set(-bend, sign * turn, sign * spread);
+      });
+      this.upper.rotation.set(lean, -twist, tilt);
+      this.neckPivot.rotation.set(limbs.neck[0], -limbs.neck[1], limbs.neck[2]);
+      this.headPivot.rotation.set(limbs.head[0], -limbs.head[1], limbs.head[2]);
+      this.group.updateMatrixWorld(true);
+      this.head.position.copy(this.group.worldToLocal(this.headAnchor.getWorldPosition(new THREE.Vector3())));
+      const headQuat = this.headPivot.getWorldQuaternion(new THREE.Quaternion());
+      headUp.applyQuaternion(headQuat);
+      headForward.applyQuaternion(headQuat);
     }
+    // Faces remain billboards: follow the rig's roll, approximate nods by
+    // foreshortening, and select the photo view using the independent head turn.
+    // Roll in the camera's own screen axes, so a head lying down points along its body on screen
+    // (an upright head still comes out at zero). The camera sits at (cos, 24/30, sin) from its target.
+    const toCamera = new THREE.Vector3(Math.cos(azimuth) * 30, 24, Math.sin(azimuth) * 30).normalize();
+    const screenRight = new THREE.Vector3(Math.sin(azimuth), 0, -Math.cos(azimuth));
+    const screenUp = new THREE.Vector3().crossVectors(toCamera, screenRight);
+    this.head.material.rotation = Math.atan2(-headUp.dot(screenRight), headUp.dot(screenUp));
+    // Lying face up (asleep, on a bed or in a tub), the face looks at the ceiling: show it
+    // front-on, rolled with the head, and shortened a little as seen from the raised camera.
+    const faceUp = headForward.y > 0.55;
+    const seenFromAbove = faceUp || pose?.face === "up" || pose?.face === "sleeping";
+    this.head.scale.set(this.headSize, this.headSize * (seenFromAbove ? 0.78 : Math.abs(Math.cos(limbs.neck[0] + limbs.head[0]))), this.headSize);
     // Shadow stays on the floor.
     this.group.children[0].position.y = 0.012 - rise;
     this.ring.visible = opts.selected;
     this.ring.position.y = this.group.children[0].position.y + 0.004;
 
-    const facingAngle = Math.atan2(Math.sin(Math.PI / 2 - this.angle), Math.cos(Math.PI / 2 - this.angle));
-    const view = viewFor(facingAngle, azimuth);
-    const map = this.textures.get(view)!;
+    const headAngle = this.angle - twist - limbs.neck[1] - limbs.head[1];
+    const facingAngle = Math.atan2(Math.sin(Math.PI / 2 - headAngle), Math.cos(Math.PI / 2 - headAngle));
+    // A key can name the face outright ("sleeping"); otherwise lying face up or down picks
+    // the up or down view, and standing people pick by the camera angle.
+    const faceDown = headForward.y < -0.55;
+    const view: FaceView = pose?.face || (faceUp ? "up" : faceDown ? "down" : viewFor(facingAngle, azimuth));
+    let shown: FaceView | undefined = view;
+    while (shown && !this.textures.has(shown)) shown = FALLBACK_VIEW[shown];
+    const map = this.textures.get(shown ?? "front")!;
     if (this.head.material.map !== map) {
       this.head.material.map = map;
       this.head.material.needsUpdate = true;

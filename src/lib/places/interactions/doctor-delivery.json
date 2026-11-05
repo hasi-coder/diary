@@ -1,0 +1,429 @@
+{
+  "id": "doctor-delivery",
+  "label": "Deliver a baby",
+  "emoji": "\ud83d\udc76",
+  "category": "care",
+  "description": "The patient lies on the bed with knees bent and breathes through the pushes while the doctor at the foot of the bed delivers the baby and places the newborn in their arms.",
+  "people": {
+    "min": 2,
+    "max": 2
+  },
+  "beat": 0.8,
+  "length": 32,
+  "loop": false,
+  "formation": {
+    "type": "spots",
+    "spots": [
+      {
+        "role": "doctor",
+        "at": [
+          0,
+          0
+        ],
+        "facing": 0
+      },
+      {
+        "role": "patient",
+        "at": [
+          0,
+          0.5
+        ],
+        "facing": 0
+      }
+    ]
+  },
+  "target": {
+    "kinds": [
+      "bed"
+    ],
+    "posture": "lie",
+    "roles": {
+      "doctor": {
+        "posture": "stand",
+        "across": 0,
+        "along": 1.55
+      },
+      "patient": {
+        "posture": "lie",
+        "across": 0,
+        "along": 0.35
+      }
+    }
+  },
+  "roles": {
+    "doctor": [
+      {
+        "beat": 0
+      },
+      {
+        "beat": 2,
+        "lean": 15,
+        "armL": [
+          60,
+          6
+        ],
+        "armR": [
+          60,
+          6
+        ],
+        "elbowL": 30,
+        "elbowR": 30,
+        "head": [
+          10,
+          0,
+          0
+        ],
+        "emote": "\ud83e\ude7a"
+      },
+      {
+        "beat": 6,
+        "lean": 28,
+        "armL": [
+          75,
+          4
+        ],
+        "armR": [
+          75,
+          4
+        ],
+        "elbowL": 25,
+        "elbowR": 25,
+        "head": [
+          25,
+          0,
+          0
+        ],
+        "move": [
+          0,
+          0.09
+        ],
+        "emote": "\ud83d\udcac"
+      },
+      {
+        "beat": 12,
+        "lean": 32,
+        "armL": [
+          78,
+          4
+        ],
+        "armR": [
+          78,
+          4
+        ],
+        "elbowL": 25,
+        "elbowR": 25,
+        "head": [
+          28,
+          0,
+          0
+        ],
+        "move": [
+          0,
+          0.1
+        ]
+      },
+      {
+        "beat": 16,
+        "lean": 34,
+        "armL": [
+          80,
+          4
+        ],
+        "armR": [
+          80,
+          4
+        ],
+        "elbowL": 30,
+        "elbowR": 30,
+        "head": [
+          28,
+          0,
+          0
+        ],
+        "move": [
+          0,
+          0.1
+        ],
+        "emote": "\ud83d\udc76"
+      },
+      {
+        "beat": 19,
+        "lean": 20,
+        "armL": [
+          70,
+          4
+        ],
+        "armR": [
+          70,
+          4
+        ],
+        "elbowL": 60,
+        "elbowR": 60,
+        "head": [
+          15,
+          0,
+          0
+        ],
+        "move": [
+          0,
+          0.07
+        ],
+        "held": "baby",
+        "emote": "\ud83d\ude0a"
+      },
+      {
+        "beat": 23,
+        "lean": 10,
+        "armL": [
+          60,
+          10
+        ],
+        "armR": [
+          60,
+          10
+        ],
+        "elbowL": 70,
+        "elbowR": 70,
+        "head": [
+          10,
+          0,
+          0
+        ],
+        "move": [
+          0,
+          0.05
+        ]
+      },
+      {
+        "beat": 25,
+        "lean": 5,
+        "armL": [
+          60,
+          10
+        ],
+        "armR": [
+          60,
+          10
+        ],
+        "elbowL": 70,
+        "elbowR": 70,
+        "move": [
+          0,
+          0.03
+        ],
+        "held": ""
+      },
+      {
+        "beat": 28,
+        "emote": "\ud83d\udc4f"
+      },
+      {
+        "beat": 32
+      }
+    ],
+    "patient": [
+      {
+        "beat": 0,
+        "armL": [
+          8,
+          10
+        ],
+        "armR": [
+          8,
+          10
+        ],
+        "legL": 65,
+        "legR": 65,
+        "kneeL": 100,
+        "kneeR": 100,
+        "head": [
+          0,
+          0,
+          4
+        ]
+      },
+      {
+        "beat": 6,
+        "armL": [
+          30,
+          25
+        ],
+        "armR": [
+          30,
+          25
+        ],
+        "legL": 65,
+        "legR": 65,
+        "kneeL": 100,
+        "kneeR": 100,
+        "emote": "\ud83d\ude2e\u200d\ud83d\udca8"
+      },
+      {
+        "beat": 9,
+        "armL": [
+          60,
+          30
+        ],
+        "armR": [
+          60,
+          30
+        ],
+        "legL": 70,
+        "legR": 70,
+        "kneeL": 105,
+        "kneeR": 105,
+        "head": [
+          -15,
+          0,
+          0
+        ],
+        "emote": "\ud83d\udcaa"
+      },
+      {
+        "beat": 11,
+        "armL": [
+          30,
+          25
+        ],
+        "armR": [
+          30,
+          25
+        ],
+        "legL": 65,
+        "legR": 65,
+        "kneeL": 100,
+        "kneeR": 100,
+        "emote": "\ud83d\ude2e\u200d\ud83d\udca8"
+      },
+      {
+        "beat": 13,
+        "armL": [
+          60,
+          30
+        ],
+        "armR": [
+          60,
+          30
+        ],
+        "legL": 70,
+        "legR": 70,
+        "kneeL": 105,
+        "kneeR": 105,
+        "head": [
+          -15,
+          0,
+          0
+        ],
+        "emote": "\ud83d\udcaa"
+      },
+      {
+        "beat": 16,
+        "armL": [
+          70,
+          30
+        ],
+        "armR": [
+          70,
+          30
+        ],
+        "legL": 72,
+        "legR": 72,
+        "kneeL": 108,
+        "kneeR": 108,
+        "head": [
+          -20,
+          0,
+          0
+        ],
+        "emote": "\ud83d\udcaa"
+      },
+      {
+        "beat": 18,
+        "armL": [
+          8,
+          10
+        ],
+        "armR": [
+          8,
+          10
+        ],
+        "legL": 65,
+        "legR": 65,
+        "kneeL": 100,
+        "kneeR": 100,
+        "head": [
+          0,
+          0,
+          4
+        ],
+        "emote": "\ud83d\ude2d"
+      },
+      {
+        "beat": 23,
+        "armL": [
+          30,
+          -25
+        ],
+        "armR": [
+          30,
+          -25
+        ],
+        "elbowL": 60,
+        "elbowR": 60,
+        "legL": 65,
+        "legR": 65,
+        "kneeL": 100,
+        "kneeR": 100,
+        "head": [
+          10,
+          0,
+          0
+        ],
+        "held": "baby",
+        "emote": "\ud83e\udd79"
+      },
+      {
+        "beat": 28,
+        "armL": [
+          30,
+          -25
+        ],
+        "armR": [
+          30,
+          -25
+        ],
+        "elbowL": 60,
+        "elbowR": 60,
+        "legL": 0,
+        "legR": 0,
+        "kneeL": 0,
+        "kneeR": 0,
+        "head": [
+          10,
+          0,
+          0
+        ],
+        "emote": "\ud83d\udc95"
+      },
+      {
+        "beat": 32,
+        "armL": [
+          30,
+          -25
+        ],
+        "armR": [
+          30,
+          -25
+        ],
+        "elbowL": 60,
+        "elbowR": 60,
+        "head": [
+          10,
+          0,
+          0
+        ],
+        "held": "baby"
+      }
+    ]
+  }
+}

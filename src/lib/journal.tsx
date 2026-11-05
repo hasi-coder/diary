@@ -7,7 +7,7 @@ export type Route =
   | { view: "timeline" }
   | { view: "profiles" }
   | { view: "marketplace" }
-  | { view: "settings" }
+  | { view: "settings"; section?: "place-actions" }
   | { view: "gallery" }
   | { view: "series"; id?: string }
   | { view: "trash" }

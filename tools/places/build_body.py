@@ -5,7 +5,7 @@
 Needs Blender 4.2+ with the MPFB 2 extension and the MakeHuman system assets
 (CC0) installed. Writes:
 
-- public/places/body.glb: a low-poly body, garments fitted to it and the game
+- public/places/body.glb: a full-detail body (PLACES_PROXY picks the mesh; PLACES_OUT the folder), garments fitted to it and the game
   engine rig. Every mesh carries the same morph targets, one per slider end
   (see SAMPLES), so the app shapes body and clothes together.
 - public/places/body.json: the joint offsets for each morph target (the app
@@ -33,9 +33,11 @@ from bl_ext.blender_org.mpfb.entities.objectproperties import HumanObjectPropert
 from bl_ext.blender_org.mpfb.services import AssetService, HumanService, LocationService, TargetService
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-OUT = os.path.join(ROOT, "public", "places")
+OUT = os.environ.get("PLACES_OUT") or os.path.join(ROOT, "public", "places")
 
-PROXY = "female1605"
+# female_generic is the full 13.8k-vertex MakeHuman mesh (smooth, anatomical). female1605 is the old
+# low-poly body (3.8 MB instead of 6.4 MB, about a third of the fitting time): PLACES_PROXY=female1605.
+PROXY = os.environ.get("PLACES_PROXY") or "female_generic"
 RIG = "game_engine"
 # MakeHuman clothes → the app's garments. The casual suits are a top and jeans in
 # one mesh (two separate pieces), so they split at the hip into two garments.

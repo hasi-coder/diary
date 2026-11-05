@@ -122,7 +122,7 @@ pub fn handle_message(state: &AppState, message: &Value) -> Option<Value> {
 const INSTRUCTIONS: &str = "Manages pages, shops and products in the user's encrypted journal (My Diary). \
 To publish from a URL: fetch the URL yourself, extract the business or product details, \
 call find_by_source_url to avoid duplicates, then create_page / create_product (or update_* if found), \
-passing sourceUrl and image URLs. Deletes go to the user's Trash. Posts and people are not accessible.";
+passing sourceUrl and image URLs. Deletes go to the user's Trash. Posts are not accessible. People can be added (create_person) and updated, and given photos, face views and a Places character, but they can't be listed or read back.";
 
 // ---- Tools ----
 
@@ -177,11 +177,62 @@ fn tools() -> Value {
             json!({ "id": { "type": "string" }, "slot": { "type": "string", "enum": ["avatar", "cover"] }, "imageUrl": { "type": "string" }, "imageBase64": { "type": "string" }, "fileName": { "type": "string" }, "remove": { "type": "boolean" } }), &["id", "slot"]),
         tool("set_place_layout", "Set or remove the walkable layout of a place, shop or page (the Places world). One cell is 1 m; x grows right, y grows down, as on a drawing. Shape: { version: 2, floors: [{ name, width, depth, entrance: [x,y], spawn: { at: [x,y], facing: 'N'|'NE'|…|'SE' }, rooms: [{ name, rect: [x1,y1,x2,y2], floor: '#hex', checker? }], doors: [{ edge: 'h:x:y' (north side of cell x,y) | 'v:x:y' (west side), kind?: 'door'|'arch', name?, locked?, partition?, cubicle?: [x,y] (the seat inside that locks it) }], partitions: ['v:x:y', …], items: [{ kind, x, y, w?, h?, facing?: 'N'|'S'|'E'|'W', color? }], spots?: { home: [Spot], work: [Spot], visit: [Spot] } }] }, Spot = { seat: [x,y] } | { cell: [x,y], facing }. Walls are drawn wherever two rooms (or a room and outside) meet. Item kinds: chair, armchair, sofa, bench, table, coffee, desk, counter, bed, hbed, couch, bedside, wardrobe, toilet, sink, bath, fridge, stove, kcounter, tv, shelf, plant, rug, cooler, cabinet, rack, mirror, till. Size spaces for groups: corridors 2 cells, cubicles and fitting rooms 2 x 2.",
             json!({ "id": { "type": "string" }, "layout": { "type": ["object", "null"], "description": "The layout; null removes it" } }), &["id", "layout"]),
-        tool("set_person_faces", "Set the four head images (front, left, right, back) a person's character wears in the Places world. `left` and `right` are side profiles with the nose toward that edge of the image. Name the person exactly as in the journal, or give their profile id; this tool returns nothing else about the journal.",
+        tool("create_person", "Add a person to the journal (a friend, family member, colleague), optionally with a profile picture, cover photo and the head views their Places character wears. Fails if someone with that name already exists. Returns only the new id; people can't be listed or read back. Use set_person_character to dress and shape their character.",
+            json!({
+                "name": { "type": "string" },
+                "relationship": { "type": "string", "description": "How they relate to the journal owner, e.g. Sister, Friend" },
+                "birthday": { "type": "string", "description": "YYYY-MM-DD, or MM-DD when the year is unknown" },
+                "anniversary": { "type": "string", "description": "Same format" },
+                "terms": { "type": "string", "enum": ["neutral", "feminine", "masculine"], "description": "Which relationship words to use for them; the default body shape of their character" },
+                "pronouns": { "type": "string", "description": "e.g. she/her, they/them" },
+                "genders": { "type": "array", "items": { "type": "string" }, "description": "Gender identities, free text (up to 10)" },
+                "relationshipStatus": { "type": "string" },
+                "tagline": { "type": "string" }, "bio": { "type": "string" }, "location": { "type": "string" },
+                "color": { "type": "string", "enum": ["teal", "pink", "amber", "sky", "indigo", "violet", "emerald", "orange", "slate"] },
+                "avatar": face_view("profile picture"), "cover": face_view("cover photo"),
+                "faces": { "type": "object", "description": "Head views for the Places world: front, frontLeft, frontRight, left, right, back, up, sleeping, sleepingLeft, sleepingRight, down (each { base64 | url })",
+                    "additionalProperties": face_view("head view") }
+            }), &["name"]),
+        tool("update_person", "Change a person's details, or replace their profile picture, cover photo or head views. Only the fields given change. Name the person exactly as in the journal, or give their profile id; `newName` renames them.",
             json!({
                 "id": { "type": "string", "description": "Profile id (or use name)" },
                 "name": { "type": "string", "description": "The person's name, exactly as in the journal" },
-                "front": face_view("front"), "left": face_view("left"), "right": face_view("right"), "back": face_view("back")
+                "newName": { "type": "string" },
+                "relationship": { "type": "string" }, "birthday": { "type": "string" }, "anniversary": { "type": "string" },
+                "terms": { "type": "string", "enum": ["neutral", "feminine", "masculine"] }, "pronouns": { "type": "string" },
+                "genders": { "type": "array", "items": { "type": "string" } }, "relationshipStatus": { "type": "string" },
+                "tagline": { "type": "string" }, "bio": { "type": "string" }, "location": { "type": "string" }, "color": { "type": "string" },
+                "avatar": face_view("profile picture"), "cover": face_view("cover photo"),
+                "faces": { "type": "object", "additionalProperties": face_view("head view") }
+            }), &[]),
+        tool("set_person_faces", "Set the head images a person's character wears in the Places world: front, left, right and back, plus optional frontLeft and frontRight, and optional views for people lying down: `up` (face to the ceiling), `sleeping` (the same with eyes closed), `sleepingLeft` / `sleepingRight` (closed-eye profiles) and `down` (face turned down). Without an image a view falls back to the nearest one. `left` and `right` are 90° side profiles with the nose toward that edge of the image; `frontLeft` and `frontRight` are turned 45° that way (three-quarter views; the world's camera sees people at 45° most often). Name the person exactly as in the journal, or give their profile id; this tool returns nothing else about the journal.",
+            json!({
+                "id": { "type": "string", "description": "Profile id (or use name)" },
+                "name": { "type": "string", "description": "The person's name, exactly as in the journal" },
+                "front": face_view("front"), "frontLeft": face_view("45° left"), "frontRight": face_view("45° right"),
+                "left": face_view("left"), "right": face_view("right"), "back": face_view("back"),
+                "up": face_view("looking up at the ceiling (a person lying on their back), seen from above"), "sleeping": face_view("sleeping, eyes closed, lying on the back"),
+                "sleepingLeft": face_view("sleeping profile, eyes closed, nose to the left"), "sleepingRight": face_view("sleeping profile, eyes closed, nose to the right"),
+                "down": face_view("head turned down, face toward the bed")
+            }), &[]),
+        tool("set_person_character", "Set how a person looks in the Places world. Only the fields given change. Name the person exactly as in the journal, or give their profile id; this tool returns nothing else about the journal. `outfit` dresses them from a template; `wearing` lists the garments worn, bottom layer first; an empty list is the bare body, and nothing is required or restricted by gender, figure or age.",
+            json!({
+                "id": { "type": "string", "description": "Profile id (or use name)" },
+                "name": { "type": "string", "description": "The person's name, exactly as in the journal" },
+                "age": { "type": "string", "enum": ["child", "teen", "adult", "elder"] },
+                "figure": { "type": "string", "enum": ["feminine", "masculine", "neutral"], "description": "Body shape only, never gender" },
+                "build": { "type": "string", "enum": ["slim", "average", "broad"] },
+                "skin": { "type": "string", "description": "#rrggbb; the Monk scale runs #f6ede4 #f3e7db #f7ead0 #eadaba #d7bd96 #a07e56 #825c43 #604134 #3a312a #292420" },
+                "hair": { "type": "object", "properties": { "style": { "type": "string", "enum": ["short", "long", "bun", "curly", "bald"] }, "color": { "type": "string", "description": "#rrggbb" } } },
+                "body": { "type": "object", "description": "Fine sliders over figure and build: shape 0 (feminine) … 1 (masculine); weight, muscle, height, bust -1 … 1",
+                    "properties": { "shape": { "type": "number" }, "weight": { "type": "number" }, "muscle": { "type": "number" }, "height": { "type": "number" }, "bust": { "type": "number" } } },
+                "outfit": { "type": "string", "enum": OUTFITS.iter().map(|(id, _)| *id).collect::<Vec<_>>() },
+                "wearing": { "type": "array", "items": { "type": "object", "properties": {
+                    "garment": { "type": "string", "description": "tee, fitted_tee, jeans, slim_jeans, a_line_skirt, shoes, underwear_vest, boxer_briefs, or any catalogue piece `<feminine|masculine|neutral>_<underwear|base|mid|outer|footwear|accessories>_<category>` such as feminine_underwear_bra. Any style fits any body." },
+                    "color": { "type": "string", "description": "#rrggbb" } }, "required": ["garment", "color"] } },
+                "glasses": { "type": "boolean" },
+                "beard": { "type": "boolean" },
+                "reset": { "type": "boolean", "description": "Forget the saved character (looks come from the profile again)" }
             }), &[]),
         tool("delete_page", "Move a page or shop (with its products and posts) to the user's Trash.", id.clone(), &["id"]),
         tool("list_products", "List products (metadata only).", json!({ "pageId": { "type": "string" }, "query": { "type": "string" }, "status": { "type": "string", "enum": ["available", "reserved", "sold"] } }), &[]),
@@ -224,6 +275,241 @@ fn person_of(ws: &Workspace, id: Option<&str>, name: Option<&str>) -> Result<Str
         [] => Err(Error::NotFound(format!("No person named \"{name}\"."))),
         _ => Err(Error::Invalid(format!("More than one person is named \"{name}\"; give the profile id."))),
     }
+}
+
+
+// ── People ───────────────────────────────────────────────────────────────────
+
+/// Every head view a person can have, with the photo slot that holds it (the app's `FACE_DEFS`).
+const FACE_KEYS: [(&str, PhotoSlot); 11] = [
+    ("front", PhotoSlot::FaceFront),
+    ("frontLeft", PhotoSlot::FaceFrontLeft),
+    ("frontRight", PhotoSlot::FaceFrontRight),
+    ("left", PhotoSlot::FaceLeft),
+    ("right", PhotoSlot::FaceRight),
+    ("back", PhotoSlot::FaceBack),
+    ("up", PhotoSlot::FaceUp),
+    ("sleeping", PhotoSlot::FaceSleeping),
+    ("sleepingLeft", PhotoSlot::FaceSleepingLeft),
+    ("sleepingRight", PhotoSlot::FaceSleepingRight),
+    ("down", PhotoSlot::FaceDown),
+];
+
+type Image = (String, Vec<u8>);
+
+/// One image given as `{ base64, fileName }` or `{ url }`.
+fn image_of(v: &Value, name: &str) -> Result<Image> {
+    match v.get("url").and_then(Value::as_str) {
+        Some(url) => fetch_image(url),
+        None => Ok(collect_images(&json!({ "images": [{ "base64": v.get("base64").and_then(Value::as_str).unwrap_or(""), "fileName": v.get("fileName").and_then(Value::as_str).unwrap_or(name) }] }), "-", "images")?.remove(0)),
+    }
+}
+
+/// The face views present in `src` (an object with the view names as keys), fetched and decoded.
+fn face_images(src: &Value) -> Result<Vec<(&'static str, PhotoSlot, Image)>> {
+    let mut views = Vec::new();
+    for (key, slot) in FACE_KEYS {
+        let Some(v) = src.get(key).filter(|v| !v.is_null()) else { continue };
+        views.push((key, slot, image_of(v, key)?));
+    }
+    Ok(views)
+}
+
+/// Stages and attaches photos to a person: `(slot name, image)` pairs. Returns the slots set.
+fn attach_photos(ws: &mut Workspace, person: &str, photos: Vec<(&str, PhotoSlot, Image)>) -> Result<Vec<String>> {
+    let staged = stage_all(ws, photos.iter().map(|(_, _, img)| img.clone()).collect())?;
+    let mut set = Vec::new();
+    for ((key, slot, _), media) in photos.iter().zip(staged) {
+        ws.set_profile_photo(person, *slot, Some(media))?;
+        set.push((*key).to_string());
+    }
+    Ok(set)
+}
+
+/// The photos a create_person / update_person call carries: `avatar`, `cover` and `faces`.
+fn person_photos(args: &Value) -> Result<Vec<(&'static str, PhotoSlot, Image)>> {
+    let mut photos = Vec::new();
+    for (key, slot) in [("avatar", PhotoSlot::Avatar), ("cover", PhotoSlot::Cover)] {
+        if let Some(v) = args.get(key).filter(|v| !v.is_null()) {
+            photos.push((key, slot, image_of(v, key)?));
+        }
+    }
+    if let Some(faces) = args.get("faces").filter(|v| !v.is_null()) {
+        photos.extend(face_images(faces)?);
+    }
+    Ok(photos)
+}
+
+fn apply_person_fields(input: &mut ProfileInput, args: &Value) -> Result<()> {
+    let text = |key: &str| arg_str(args, key).map(|s| s.trim().to_string());
+    if let Some(v) = text("name") { input.name = v; }
+    if let Some(v) = text("relationship") { input.relationship = v; }
+    if let Some(v) = text("tagline") { input.tagline = v; }
+    if let Some(v) = text("bio") { input.bio = v; }
+    if let Some(v) = text("location") { input.location = v; }
+    if let Some(v) = text("birthday") { input.birthday = v; }
+    if let Some(v) = text("anniversary") { input.anniversary = v; }
+    if let Some(v) = text("pronouns") { input.pronouns = v; }
+    if let Some(v) = text("relationshipStatus") { input.relationship_status = v; }
+    if let Some(v) = text("color") { input.color = v; }
+    if let Some(v) = text("terms") {
+        if !["neutral", "feminine", "masculine"].contains(&v.as_str()) {
+            return Err(Error::Invalid("terms must be neutral, feminine or masculine.".into()));
+        }
+        input.terms = v;
+    }
+    if let Some(list) = args.get("genders").and_then(Value::as_array) {
+        input.genders = list.iter().filter_map(Value::as_str).map(str::to_string).collect();
+    }
+    Ok(())
+}
+
+fn person_summary(p: &Profile, set: Vec<String>) -> Value {
+    json!({ "id": p.id, "name": p.name, "relationship": p.relationship, "photosSet": set })
+}
+
+// ── Characters (the Places world) ────────────────────────────────────────────
+
+/// Garments and the slot each fills: src/lib/places/garments.ts (a test keeps them in step).
+const GARMENTS: [(&str, &str); 8] = [("tee", "top"), ("fitted_tee", "top"), ("jeans", "bottom"), ("slim_jeans", "bottom"), ("a_line_skirt", "bottom"), ("shoes", "feet"), ("underwear_vest", "underwearTop"), ("boxer_briefs", "underwearBottom")];
+
+/// Catalogue garments are `<style>_<layer>_<category>` (clothingCatalog.ts), e.g. `masculine_underwear_bra`
+/// never exists but `feminine_underwear_bra` does. Any style may be worn by any body.
+fn catalogue_garment(id: &str) -> bool {
+    let mut parts = id.splitn(3, '_');
+    let (style, layer, category) = (parts.next().unwrap_or(""), parts.next().unwrap_or(""), parts.next().unwrap_or(""));
+    ["feminine", "masculine", "neutral"].contains(&style)
+        && ["underwear", "base", "mid", "outer", "footwear", "accessories"].contains(&layer)
+        && !category.is_empty()
+        && category.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_')
+}
+const SKIRTS: [&str; 1] = ["a_line_skirt"];
+
+/// Outfit templates: src/lib/places/outfits/*.json.
+const OUTFITS: [(&str, &str); 14] = [
+    ("casual", include_str!("../../src/lib/places/outfits/casual.json")),
+    ("weekend", include_str!("../../src/lib/places/outfits/weekend.json")),
+    ("skirt-day", include_str!("../../src/lib/places/outfits/skirt-day.json")),
+    ("school-skirt", include_str!("../../src/lib/places/outfits/school-skirt.json")),
+    ("school-trousers", include_str!("../../src/lib/places/outfits/school-trousers.json")),
+    ("at-home", include_str!("../../src/lib/places/outfits/at-home.json")),
+    ("underwear", include_str!("../../src/lib/places/outfits/underwear.json")),
+    ("sl-school-frock", include_str!("../../src/lib/places/outfits/sl-school-frock.json")),
+    ("sl-school-shorts", include_str!("../../src/lib/places/outfits/sl-school-shorts.json")),
+    ("sl-school-trousers", include_str!("../../src/lib/places/outfits/sl-school-trousers.json")),
+    ("sl-school-white-shorts", include_str!("../../src/lib/places/outfits/sl-school-white-shorts.json")),
+    ("layered-feminine", include_str!("../../src/lib/places/outfits/layered-feminine.json")),
+    ("layered-masculine", include_str!("../../src/lib/places/outfits/layered-masculine.json")),
+    ("layered-neutral", include_str!("../../src/lib/places/outfits/layered-neutral.json")),
+];
+
+fn is_hex(s: &str) -> bool {
+    s.len() == 7 && s.starts_with('#') && s[1..].chars().all(|c| c.is_ascii_hexdigit())
+}
+
+fn hex_arg(v: &Value, what: &str) -> Result<String> {
+    v.as_str().filter(|s| is_hex(s)).map(str::to_lowercase).ok_or_else(|| Error::Invalid(format!("{what} must be a colour like #a07e56.")))
+}
+
+fn choice<'a>(v: &'a Value, key: &str, allowed: &[&str]) -> Result<&'a str> {
+    v.as_str().filter(|s| allowed.contains(s)).ok_or_else(|| Error::Invalid(format!("{key} must be one of {}.", allowed.join(", "))))
+}
+
+/// A checked outfit: known garments, no two for the same slot. Nothing is required (an empty list is
+/// the bare body) and nothing is restricted by figure, shape or age.
+fn wearing_of(list: &Value) -> Result<Vec<Value>> {
+    let items = list.as_array().ok_or_else(|| Error::Invalid("wearing is a list of { garment, color }.".into()))?;
+    let mut slots = Vec::new();
+    let mut ids = Vec::new();
+    let mut out = Vec::new();
+    for w in items {
+        let id = w.get("garment").and_then(Value::as_str).unwrap_or("");
+        let slot = GARMENTS.iter().find(|(g, _)| *g == id).map(|(_, s)| *s);
+        if slot.is_none() && !catalogue_garment(id) {
+            return Err(Error::Invalid(format!("Unknown garment \"{id}\".")));
+        }
+        if ids.contains(&id) || slot.is_some_and(|s| slots.contains(&s)) {
+            return Err(Error::Invalid(format!("Two garments for the same slot: {id}.")));
+        }
+        ids.push(id);
+        if let Some(slot) = slot {
+            slots.push(slot);
+        }
+        out.push(json!({ "garment": id, "color": hex_arg(w.get("color").unwrap_or(&Value::Null), "A garment's color")? }));
+    }
+    Ok(out)
+}
+
+/// The character with `args` laid over it, and the fields that changed.
+fn character_patch(current: Value, args: &Value) -> Result<(Value, Vec<&'static str>)> {
+    let mut c = match current {
+        Value::Object(map) => map,
+        _ => Default::default(),
+    };
+    let mut set = Vec::new();
+    let given = |key: &str| args.get(key).filter(|v| !v.is_null());
+    for (key, allowed) in [("age", &["child", "teen", "adult", "elder"][..]), ("figure", &["feminine", "masculine", "neutral"]), ("build", &["slim", "average", "broad"])] {
+        if let Some(v) = given(key) {
+            c.insert(key.into(), json!(choice(v, key, allowed)?));
+            set.push(key);
+        }
+    }
+    if let Some(v) = given("skin") {
+        c.insert("skin".into(), json!(hex_arg(v, "skin")?));
+        set.push("skin");
+    }
+    if let Some(v) = given("hair") {
+        let mut hair = c.get("hair").cloned().unwrap_or_else(|| json!({}));
+        if let Some(style) = v.get("style") {
+            hair["style"] = json!(choice(style, "hair.style", &["short", "long", "bun", "curly", "bald"])?);
+        }
+        if let Some(color) = v.get("color") {
+            hair["color"] = json!(hex_arg(color, "hair.color")?);
+        }
+        c.insert("hair".into(), hair);
+        set.push("hair");
+    }
+    if let Some(v) = given("body") {
+        let mut body = c.get("body").cloned().unwrap_or_else(|| json!({}));
+        for (key, min) in [("shape", 0.0), ("weight", -1.0), ("muscle", -1.0), ("height", -1.0), ("bust", -1.0)] {
+            if let Some(n) = v.get(key).and_then(Value::as_f64) {
+                body[key] = json!((n.clamp(min, 1.0) * 100.0).round() / 100.0);
+            }
+        }
+        c.insert("body".into(), body);
+        set.push("body");
+    }
+    for key in ["glasses", "beard"] {
+        if let Some(b) = given(key).and_then(Value::as_bool) {
+            c.insert(key.into(), json!(b));
+            set.push(key);
+        }
+    }
+    let wearing = if let Some(id) = given("outfit") {
+        let id = id.as_str().unwrap_or("");
+        let (_, file) = OUTFITS.iter().find(|(o, _)| *o == id).ok_or_else(|| Error::Invalid(format!("Unknown outfit \"{id}\".")))?;
+        set.push("outfit");
+        let template: Value = serde_json::from_str(file).expect("outfit templates are valid JSON");
+        Some(wearing_of(&template["wearing"])?)
+    } else if let Some(list) = given("wearing") {
+        set.push("wearing");
+        Some(wearing_of(list)?)
+    } else {
+        None
+    };
+    if let Some(wearing) = wearing {
+        // The fields drawn faces, avatars and the box body still read.
+        let in_slot = |slot: &str| wearing.iter().find(|w| GARMENTS.iter().any(|(g, s)| *s == slot && w["garment"] == *g)).cloned();
+        if let Some(top) = in_slot("top") {
+            c.insert("top".into(), top["color"].clone());
+        }
+        if let Some(bottom) = in_slot("bottom") {
+            c.insert("bottom".into(), bottom["color"].clone());
+            c.insert("skirt".into(), json!(SKIRTS.iter().any(|s| bottom["garment"] == *s)));
+        }
+        c.insert("wearing".into(), Value::Array(wearing));
+    }
+    Ok((Value::Object(c), set))
 }
 
 fn photo_json(m: &Option<MediaRef>) -> Value {
@@ -441,30 +727,68 @@ pub fn call_tool(state: &AppState, name: &str, args: &Value) -> Result<(Value, S
             Ok((page_json(ws, &page, true), format!("set the layout of \"{}\"", page.name)))
         }),
         "set_person_faces" => {
-            let mut views = Vec::new();
-            for (key, slot) in [("front", PhotoSlot::FaceFront), ("left", PhotoSlot::FaceLeft), ("right", PhotoSlot::FaceRight), ("back", PhotoSlot::FaceBack)] {
-                let Some(v) = args.get(key).filter(|v| !v.is_null()) else { continue };
-                let image = match v.get("url").and_then(Value::as_str) {
-                    Some(url) => fetch_image(url)?,
-                    None => collect_images(&json!({ "images": [{ "base64": v.get("base64").and_then(Value::as_str).unwrap_or(""), "fileName": v.get("fileName").and_then(Value::as_str).unwrap_or(key) }] }), "-", "images")?
-                        .remove(0),
-                };
-                views.push((key, slot, image));
-            }
+            let views = face_images(args)?;
             if views.is_empty() {
-                return Err(Error::Invalid("Give at least one of front, left, right or back.".into()));
+                return Err(Error::Invalid("Give at least one view: front, frontLeft, frontRight, left, right, back, up, sleeping, sleepingLeft, sleepingRight or down.".into()));
             }
             state.with_workspace(|ws| {
                 let person = person_of(ws, arg_str(args, "id"), arg_str(args, "name"))?;
-                let staged = stage_all(ws, views.iter().map(|(_, _, img)| img.clone()).collect())?;
-                for ((_, slot, _), media) in views.iter().zip(staged) {
-                    ws.set_profile_photo(&person, *slot, Some(media))?;
-                }
+                let set = attach_photos(ws, &person, views)?;
                 let p = &ws.profiles[&person];
-                let set: Vec<&str> = views.iter().map(|(k, _, _)| *k).collect();
                 Ok((json!({ "id": p.id, "name": p.name, "set": set }), format!("set {} face view(s) of \"{}\"", set.len(), p.name)))
             })
         }
+        "create_person" => {
+            let photos = person_photos(args)?;
+            state.with_workspace(|ws| {
+                let mut input = ProfileInput {
+                    id: None, kind: ProfileKind::Person, name: String::new(), tagline: String::new(), bio: String::new(),
+                    relationship: String::new(), category: String::new(), location: String::new(), color: "teal".into(), has_shop: false,
+                    genders: Vec::new(), pronouns: String::new(), terms: "neutral".into(), relationship_status: String::new(),
+                    birthday: String::new(), anniversary: String::new(), source_url: String::new(),
+                };
+                apply_person_fields(&mut input, args)?;
+                if let Some(same) = ws.profiles.values().find(|p| p.is_person() && p.name.eq_ignore_ascii_case(input.name.trim())) {
+                    return Err(Error::Invalid(format!("\"{}\" already exists (id {}). Use update_person to change them.", same.name, same.id)));
+                }
+                let person = ws.save_profile(input)?;
+                let set = attach_photos(ws, &person.id, photos)?;
+                let p = &ws.profiles[&person.id];
+                Ok((person_summary(p, set), format!("added the person \"{}\"", p.name)))
+            })
+        }
+        "update_person" => {
+            let photos = person_photos(args)?;
+            state.with_workspace(|ws| {
+                let id = person_of(ws, arg_str(args, "id"), arg_str(args, "name"))?;
+                let mut input = profile_input(&ws.profiles[&id]);
+                // A name only identifies the person unless `newName` renames them.
+                let rename = arg_str(args, "newName").map(|s| s.trim().to_string());
+                let mut fields = args.clone();
+                if let Some(obj) = fields.as_object_mut() { obj.remove("name"); }
+                apply_person_fields(&mut input, &fields)?;
+                if let Some(n) = rename { input.name = n; }
+                let person = ws.save_profile(input)?;
+                let set = attach_photos(ws, &person.id, photos)?;
+                let p = &ws.profiles[&person.id];
+                Ok((person_summary(p, set), format!("updated the person \"{}\"", p.name)))
+            })
+        }
+        "set_person_character" => state.with_workspace(|ws| {
+            let person = person_of(ws, arg_str(args, "id"), arg_str(args, "name"))?;
+            let name = ws.profiles[&person].name.clone();
+            if args.get("reset").and_then(Value::as_bool) == Some(true) {
+                ws.set_profile_character(&person, None)?;
+                return Ok((json!({ "id": person, "name": name, "reset": true }), format!("reset the character of \"{name}\"")));
+            }
+            let current = ws.profiles[&person].character.clone().unwrap_or_else(|| json!({}));
+            let (character, set) = character_patch(current, args)?;
+            if set.is_empty() {
+                return Err(Error::Invalid("Give at least one field to set.".into()));
+            }
+            ws.set_profile_character(&person, Some(character))?;
+            Ok((json!({ "id": person, "name": name, "set": set }), format!("set the character of \"{name}\" ({})", set.join(", "))))
+        }),
         "set_page_photo" => {
             let slot = match required_str(args, "slot")? {
                 "avatar" => PhotoSlot::Avatar,
@@ -811,6 +1135,47 @@ mod tests {
     }
 
     #[test]
+    fn people_are_added_and_updated_with_photos_and_faces() {
+        let (_root, state) = unlocked();
+        let img = json!({ "base64": B64.encode(PNG), "fileName": "p.png" });
+        let (out, err) = call(&state, "create_person", json!({
+            "name": "Maya Perera", "relationship": "Sister", "birthday": "1990-04-12", "terms": "feminine", "pronouns": "she/her",
+            "avatar": img.clone(), "cover": img.clone(), "faces": { "front": img.clone(), "sleeping": img.clone(), "down": img.clone() }
+        }));
+        assert!(!err, "{out}");
+        assert_eq!(out["name"], "Maya Perera");
+        assert_eq!(out["photosSet"], json!(["avatar", "cover", "front", "sleeping", "down"]));
+        let id = out["id"].as_str().unwrap().to_string();
+        state.with_workspace(|ws| {
+            let p = &ws.profiles[&id];
+            assert_eq!((p.kind, p.relationship.as_str(), p.birthday.as_str(), p.terms.as_str()), (ProfileKind::Person, "Sister", "1990-04-12", "feminine"));
+            assert!(p.avatar.is_some() && p.cover.is_some() && p.faces.front.is_some() && p.faces.sleeping.is_some() && p.faces.down.is_some() && p.faces.back.is_none());
+            Ok(())
+        }).unwrap();
+
+        let (_, err) = call(&state, "create_person", json!({ "name": "maya perera" }));
+        assert!(err, "a second person with the same name is refused");
+        let (_, err) = call(&state, "create_person", json!({ "name": "Bad Date", "birthday": "not a date" }));
+        assert!(err, "dates are validated");
+        let (_, err) = call(&state, "create_person", json!({ "name": "Bad Terms", "terms": "robot" }));
+        assert!(err);
+        state.with_workspace(|ws| { assert!(!ws.profiles.values().any(|p| p.name == "Bad Date" || p.name == "Bad Terms")); Ok(()) }).unwrap();
+
+        let (out, err) = call(&state, "update_person", json!({ "name": "MAYA PERERA", "relationship": "Best friend", "newName": "Maya P.", "faces": { "left": img.clone() } }));
+        assert!(!err, "{out}");
+        assert_eq!(out["name"], "Maya P.");
+        assert_eq!(out["photosSet"], json!(["left"]));
+        state.with_workspace(|ws| {
+            let p = &ws.profiles[&id];
+            assert_eq!((p.relationship.as_str(), p.birthday.as_str()), ("Best friend", "1990-04-12"), "unmentioned fields are kept");
+            assert!(p.faces.left.is_some() && p.faces.front.is_some() && p.avatar.is_some());
+            Ok(())
+        }).unwrap();
+        let (_, err) = call(&state, "update_person", json!({ "name": "Nobody", "bio": "x" }));
+        assert!(err);
+    }
+
+    #[test]
     fn face_views_go_to_a_named_person_and_reveal_nothing_else() {
         let (_root, state) = unlocked();
         let june = state.with_workspace(|ws| {
@@ -820,12 +1185,13 @@ mod tests {
         }).unwrap();
         let img = json!({ "base64": B64.encode(PNG), "fileName": "front.png" });
 
-        let (out, err) = call(&state, "set_person_faces", json!({ "name": "june morgan", "front": img.clone(), "left": img.clone() }));
+        let (out, err) = call(&state, "set_person_faces", json!({ "name": "june morgan", "front": img.clone(), "frontRight": img.clone(), "left": img.clone() }));
         assert!(!err, "{out}");
-        assert_eq!(out, json!({ "id": june.id, "name": "June Morgan", "set": ["front", "left"] }), "only what was set");
+        assert_eq!(out, json!({ "id": june.id, "name": "June Morgan", "set": ["front", "frontRight", "left"] }), "only what was set");
         state.with_workspace(|ws| {
             let p = &ws.profiles[&june.id];
-            assert!(p.faces.front.is_some() && p.faces.left.is_some() && p.faces.back.is_none());
+            assert!(p.faces.front.is_some() && p.faces.front_right.is_some() && p.faces.left.is_some() && p.faces.front_left.is_none() && p.faces.back.is_none());
+            assert!(serde_json::to_value(&p.faces).unwrap().get("frontRight").is_some(), "camelCase for the app");
             Ok(())
         }).unwrap();
 
@@ -839,6 +1205,59 @@ mod tests {
     }
 
     #[test]
+    fn characters_change_only_what_is_given_and_reveal_nothing_else() {
+        let (_root, state) = unlocked();
+        let june = state.with_workspace(|ws| {
+            let input = ProfileInput { id: None, kind: ProfileKind::Person, name: "June Morgan".into(), bio: "private".into(), ..profile_input(&ws.profiles[ws.owner_id()].clone()) };
+            ws.save_profile(input)
+        }).unwrap();
+
+        let (out, err) = call(&state, "set_person_character", json!({ "name": "june morgan", "age": "elder", "outfit": "skirt-day", "hair": { "style": "bun" } }));
+        assert!(!err, "{out}");
+        assert_eq!(out, json!({ "id": june.id, "name": "June Morgan", "set": ["age", "hair", "outfit"] }), "only what was set");
+        let (out, err) = call(&state, "set_person_character", json!({ "id": june.id, "body": { "weight": 3, "bust": 0.25 }, "skin": "#D7BD96" }));
+        assert!(!err, "{out}");
+        let c = state.with_workspace(|ws| Ok(ws.profiles[&june.id].character.clone().unwrap())).unwrap();
+        assert_eq!(c["age"], "elder", "earlier fields stay");
+        assert_eq!((c["hair"]["style"].as_str(), c["skin"].as_str()), (Some("bun"), Some("#d7bd96")));
+        assert_eq!(c["body"], json!({ "weight": 1.0, "bust": 0.25 }), "sliders are clamped");
+        assert_eq!((c["wearing"][1]["garment"].as_str(), c["skirt"].as_bool(), c["bottom"].as_str()), (Some("a_line_skirt"), Some(true), Some("#db2777")), "outfit and the fields it implies");
+
+        for (bad, why) in [
+            (json!({ "name": "June Morgan", "wearing": [{ "garment": "tee", "color": "#ffffff" }, { "garment": "fitted_tee", "color": "#ffffff" }] }), "two for a slot"),
+            (json!({ "name": "June Morgan", "wearing": [{ "garment": "tee", "color": "#fff" }, { "garment": "jeans", "color": "#000000" }] }), "colour"),
+            (json!({ "name": "June Morgan", "wearing": [{ "garment": "cape", "color": "#ffffff" }] }), "unknown garment"),
+            (json!({ "name": "June Morgan", "outfit": "ballgown" }), "unknown outfit"),
+            (json!({ "name": "June Morgan", "age": "ancient" }), "bad age"),
+            (json!({ "name": "June Morgan" }), "nothing to set"),
+            (json!({ "name": "Nobody", "age": "adult" }), "unknown person"),
+        ] {
+            let (_, err) = call(&state, "set_person_character", bad);
+            assert!(err, "{why}");
+        }
+        let (_, err) = call(&state, "set_person_character", json!({ "name": "June Morgan", "reset": true }));
+        assert!(!err);
+        assert!(state.with_workspace(|ws| Ok(ws.profiles[&june.id].character.clone())).unwrap().is_none());
+    }
+
+    #[test]
+    fn garments_and_outfits_match_the_app() {
+        let root = concat!(env!("CARGO_MANIFEST_DIR"), "/../src/lib/places");
+        let ts = std::fs::read_to_string(format!("{root}/garments.ts")).unwrap();
+        for (id, slot) in GARMENTS {
+            let line = ts.lines().find(|l| l.contains(&format!("(\"{id}\",")) || l.contains(&format!("id: \"{id}\""))).unwrap_or_else(|| panic!("{id} in garments.ts"));
+            assert!(line.contains(&format!("\"{slot}\"")), "{id} is a {slot}");
+        }
+        let files: Vec<String> = std::fs::read_dir(format!("{root}/outfits")).unwrap().filter_map(|e| e.ok()?.file_name().into_string().ok()).filter(|n| n.ends_with(".json")).collect();
+        assert_eq!(files.len(), OUTFITS.len(), "every outfit file is known here");
+        for (id, file) in OUTFITS {
+            assert!(files.contains(&format!("{id}.json")));
+            let template: Value = serde_json::from_str(file).unwrap();
+            wearing_of(&template["wearing"]).unwrap_or_else(|e| panic!("{id}: {e}"));
+        }
+    }
+
+    #[test]
     fn protocol_basics() {
         let (_root, state) = unlocked();
         let init = handle_message(&state, &json!({ "jsonrpc": "2.0", "id": 0, "method": "initialize", "params": { "protocolVersion": PROTOCOL_VERSION } })).unwrap();
@@ -847,8 +1266,8 @@ mod tests {
         let tools = handle_message(&state, &json!({ "jsonrpc": "2.0", "id": 2, "method": "tools/list" })).unwrap();
         let names: Vec<&str> = tools["result"]["tools"].as_array().unwrap().iter().map(|t| t["name"].as_str().unwrap()).collect();
         assert!(names.contains(&"create_product") && names.contains(&"add_product_photos"));
-        // Pages and products, plus one write-only tool for a person's face views.
-        assert!(names.iter().all(|n| !n.contains("post") && (!n.contains("person") || *n == "set_person_faces") && !n.contains("trash")), "pages and products only: {names:?}");
+        // Pages and products, plus write-only tools for people: nothing lists or reads them back.
+        assert!(names.iter().all(|n| !n.contains("post") && (!n.contains("person") || ["set_person_", "create_person", "update_person"].iter().any(|w| n.starts_with(w))) && !n.contains("trash")), "pages and products only: {names:?}");
         let unknown = handle_message(&state, &json!({ "jsonrpc": "2.0", "id": 3, "method": "resources/list" })).unwrap();
         assert_eq!(unknown["error"]["code"], -32601);
     }

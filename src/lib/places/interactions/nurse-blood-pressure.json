@@ -1,0 +1,201 @@
+{
+ "id": "nurse-blood-pressure",
+ "label": "Check blood pressure",
+ "emoji": "🩺",
+  "category": "care",
+ "description": "A nurse fits a cuff on the patient's upper arm and squeezes the bulb.",
+ "people": {
+  "min": 2,
+  "max": 2
+ },
+ "beat": 0.8,
+ "length": 12,
+ "loop": false,
+ "formation": {
+  "type": "spots",
+  "spots": [
+   {
+    "role": "nurse",
+    "at": [
+     0,
+     0
+    ],
+    "facing": 0
+   },
+   {
+    "role": "patient",
+    "at": [
+     0,
+     0.65
+    ],
+    "facing": 180
+   }
+  ]
+ },
+ "roles": {
+  "nurse": [
+   {
+    "beat": 0
+   },
+   {
+    "beat": 1,
+    "armL": [
+     40,
+     8
+    ],
+    "elbowL": 20,
+    "armR": [
+     28,
+     10
+    ],
+    "elbowR": 85,
+    "head": [
+     14,
+     0,
+     0
+    ],
+    "emote": "🩺"
+   },
+   {
+    "beat": 4,
+    "armR": [
+     28,
+     10
+    ],
+    "elbowR": 60,
+    "wristR": [
+     -20,
+     0,
+     0
+    ],
+    "armL": [
+     40,
+     8
+    ],
+    "elbowL": 20,
+    "head": [
+     14,
+     0,
+     0
+    ]
+   },
+   {
+    "beat": 6,
+    "armR": [
+     28,
+     10
+    ],
+    "elbowR": 85,
+    "wristR": [
+     10,
+     0,
+     0
+    ],
+    "armL": [
+     40,
+     8
+    ],
+    "elbowL": 20,
+    "head": [
+     14,
+     0,
+     0
+    ]
+   },
+   {
+    "beat": 8,
+    "armR": [
+     28,
+     10
+    ],
+    "elbowR": 60,
+    "wristR": [
+     -20,
+     0,
+     0
+    ],
+    "armL": [
+     40,
+     8
+    ],
+    "elbowL": 20,
+    "head": [
+     14,
+     0,
+     0
+    ]
+   },
+   {
+    "beat": 10,
+    "armR": [
+     28,
+     10
+    ],
+    "elbowR": 95,
+    "armL": [
+     40,
+     8
+    ],
+    "elbowL": 20,
+    "head": [
+     16,
+     0,
+     0
+    ]
+   },
+   {
+    "beat": 11,
+    "armL": [
+     20,
+     10
+    ],
+    "armR": [
+     20,
+     10
+    ],
+    "emote": "👍"
+   },
+   {
+    "beat": 12,
+    "emote": ""
+   }
+  ],
+  "patient": [
+   {
+    "beat": 0
+   },
+   {
+    "beat": 1,
+    "armR": [
+     20,
+     28
+    ],
+    "elbowR": 25,
+    "head": [
+     0,
+     0,
+     0
+    ]
+   },
+   {
+    "beat": 10,
+    "armR": [
+     20,
+     28
+    ],
+    "elbowR": 25
+   },
+   {
+    "beat": 11,
+    "armR": [
+     8,
+     10
+    ],
+    "elbowR": 5
+   },
+   {
+    "beat": 12
+   }
+  ]
+ }
+}

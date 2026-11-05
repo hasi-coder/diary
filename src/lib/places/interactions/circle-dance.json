@@ -2,6 +2,7 @@
   "id": "circle-dance",
   "label": "Circle dance",
   "emoji": "🪩",
+  "category": "dance",
   "description": "Everyone in a ring, hands out, stepping round.",
   "people": {"min": 3, "max": 10},
   "beat": 0.5,

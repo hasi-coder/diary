@@ -1,0 +1,34 @@
+{
+  "label": "Sri Lankan school · white trousers",
+  "description": "White school shirt and long white trousers, with white socks, black shoes and belt.",
+  "wearing": [
+    {
+      "garment": "masculine_underwear_vest",
+      "color": "#f1f5f9"
+    },
+    {
+      "garment": "masculine_underwear_briefs",
+      "color": "#64748b"
+    },
+    {
+      "garment": "neutral_base_school_shirt",
+      "color": "#f8fafc"
+    },
+    {
+      "garment": "masculine_base_school_trousers",
+      "color": "#f8fafc"
+    },
+    {
+      "garment": "masculine_footwear_crew_socks",
+      "color": "#f8fafc"
+    },
+    {
+      "garment": "masculine_footwear_school_shoes",
+      "color": "#292524"
+    },
+    {
+      "garment": "masculine_accessories_belt",
+      "color": "#292524"
+    }
+  ]
+}

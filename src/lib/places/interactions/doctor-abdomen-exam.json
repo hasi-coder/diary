@@ -1,0 +1,290 @@
+{
+  "id": "doctor-abdomen-exam",
+  "label": "Examine the patient on the bed",
+  "emoji": "\ud83e\ude7a",
+  "category": "care",
+  "description": "The patient lies on the bed with knees bent while the doctor presses gently on the abdomen, asking where it hurts.",
+  "people": {
+    "min": 2,
+    "max": 2
+  },
+  "beat": 0.8,
+  "length": 20,
+  "loop": false,
+  "formation": {
+    "type": "spots",
+    "spots": [
+      {
+        "role": "doctor",
+        "at": [
+          0,
+          0
+        ],
+        "facing": 0
+      },
+      {
+        "role": "patient",
+        "at": [
+          0,
+          0.5
+        ],
+        "facing": 0
+      }
+    ]
+  },
+  "target": {
+    "kinds": [
+      "bed"
+    ],
+    "posture": "lie",
+    "roles": {
+      "doctor": {
+        "posture": "stand",
+        "side": "right",
+        "along": 0.1
+      },
+      "patient": {
+        "posture": "lie",
+        "side": "right",
+        "across": 0.4
+      }
+    }
+  },
+  "roles": {
+    "doctor": [
+      {
+        "beat": 0
+      },
+      {
+        "beat": 2,
+        "lean": 30,
+        "armL": [
+          58,
+          2
+        ],
+        "armR": [
+          58,
+          2
+        ],
+        "elbowL": 10,
+        "elbowR": 10,
+        "head": [
+          20,
+          0,
+          0
+        ],
+        "move": [
+          0.2,
+          0.1
+        ],
+        "emote": "\ud83e\ude7a"
+      },
+      {
+        "beat": 5,
+        "lean": 32,
+        "armL": [
+          60,
+          2
+        ],
+        "armR": [
+          60,
+          2
+        ],
+        "elbowL": 10,
+        "elbowR": 10,
+        "head": [
+          20,
+          0,
+          0
+        ],
+        "move": [
+          0.2,
+          0.1
+        ]
+      },
+      {
+        "beat": 8,
+        "lean": 32,
+        "armL": [
+          60,
+          2
+        ],
+        "armR": [
+          60,
+          2
+        ],
+        "elbowL": 10,
+        "elbowR": 10,
+        "head": [
+          20,
+          0,
+          0
+        ],
+        "move": [
+          0.35,
+          0.1
+        ]
+      },
+      {
+        "beat": 11,
+        "lean": 32,
+        "armL": [
+          60,
+          2
+        ],
+        "armR": [
+          60,
+          2
+        ],
+        "elbowL": 10,
+        "elbowR": 10,
+        "head": [
+          20,
+          0,
+          0
+        ],
+        "move": [
+          0.1,
+          0.1
+        ]
+      },
+      {
+        "beat": 14,
+        "lean": 10,
+        "head": [
+          5,
+          0,
+          0
+        ],
+        "emote": "\ud83d\udcac"
+      },
+      {
+        "beat": 17,
+        "emote": "\ud83d\udc4d"
+      },
+      {
+        "beat": 20
+      }
+    ],
+    "patient": [
+      {
+        "beat": 0,
+        "armL": [
+          8,
+          10
+        ],
+        "armR": [
+          8,
+          10
+        ],
+        "legL": 50,
+        "legR": 50,
+        "kneeL": 100,
+        "kneeR": 100
+      },
+      {
+        "beat": 5,
+        "armL": [
+          8,
+          10
+        ],
+        "armR": [
+          8,
+          10
+        ],
+        "legL": 50,
+        "legR": 50,
+        "kneeL": 100,
+        "kneeR": 100,
+        "head": [
+          0,
+          10,
+          0
+        ]
+      },
+      {
+        "beat": 8,
+        "armL": [
+          8,
+          10
+        ],
+        "armR": [
+          8,
+          10
+        ],
+        "legL": 50,
+        "legR": 50,
+        "kneeL": 100,
+        "kneeR": 100,
+        "head": [
+          0,
+          10,
+          0
+        ],
+        "emote": "\ud83d\ude2e"
+      },
+      {
+        "beat": 11,
+        "armL": [
+          8,
+          10
+        ],
+        "armR": [
+          8,
+          10
+        ],
+        "legL": 50,
+        "legR": 50,
+        "kneeL": 100,
+        "kneeR": 100,
+        "emote": "\ud83d\ude42"
+      },
+      {
+        "beat": 14,
+        "armL": [
+          8,
+          10
+        ],
+        "armR": [
+          8,
+          10
+        ],
+        "legL": 50,
+        "legR": 50,
+        "kneeL": 100,
+        "kneeR": 100,
+        "head": [
+          0,
+          0,
+          4
+        ]
+      },
+      {
+        "beat": 18,
+        "armL": [
+          8,
+          10
+        ],
+        "armR": [
+          8,
+          10
+        ],
+        "legL": 0,
+        "legR": 0,
+        "kneeL": 0,
+        "kneeR": 0
+      },
+      {
+        "beat": 20,
+        "armL": [
+          8,
+          10
+        ],
+        "armR": [
+          8,
+          10
+        ]
+      }
+    ]
+  }
+}

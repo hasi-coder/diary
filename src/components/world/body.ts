@@ -6,7 +6,9 @@ import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { clone as cloneSkinned } from "three/examples/jsm/utils/SkeletonUtils.js";
 import { ageFromBirthday, type Age, type Character } from "../../lib/places/character";
-import type { Worn } from "../../lib/places/garments";
+import { clothingOrder, garment, normalizeWorn, type Worn } from "../../lib/places/garments";
+import { clothingFaceKey, coveredBodyFaces, makeClothing, projectClothing, uncoveredIndex, type ClothingPiece } from "./clothingGeometry";
+import { fittedGarment, normalizeClothingFit } from "../../lib/places/clothingFit";
 
 export interface BodyShape {
   /** 0 feminine … 1 masculine. */
@@ -28,9 +30,19 @@ export interface Limbs {
   knees: [number, number];
   /** [forward, out]: forward π/2 = arm straight ahead; out π/2 = straight out to the side. */
   arms: [[number, number], [number, number]];
+  elbows: [number, number];
+  forearms: [number, number];
+  /** [forward bend, outward bend, outward twist]. */
+  wrists: [[number, number, number], [number, number, number]];
+  /** [toes up, outward roll]. */
+  ankles: [[number, number], [number, number]];
   /** Upper body lean forward, and tilt to the person's right. */
   lean: number;
   tilt: number;
+  twist: number;
+  /** [nod forward, turn right, tilt right]. */
+  neck: [number, number, number];
+  head: [number, number, number];
 }
 
 const YEARS: Record<Age, number> = { child: 8, teen: 15, adult: 35, elder: 72 };
@@ -38,7 +50,9 @@ const YEARS: Record<Age, number> = { child: 8, teen: 15, adult: 35, elder: 72 };
 /** Slider values a character's figure and build stand for, before their own sliders. */
 export function presetSliders(look: Pick<Character, "figure" | "build">) {
   const build = { slim: { weight: -0.5, muscle: 0 }, average: { weight: 0, muscle: 0 }, broad: { weight: 0.5, muscle: 0.4 } }[look.build];
-  return { shape: { feminine: 0, masculine: 1, neutral: 0.5 }[look.figure], ...build, height: 0, bust: 0 };
+  // MakeHuman's average bust stays on every body, so a masculine figure gets a flat chest and a
+  // neutral one a smaller bust by default; the bust slider still moves it either way.
+  return { shape: { feminine: 0, masculine: 1, neutral: 0.5 }[look.figure], ...build, height: 0, bust: { feminine: 0, masculine: -0.85, neutral: -0.4 }[look.figure] };
 }
 
 /** The body shape for a character: its sliders over its figure and build; birthday gives the exact age when known. */
@@ -101,16 +115,39 @@ export function morphWeights(s: BodyShape): Record<string, number> {
   };
 }
 
+/**
+ * Skin that isn't plastic: a soft sheen, a lower roughness, and a warm glow at grazing angles
+ * where light scatters through thin skin (a cheap stand-in for subsurface scattering).
+ */
+function skinMaterial(): THREE.MeshPhysicalMaterial {
+  const m = new THREE.MeshPhysicalMaterial({ roughness: 0.58, sheen: 0.5, sheenRoughness: 0.55, sheenColor: new THREE.Color("#ffb8a0"), clearcoat: 0.06, clearcoatRoughness: 0.5 });
+  m.onBeforeCompile = (shader) => {
+    shader.fragmentShader = shader.fragmentShader.replace(
+      "#include <emissivemap_fragment>",
+      `#include <emissivemap_fragment>
+      {
+        float rim = pow(1.0 - clamp(dot(normalize(vNormal), normalize(vViewPosition)), 0.0, 1.0), 2.5);
+        totalEmissiveRadiance += diffuse * vec3(1.0, 0.42, 0.3) * rim * 0.22;
+      }`,
+    );
+  };
+  return m;
+}
+
 export class Body {
   readonly root: THREE.Object3D;
   private meshes = new Map<string, THREE.SkinnedMesh>();
   private bones = new Map<string, THREE.Bone>();
   private bodyIndex: THREE.BufferAttribute | null = null;
-  private skin = new THREE.MeshStandardMaterial({ roughness: 0.8 });
+  private skin = skinMaterial();
   private worn: Worn[] = [];
   private headShown = true;
   private rest = new Map<string, { local: THREE.Quaternion; root: THREE.Quaternion; dir: THREE.Vector3 | null }>();
   private headAnchor = new THREE.Object3D();
+  private clothing = new Map<string, ClothingPiece[]>();
+  private clothingFits = new Map<string, string>();
+  private templates = new Map<string, THREE.SkinnedMesh>();
+  private shapeWeights: Record<string, number> = {};
   /** At rest, in the root's own units (before `root.scale`): the hip joints' height, the top of the head, and the head's length. */
   hipHeight = 0;
   top = 0;
@@ -133,6 +170,7 @@ export class Body {
     body.geometry = body.geometry.clone();
     body.material = this.skin;
     this.bodyIndex = body.geometry.index!.clone();
+    for (const [name, mesh] of this.meshes) if (name !== "body") this.templates.set(name, mesh.clone(false));
   }
 
   /** The bone a head sprite or a held item hangs from. */
@@ -146,6 +184,7 @@ export class Body {
 
   setShape(shape: BodyShape) {
     const weights = morphWeights(shape);
+    this.shapeWeights = weights;
     for (const mesh of this.meshes.values()) {
       const dict = mesh.morphTargetDictionary!;
       for (const [key, w] of Object.entries(weights)) if (dict[key] !== undefined) mesh.morphTargetInfluences![dict[key]] = w;
@@ -188,8 +227,14 @@ export class Body {
     calf_l: null,
     upperarm_r: "lowerarm_r",
     upperarm_l: "lowerarm_l",
-    lowerarm_r: null,
-    lowerarm_l: null,
+    lowerarm_r: "hand_r",
+    lowerarm_l: "hand_l",
+    hand_r: null,
+    hand_l: null,
+    foot_r: null,
+    foot_l: null,
+    neck_01: null,
+    head: null,
     spine_01: null,
     spine_02: null,
     spine_03: null,
@@ -232,24 +277,37 @@ export class Body {
     };
     const aim = (name: string, dir: THREE.Vector3) => turn(name, new THREE.Quaternion().setFromUnitVectors(this.rest.get(name)!.dir!, dir));
     const X = new THREE.Vector3(1, 0, 0);
-    const none = new THREE.Quaternion();
     (["r", "l"] as const).forEach((side, i) => {
+      const sign = side === "r" ? -1 : 1;
       turn(`thigh_${side}`, new THREE.Quaternion().setFromAxisAngle(X, -p.legs[i]));
       turn(`calf_${side}`, new THREE.Quaternion().setFromAxisAngle(X, p.knees[i]));
+      turn(`foot_${side}`, new THREE.Quaternion().setFromEuler(new THREE.Euler(-p.ankles[i][0], 0, sign * p.ankles[i][1])));
       // Arms rest in an A-pose, so aim them rather than turn them. Out first, then
       // forward, so "out" leans a raised arm away from the head, not across it.
       const [forward, out] = p.arms[i];
       aim(`upperarm_${side}`, new THREE.Vector3(0, -1, 0).applyEuler(new THREE.Euler(-forward, 0, side === "r" ? -out : out, "XZY")));
-      turn(`lowerarm_${side}`, none);
+      // Express elbow/wrist motion in the arm's rest frame. The parent shoulder
+      // then carries that frame with it, even when the arm is raised or spread.
+      const basis = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, -1, 0), this.rest.get(`lowerarm_${side}`)!.dir!);
+      const armTurn = (name: string, rotation: THREE.Euler) => turn(name, basis.clone().multiply(new THREE.Quaternion().setFromEuler(rotation)).multiply(basis.clone().invert()));
+      armTurn(`lowerarm_${side}`, new THREE.Euler(-p.elbows[i], sign * p.forearms[i], 0, "XZY"));
+      const [bend, spread, twist] = p.wrists[i];
+      armTurn(`hand_${side}`, new THREE.Euler(-bend, sign * twist, sign * spread, "XZY"));
     });
-    const spine = new THREE.Quaternion().setFromEuler(new THREE.Euler(p.lean / 3, 0, p.tilt / 3));
+    const spine = new THREE.Quaternion().setFromEuler(new THREE.Euler(p.lean / 3, -p.twist / 3, p.tilt / 3));
     for (const name of ["spine_01", "spine_02", "spine_03"]) turn(name, spine);
+    const headTurn = ([nod, yaw, tilt]: [number, number, number]) => new THREE.Quaternion().setFromEuler(new THREE.Euler(nod, -yaw, tilt));
+    turn("neck_01", headTurn(p.neck));
+    turn("head", headTurn(p.head));
   }
 
   dispose() {
     this.meshes.get("body")?.geometry.dispose();
     this.skin.dispose();
-    for (const [name, mesh] of this.meshes) if (name !== "body" && mesh.userData.tinted) (mesh.material as THREE.Material).dispose();
+    for (const [name, mesh] of this.meshes) if (name !== "body") {
+      if (mesh.userData.tinted) (mesh.material as THREE.Material).dispose();
+      if (mesh.userData.ownedClothingGeometry || mesh.userData.generatedClothing) mesh.geometry.dispose();
+    }
   }
 
   /** Hide the head when a face image stands in for it. */
@@ -258,36 +316,116 @@ export class Body {
     this.hideCovered();
   }
 
-  /** Shows these garments, tinted (their textures are grey), and hides the skin under them. */
-  wear(worn: Worn[]) {
-    this.worn = worn;
-    const on = new Map(worn.map((w) => [w.garment, w.color]));
-    for (const [name, mesh] of this.meshes) {
-      if (name === "body") continue;
-      mesh.visible = on.has(name);
-      // Hidden meshes still take raycasts; only what is worn should catch a click.
-      mesh.raycast = mesh.visible ? THREE.SkinnedMesh.prototype.raycast : () => {};
-      if (!mesh.visible) continue;
-      if (!mesh.userData.tinted) {
-        mesh.material = (mesh.material as THREE.MeshStandardMaterial).clone();
-        mesh.userData.tinted = true;
+  private ensureGarment(item: Worn) {
+    const id = item.garment;
+    const fit = normalizeClothingFit(item.fit);
+    const signature = JSON.stringify(fit ?? {});
+    if (this.clothing.has(id) && this.clothingFits.get(id) === signature) return;
+    for (const { mesh } of this.clothing.get(id) ?? []) {
+      if (mesh.userData.generatedClothing) {
+        mesh.removeFromParent(); mesh.geometry.dispose();
+        (mesh.material as THREE.Material).dispose(); this.meshes.delete(mesh.name);
+      } else if (mesh.userData.ownedClothingGeometry) mesh.geometry.dispose();
+    }
+    const original = garment(id);
+    const definition = original && fittedGarment(original, fit);
+    if (!definition) return;
+    this.clothingFits.set(id, signature);
+    const body = this.meshes.get("body")!;
+    if (definition.recipe) {
+      const pieces = makeClothing(body, definition, this.src.meta.joints.neutral, this.bodyIndex!, this.templates);
+      this.clothing.set(id, pieces);
+      for (const { mesh } of pieces) {
+        this.meshes.set(mesh.name, mesh);
+        for (const [key, weight] of Object.entries(this.shapeWeights)) {
+          const index = mesh.morphTargetDictionary?.[key];
+          if (index !== undefined) mesh.morphTargetInfluences![index] = weight;
+        }
       }
-      (mesh.material as THREE.MeshStandardMaterial).color.set(on.get(name)!);
+    } else {
+      const mesh = this.meshes.get(id);
+      const template = this.templates.get(id);
+      if (!mesh || !template) return;
+      mesh.geometry = template.geometry.clone();
+      const positions = mesh.geometry.getAttribute("position");
+      const normals = mesh.geometry.getAttribute("normal");
+      const length = fit?.length ?? 1;
+      const joints = this.src.meta.joints.neutral;
+      const anchor = definition.covers.includes("torso") ? (joints.clavicle_l[1] + joints.clavicle_r[1]) / 2 : joints.spine_01[1] + 0.04;
+      for (let i = 0; i < positions.count; i++) positions.setXYZ(i, positions.getX(i) + normals.getX(i) * (fit?.ease ?? 0), anchor + (positions.getY(i) - anchor) * length + normals.getY(i) * (fit?.ease ?? 0), positions.getZ(i) + normals.getZ(i) * (fit?.ease ?? 0));
+      if (length !== 1) {
+        const points = body.geometry.getAttribute("position");
+        let nearest = 0, distance = Infinity;
+        for (let i = 0; i < points.count; i++) { const d = Math.abs(points.getY(i) - anchor) + Math.abs(points.getX(i)); if (d < distance) { nearest = i; distance = d; } }
+        mesh.geometry.morphAttributes.position?.forEach((attribute, index) => {
+          const delta = body.geometry.morphAttributes.position?.[index]?.getY(nearest) ?? 0;
+          for (let i = 0; i < attribute.count; i++) attribute.setY(i, delta + (attribute.getY(i) - delta) * length);
+        });
+      }
+      mesh.userData.ownedClothingGeometry = true;
+      const projection = projectClothing(mesh.geometry, body.geometry);
+      const coverage = length === 1 ? new Set(this.src.meta.garments[id]?.hides ?? []) : new Set(projection);
+      const coverageFaces = coveredBodyFaces(this.bodyIndex!, projectClothing(body.geometry, body.geometry), coverage);
+      this.clothing.set(id, [{ mesh, index: mesh.geometry.index!.clone(), projection, coverage, coverageFaces }]);
+    }
+  }
+
+  /** Keep every selected layer. Opaque higher pieces mask only the triangles
+   * beneath them, preserving sleeves, hems and open-front clothing underneath. */
+  wear(worn: Worn[]) {
+    this.worn = normalizeWorn(worn);
+    for (const item of this.worn) this.ensureGarment(item);
+    for (const [name, mesh] of this.meshes) if (name !== "body") { mesh.visible = false; mesh.raycast = () => {}; }
+    for (const item of this.worn) {
+      const definition = garment(item.garment)!;
+      const covered = new Set<number>();
+      const faces = new Set<string>();
+      for (const higher of this.worn) {
+        if (clothingOrder(garment(higher.garment)!) <= clothingOrder(definition)) continue;
+        for (const piece of this.clothing.get(higher.garment) ?? []) {
+          for (const id of piece.coverage) covered.add(id);
+          for (const face of piece.coverageFaces) faces.add(face);
+        }
+      }
+      for (const piece of this.clothing.get(item.garment) ?? []) {
+        const { mesh } = piece;
+        mesh.geometry.setIndex(uncoveredIndex(piece.index, piece.projection, covered, faces, !!mesh.geometry.getAttribute("_vid")));
+        mesh.visible = mesh.geometry.index!.count > 0;
+        mesh.raycast = mesh.visible ? THREE.SkinnedMesh.prototype.raycast : () => {};
+        if (!mesh.userData.tinted) {
+          mesh.material = (mesh.material as THREE.MeshStandardMaterial).clone();
+          mesh.userData.tinted = true;
+        }
+        const material = mesh.material as THREE.MeshStandardMaterial;
+        material.color.set(mesh.userData.fixedColor ?? item.color);
+        material.polygonOffset = true;
+        material.polygonOffsetFactor = -clothingOrder(definition) * 0.1;
+        material.polygonOffsetUnits = -clothingOrder(definition) * 0.1;
+      }
     }
     this.hideCovered();
   }
 
   private hideCovered() {
-    const { garments, regions } = this.src.meta;
+    const { regions } = this.src.meta;
     const hidden = new Set<number>(this.headShown ? [] : regions.head);
-    for (const w of this.worn) for (const v of garments[w.garment]?.hides ?? []) hidden.add(v);
+    const covered = new Set<string>();
+    for (const w of this.worn) for (const piece of this.clothing.get(w.garment) ?? []) for (const face of piece.coverageFaces) covered.add(face);
     const body = this.meshes.get("body")!;
     const vid = body.geometry.getAttribute("_vid");
     const src = this.bodyIndex!;
+    // Keep skin beneath cut edges. An offset shell has an open rim; erasing
+    // skin right up to that rim lets the background show through from the side.
+    const exposed = new Set<number>();
+    for (let i = 0; i < src.count; i += 3) {
+      const ids = [0, 1, 2].map((offset) => Math.round(vid.getX(src.getX(i + offset)))) as [number, number, number];
+      if (!covered.has(clothingFaceKey(...ids))) for (const id of ids) exposed.add(id);
+    }
     const keep: number[] = [];
     for (let i = 0; i < src.count; i += 3) {
       const tri = [src.getX(i), src.getX(i + 1), src.getX(i + 2)];
-      if (tri.every((v) => hidden.has(Math.round(vid.getX(v))))) continue;
+      const ids = tri.map((v) => Math.round(vid.getX(v))) as [number, number, number];
+      if (ids.every((id) => hidden.has(id)) || (covered.has(clothingFaceKey(...ids)) && !ids.some((id) => exposed.has(id)))) continue;
       keep.push(...tri);
     }
     body.geometry.setIndex(keep);

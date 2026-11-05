@@ -1,6 +1,6 @@
 // Typed wrappers around the Rust commands in src-tauri/src/commands.rs.
 import { convertFileSrc, invoke } from "@tauri-apps/api/core";
-import type { Character } from "./places/character";
+import type { Character, FaceView } from "./places/character";
 import type { Layout } from "./places/layout";
 
 export type ProfileKind = "me" | "person" | "page" | "shop" | "place";
@@ -42,8 +42,8 @@ export interface Profile {
   layout?: Layout | null;
   /** People: how they look in the Places world (missing fields come from the profile); absent when not set. */
   character?: Partial<Character> | null;
-  /** People: the four head images their character wears; absent when none. */
-  faces?: Partial<Record<"front" | "left" | "right" | "back", MediaRef>>;
+  /** People: the head images their character wears; absent when none. */
+  faces?: Partial<Record<FaceView, MediaRef>>;
   createdAt: number;
   updatedAt: number;
 }
@@ -63,7 +63,7 @@ export type RelationInput = Omit<Relation, "id"> & { id?: string };
 export type ProfileInput = Omit<Profile, "id" | "createdAt" | "updatedAt" | "avatar" | "cover" | "coverPosition" | "productPhotoMax" | "productPhotoJpeg" | "relations" | "sourceUrl" | "sourceUrls" | "mergedPageIds" | "layout" | "character" | "faces"> & { id?: string };
 
 /** A profile's own photos: picture, cover, and a person's four face views. */
-export type PhotoSlot = "avatar" | "cover" | "face_front" | "face_left" | "face_right" | "face_back";
+export type PhotoSlot = "avatar" | "cover" | "face_front" | "face_front_left" | "face_front_right" | "face_left" | "face_right" | "face_back" | "face_up" | "face_sleeping" | "face_sleeping_left" | "face_sleeping_right" | "face_down";
 
 export interface PageMerge {
   page: Profile;

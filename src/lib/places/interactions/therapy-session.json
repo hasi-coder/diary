@@ -1,0 +1,309 @@
+{
+ "id": "therapy-session",
+ "label": "Talk therapy session",
+ "emoji": "💭",
+  "category": "care",
+ "description": "A therapist listens and takes notes while the patient talks things through.",
+ "people": {
+  "min": 2,
+  "max": 2
+ },
+ "beat": 0.9,
+ "length": 20,
+ "loop": false,
+ "formation": {
+  "type": "spots",
+  "spots": [
+   {
+    "role": "therapist",
+    "at": [
+     0,
+     0
+    ],
+    "facing": 0
+   },
+   {
+    "role": "client",
+    "at": [
+     0,
+     1.0
+    ],
+    "facing": 180
+   }
+  ]
+ },
+ "roles": {
+  "therapist": [
+   {
+    "beat": 0
+   },
+   {
+    "beat": 1,
+    "armL": [
+     50,
+     20
+    ],
+    "elbowL": 95,
+    "armR": [
+     48,
+     18
+    ],
+    "elbowR": 80,
+    "head": [
+     10,
+     0,
+     0
+    ],
+    "emote": "👂"
+   },
+   {
+    "beat": 4,
+    "wristR": [
+     0,
+     0,
+     12
+    ],
+    "head": [
+     16,
+     0,
+     3
+    ],
+    "armL": [
+     50,
+     20
+    ],
+    "elbowL": 95,
+    "armR": [
+     48,
+     18
+    ],
+    "elbowR": 80
+   },
+   {
+    "beat": 6,
+    "wristR": [
+     0,
+     0,
+     -12
+    ],
+    "head": [
+     10,
+     0,
+     0
+    ],
+    "armL": [
+     50,
+     20
+    ],
+    "elbowL": 95,
+    "armR": [
+     48,
+     18
+    ],
+    "elbowR": 80
+   },
+   {
+    "beat": 9,
+    "wristR": [
+     0,
+     0,
+     12
+    ],
+    "head": [
+     18,
+     0,
+     -3
+    ],
+    "emote": "✍️",
+    "armL": [
+     50,
+     20
+    ],
+    "elbowL": 95,
+    "armR": [
+     48,
+     18
+    ],
+    "elbowR": 80
+   },
+   {
+    "beat": 12,
+    "wristR": [
+     0,
+     0,
+     -12
+    ],
+    "head": [
+     10,
+     0,
+     0
+    ],
+    "armL": [
+     50,
+     20
+    ],
+    "elbowL": 95,
+    "armR": [
+     48,
+     18
+    ],
+    "elbowR": 80
+   },
+   {
+    "beat": 15,
+    "armR": [
+     55,
+     26
+    ],
+    "elbowR": 70,
+    "head": [
+     6,
+     0,
+     0
+    ],
+    "emote": "💬",
+    "armL": [
+     50,
+     20
+    ],
+    "elbowL": 95
+   },
+   {
+    "beat": 18,
+    "armL": [
+     20,
+     12
+    ],
+    "armR": [
+     20,
+     12
+    ],
+    "head": [
+     0,
+     0,
+     0
+    ],
+    "emote": "🙂"
+   },
+   {
+    "beat": 20,
+    "emote": ""
+   }
+  ],
+  "client": [
+   {
+    "beat": 0
+   },
+   {
+    "beat": 1,
+    "head": [
+     10,
+     0,
+     0
+    ],
+    "emote": "💭"
+   },
+   {
+    "beat": 3,
+    "armL": [
+     50,
+     28
+    ],
+    "armR": [
+     45,
+     26
+    ],
+    "elbowL": 70,
+    "elbowR": 60,
+    "head": [
+     4,
+     0,
+     0
+    ]
+   },
+   {
+    "beat": 6,
+    "armL": [
+     40,
+     32
+    ],
+    "armR": [
+     55,
+     24
+    ],
+    "elbowL": 60,
+    "elbowR": 75,
+    "head": [
+     12,
+     0,
+     0
+    ]
+   },
+   {
+    "beat": 9,
+    "head": [
+     22,
+     0,
+     0
+    ],
+    "armL": [
+     10,
+     15
+    ],
+    "armR": [
+     10,
+     15
+    ],
+    "emote": "😔"
+   },
+   {
+    "beat": 12,
+    "head": [
+     12,
+     0,
+     0
+    ],
+    "armL": [
+     50,
+     30
+    ],
+    "armR": [
+     40,
+     26
+    ],
+    "elbowL": 70,
+    "elbowR": 60
+   },
+   {
+    "beat": 15,
+    "head": [
+     0,
+     0,
+     0
+    ],
+    "armL": [
+     10,
+     15
+    ],
+    "armR": [
+     10,
+     15
+    ],
+    "emote": "😌"
+   },
+   {
+    "beat": 18,
+    "head": [
+     4,
+     0,
+     0
+    ],
+    "emote": "🙏"
+   },
+   {
+    "beat": 20,
+    "emote": ""
+   }
+  ]
+ }
+}

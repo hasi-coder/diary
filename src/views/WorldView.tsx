@@ -1,7 +1,7 @@
 // A place, full window: walk it as the diary author, open doors, sit, invite
 // people from the journal, and save the moment as a post. Opened from a post,
 // the people tagged in it are already there.
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import {
   ArrowClockwiseIcon,
   ArrowCounterClockwiseIcon,
@@ -9,21 +9,28 @@ import {
   CameraIcon,
   CircleNotchIcon,
   CubeIcon,
+  GearSixIcon,
   MagnifyingGlassMinusIcon,
   MagnifyingGlassPlusIcon,
   MapTrifoldIcon,
   MusicNotesIcon,
   StopIcon,
   TagIcon,
+  TShirtIcon,
   UserPlusIcon,
   WallIcon,
   XIcon,
 } from "@phosphor-icons/react";
 import { api, errorMessage, type Post, type Profile } from "../lib/api";
 import { useJournal } from "../lib/journal";
-import type { Interaction } from "../lib/places/interaction";
-import { INTERACTIONS, interactionsFor } from "../lib/places/interactions";
-import { parseLayout, type Spot, type SpotRole } from "../lib/places/layout";
+import { ACTION_CATEGORIES, type Interaction } from "../lib/places/interaction";
+import { ActionWheel, type WheelNode } from "../components/ActionWheel";
+import { INTERACTIONS, enabledInteractions, interactionsFor } from "../lib/places/interactions";
+import { interactionSettingsRevision, subscribeInteractionSettings } from "../lib/interactionSettings";
+import { applyOutfit, OUTFITS, type Outfit } from "../lib/places/outfits";
+import { DressingRoom } from "../components/DressingRoom";
+import type { Character } from "../lib/places/character";
+import { parseLayout, type PlacedItem, type Spot, type SpotRole } from "../lib/places/layout";
 import { isPerson, peopleAt, ROLE_LABELS } from "../lib/places/people";
 import { World, type Actor } from "../lib/places/world";
 import { FaceImage } from "../components/world/FaceImage";
@@ -107,6 +114,7 @@ function Shell({ children, onExit }: { children: ReactNode; onExit: () => void }
 function Playing(props: { world: World; place: Profile; post: Post | null; loadError: string | null; onExit: () => void; onSaved: () => Promise<void> }) {
   const { world, place, post, onExit } = props;
   const { snapshot, owner, navigate } = useJournal();
+  useSyncExternalStore(subscribeInteractionSettings, interactionSettingsRevision, interactionSettingsRevision);
   const scene = useRef<WorldSceneHandle>(null);
   const [top, setTop] = useState(false);
   const [walls, setWalls] = useState<WallMode>("cut");
@@ -115,9 +123,13 @@ function Playing(props: { world: World; place: Profile; post: Post | null; loadE
   const [selected, setSelected] = useState<{ id: string; x: number; y: number } | null>(null);
   const [inviting, setInviting] = useState(false);
   const [together, setTogether] = useState(false);
-  /** Who to do something with, from the Together panel (the author always takes part). */
-  const [partners, setPartners] = useState<Set<string> | null>(null);
+  /** Where the action wheel opens: the click, or the middle of the window. */
+  const [wheelAt, setWheelAt] = useState({ x: 400, y: 300 });
+  const [itemTarget, setItemTarget] = useState<PlacedItem | null>(null);
+  const [presentation, setPresentation] = useState<World["presentation"]>(null);
   const [activity, setActivity] = useState<string | null>(null);
+  /** Whose clothes the bar at the bottom is changing, and whether their dressing room is open. */
+  const [dressing, setDressing] = useState<{ id: string; room: boolean } | null>(null);
   const [toast, setToast] = useState<string | null>(props.loadError);
   const [room, setRoom] = useState("");
   const [saving, setSaving] = useState(false);
@@ -131,9 +143,13 @@ function Playing(props: { world: World; place: Profile; post: Post | null; loadE
       setRoom(world.author ? world.roomOf(world.author) : "");
       const a = world.activity;
       setActivity(a ? `${a.def.emoji ?? ""} ${a.def.label}${a.state === "gathering" ? " · getting ready" : ""}`.trim() : null);
-    }, 250);
-    return () => clearInterval(timer);
-  }, [world]);
+      setPresentation(world.presentation);
+    }, 100);
+    world.onOutfitChange = (actor) => {
+      void api.setProfileCharacter(actor.id, actor.look).then(props.onSaved).catch((error) => setToast(`Outfit changed for this visit; couldn't save it: ${errorMessage(error)}`));
+    };
+    return () => { clearInterval(timer); world.onToast = undefined; world.onOutfitChange = undefined; };
+  }, [world, props.onSaved]);
   useEffect(() => {
     if (!toast) return;
     const t = setTimeout(() => setToast(null), 2200);
@@ -150,23 +166,98 @@ function Playing(props: { world: World; place: Profile; post: Post | null; loadE
     tags.set(a.id, { text: a.profile.name, color: a.following ? "rgba(24,119,242,0.92)" : undefined });
   }
 
-  const start = (def: Interaction, people: Actor[]) => {
-    setTogether(false);
-    setSelected(null);
-    if (world.startActivity(def, [me, ...people.filter((p) => p !== me)])) changed();
+  const start = (def: Interaction, people: Actor[], outfit?: Outfit) => {
+    const members = def.people.max === 1 ? [me] : [me, ...people.filter((p) => p !== me)];
+    if (world.startActivity(def, members, { target: itemTarget ?? undefined, outfit })) {
+      setTogether(false);
+      setSelected(null);
+      setItemTarget(null);
+      changed();
+    }
   };
 
+  /** Dresses someone straight away and saves it to their profile; not while they're in the middle of an action. */
+  const dress = (who: Actor, patch: Partial<Character>) => {
+    if (world.activity?.members.some((m) => m.actor === who)) return setToast("Stop the action first, then change clothes.");
+    who.look = { ...who.look, ...patch };
+    changed();
+    void api.setProfileCharacter(who.id, who.look).then(props.onSaved).catch((error) => setToast(`Changed for this visit; couldn't save it: ${errorMessage(error)}`));
+  };
+
+  // ── The action wheel's rings ───────────────────────────────────────────────
+  const groupNodes = (defs: Interaction[], make: (def: Interaction) => WheelNode): WheelNode[] =>
+    Object.entries(ACTION_CATEGORIES).flatMap(([id, info]) => {
+      const inGroup = defs.filter((def) => (def.category && def.category in ACTION_CATEGORIES ? def.category : "other") === id);
+      return inGroup.length ? [{ id, label: info.label, emoji: info.emoji, hint: `${inGroup.length} action${inGroup.length === 1 ? "" : "s"}`, children: inGroup.map(make) }] : [];
+    });
+
+  /** One action as a wheel node: chosen straight away, or after picking an outfit or who to do it with. */
+  const defNode = (def: Interaction, others: Actor[], target?: PlacedItem): WheelNode => {
+    const base = { id: def.id, label: def.label, emoji: def.emoji ?? "✨", hint: def.description };
+    const together = def.people.max > 1;
+    const needed = def.people.min - 1;
+    if (together && others.length < needed) return { ...base, disabled: `Invite ${needed === 1 ? "someone" : `${needed} people`} first` };
+    const withOutfit = (people: Actor[]): WheelNode =>
+      def.outfitAt !== undefined
+        ? { ...base, children: OUTFITS.map((o) => ({ id: o.id, label: o.label, emoji: "👗", hint: o.description, onSelect: () => start(def, people, o) })) }
+        : { ...base, onSelect: () => start(def, people) };
+    const problem = world.activityProblem(def, together ? [me, ...others.slice(0, def.people.max - 1)] : [me], target);
+    if (problem && (!together || others.length === 1 || others.length <= def.people.max - 1)) return { ...base, disabled: problem };
+    if (!together || others.length === 1 || def.people.max > others.length + 1) return withOutfit(together ? others.slice(0, def.people.max - 1) : []);
+    return {
+      ...base,
+      children: [
+        ...others.map((a): WheelNode => ({ id: a.id, label: a.profile.name.split(" ")[0], emoji: "🙂", hint: `${def.label} with ${a.profile.name}`, disabled: world.activityProblem(def, [me, a], target) ?? undefined, onSelect: () => start(def, [a]) })),
+        ...(def.people.max > 2 ? [{ id: "everyone", label: "Everyone", emoji: "👥", onSelect: () => start(def, others.slice(0, def.people.max - 1)) } as WheelNode] : []),
+      ],
+    };
+  };
+
+  const selfNodes = (): WheelNode[] => [
+    ...groupNodes(enabledInteractions(), (def) => defNode(def, world.actors.filter((a) => a !== me))),
+    { id: "clothes", label: "Clothes", emoji: "👗", hint: "Change what you wear", onSelect: () => setDressing({ id: me.id, room: false }) },
+    { id: "settings", label: "Settings", emoji: "⚙️", hint: "Action settings", onSelect: () => navigate({ view: "settings", section: "place-actions" }) },
+  ];
+
+  const itemNodes = (target: PlacedItem): WheelNode[] => [
+    ...(target.spec.seat && target.kind !== "toilet"
+      ? [{ id: "sit", label: "Sit here", emoji: "🪑", onSelect: () => {
+          const seat = world.place.seats.find((s) => s.item === target && !s.occupant && !s.reserved);
+          if (!seat) return setToast("All seats are taken.");
+          world.stopActivity();
+          world.goTo(me, seat.x, seat.y, seat);
+        } } as WheelNode]
+      : []),
+    ...enabledInteractions().filter((def) => def.target?.kinds.includes(target.kind)).map((def) => defNode(def, world.actors.filter((a) => a !== me), target)),
+  ];
+
+  const personNodes = (who: Actor): WheelNode[] => [
+    ...groupNodes(interactionsFor(2), (def) => {
+      const problem = world.activityProblem(def, [me, who]);
+      return { id: def.id, label: def.label, emoji: def.emoji ?? "✨", hint: def.description, disabled: problem ?? undefined, onSelect: () => start(def, [who]) };
+    }),
+    { id: "clothes", label: "Clothes", emoji: "👗", hint: "Change what they wear", onSelect: () => (setDressing({ id: who.id, room: false }), setSelected(null)) },
+    { id: "follow", label: who.following ? "Following" : "Follow me", emoji: "🚶", hint: "Come along", onSelect: () => ((who.following = true), world.follow(who), changed()) },
+    { id: "wait", label: "Wait here", emoji: "✋", hint: "Stay where they are", onSelect: () => (world.wait(who), changed()) },
+    { id: "profile", label: "Profile", emoji: "📖", hint: "Open their profile", onSelect: () => navigate({ view: "profile", id: who.id }) },
+    { id: "leave", label: "Send home", emoji: "🏠", hint: "They leave the place", onSelect: () => (world.remove(who), setSelected(null), changed(), setToast(`${who.profile.name} left`)) },
+  ];
+
   const onPick = (pick: Pick, at: { x: number; y: number }) => {
+    setWheelAt(at);
     setInviting(false);
     setTogether(false);
+    setItemTarget(null);
     if (pick.kind === "actor") {
-      if (pick.id === me.id) return setSelected(null);
+      if (pick.id === me.id) { setSelected(null); setDressing(null); return setTogether(true); }
       return setSelected({ id: pick.id, ...at });
     }
     setSelected(null);
     if (pick.kind === "door") {
       world.toggleDoor(pick.door);
       if (!pick.door.locked) setToast(`${pick.door.name ?? "Door"} ${pick.door.open ? "opened" : "closed"}`);
+    } else if (pick.kind === "item" && INTERACTIONS.some((def) => def.target?.kinds.includes(pick.item.kind))) {
+      setItemTarget(pick.item);
     } else if (pick.kind === "item" && pick.item.spec.seat) {
       const seats = world.place.seats.filter((s) => s.item === pick.item).sort((a, b) => Math.hypot(a.x + 0.5 - pick.x, a.y + 0.5 - pick.y) - Math.hypot(b.x + 0.5 - pick.x, b.y + 0.5 - pick.y));
       const free = seats.find((s) => !s.occupant || s.occupant === me.id);
@@ -183,13 +274,14 @@ function Playing(props: { world: World; place: Profile; post: Post | null; loadE
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLSelectElement) return;
       const k = e.key.toLowerCase();
       if (k === "escape") {
-        if (selected || inviting || together) {
+        if (selected || inviting || together || itemTarget) {
           setSelected(null);
           setInviting(false);
           setTogether(false);
+          setItemTarget(null);
         } else if (world.activity) world.stopActivity();
         else onExit();
         return;
@@ -208,7 +300,7 @@ function Playing(props: { world: World; place: Profile; post: Post | null; loadE
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [world, me, selected, inviting, together, onExit]);
+  }, [world, me, selected, inviting, together, itemTarget, onExit]);
 
   const saveMoment = async () => {
     setSaving(true);
@@ -263,6 +355,16 @@ function Playing(props: { world: World; place: Profile; post: Post | null; loadE
         className="absolute inset-0"
       />
 
+      {presentation && (
+        <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-slate-950 text-white" style={{ opacity: presentation.opacity }} aria-live="polite">
+          <div className="w-64 text-center">
+            <div className="mb-4 text-6xl">{presentation.emoji}</div>
+            <p className="text-xl font-semibold">{presentation.label}</p>
+            <div className="mt-5 h-1 overflow-hidden rounded-full bg-white/15"><div className="h-full bg-rose-300" style={{ width: `${presentation.progress * 100}%` }} /></div>
+          </div>
+        </div>
+      )}
+
       <div className="pointer-events-none absolute inset-0 text-sm text-white">
         <div className="pointer-events-auto absolute left-3 top-3 flex items-start gap-2">
           <HudButton onClick={onExit} title="Back to the diary (Esc)">
@@ -306,10 +408,13 @@ function Playing(props: { world: World; place: Profile; post: Post | null; loadE
           <HudButton on={labels} onClick={() => setLabels((v) => !v)} title="Room names (L)">
             <TagIcon size={18} />
           </HudButton>
-          <HudButton onClick={() => (setTogether((v) => !v), setInviting(false), setSelected(null))} title="Do something together">
-            <MusicNotesIcon size={18} /> Together
+          <HudButton onClick={() => (setWheelAt({ x: window.innerWidth / 2, y: window.innerHeight / 2 }), setTogether((v) => !v), setInviting(false), setSelected(null), setItemTarget(null))} title="Everyday and together actions">
+            <MusicNotesIcon size={18} /> Actions
           </HudButton>
-          <HudButton onClick={() => (setInviting((v) => !v), setTogether(false), setSelected(null))} title="Invite someone">
+          <HudButton onClick={() => navigate({ view: "settings", section: "place-actions" })} title="Open animation and age mappings in Settings">
+            <GearSixIcon size={18} /> Action settings
+          </HudButton>
+          <HudButton onClick={() => (setInviting((v) => !v), setTogether(false), setSelected(null), setItemTarget(null))} title="Invite someone">
             <UserPlusIcon size={18} /> Invite
           </HudButton>
           <HudButton onClick={() => void saveMoment()} title="Save this view as a post" disabled={saving}>
@@ -348,13 +453,14 @@ function Playing(props: { world: World; place: Profile; post: Post | null; loadE
           </div>
         )}
 
-        {together && (
-          <TogetherPanel
-            others={world.actors.filter((a) => a !== me)}
-            chosen={partners}
-            onChoose={setPartners}
-            onStart={start}
-            onClose={() => setTogether(false)}
+        {(together || itemTarget) && (
+          <ActionWheel
+            at={wheelAt}
+            title={itemTarget ? itemTarget.spec.label : "You"}
+            subtitle={itemTarget ? "Actions" : "Choose something to do"}
+            face={!itemTarget ? <FaceImage profile={me.profile} className="h-8 w-8" /> : undefined}
+            nodes={itemTarget ? itemNodes(itemTarget) : selfNodes()}
+            onClose={() => (setTogether(false), setItemTarget(null))}
           />
         )}
 
@@ -368,17 +474,32 @@ function Playing(props: { world: World; place: Profile; post: Post | null; loadE
         )}
 
         {chosen && selected && (
-          <PersonMenu
-            actor={chosen}
+          <ActionWheel
             at={selected}
+            title={chosen.profile.name.split(" ")[0]}
+            subtitle={[chosen.profile.relationship, chosen.seat ? "sitting" : chosen.path.length ? "walking" : ""].filter(Boolean).join(" · ")}
+            face={<FaceImage profile={chosen.profile} className="h-8 w-8" />}
+            nodes={personNodes(chosen)}
             onClose={() => setSelected(null)}
-            actions={{
-              follow: () => ((chosen.following = true), world.follow(chosen), changed()),
-              wait: () => (world.wait(chosen), changed()),
-              leave: () => (world.remove(chosen), setSelected(null), changed(), setToast(`${chosen.profile.name} left`)),
-              profile: () => navigate({ view: "profile", id: chosen.id }),
-              together: (def) => start(def, [chosen]),
-            }}
+          />
+        )}
+
+        {dressing && actor(dressing.id) && (
+          <OutfitBar
+            actor={actor(dressing.id)!}
+            busy={!!world.activity?.members.some((m) => m.actor.id === dressing.id)}
+            onPreset={(outfit) => dress(actor(dressing.id)!, applyOutfit(outfit, actor(dressing.id)!.look.wearing))}
+            onRoom={() => setDressing({ ...dressing, room: true })}
+            onClose={() => setDressing(null)}
+          />
+        )}
+        {dressing?.room && actor(dressing.id) && (
+          <DressingRoom
+            profile={actor(dressing.id)!.profile}
+            look={actor(dressing.id)!.look}
+            initialLayer="base"
+            onApply={(patch) => dress(actor(dressing.id)!, patch)}
+            onClose={() => setDressing({ ...dressing, room: false })}
           />
         )}
 
@@ -386,7 +507,7 @@ function Playing(props: { world: World; place: Profile; post: Post | null; loadE
           {world.actors.map((a) => (
             <button
               key={a.id}
-              onClick={() => a !== me && setSelected({ id: a.id, ...(scene.current?.screenOf(a.id) ?? { x: 200, y: 200 }) })}
+              onClick={() => (a === me ? setDressing({ id: a.id, room: false }) : setSelected({ id: a.id, ...(scene.current?.screenOf(a.id) ?? { x: 200, y: 200 }) }))}
               className="flex items-center gap-2 rounded-full border border-white/10 bg-slate-900/75 py-0.5 pl-0.5 pr-3 backdrop-blur hover:bg-slate-800"
             >
               <FaceImage profile={a.profile} className="h-7 w-7" />
@@ -402,9 +523,6 @@ function Playing(props: { world: World; place: Profile; post: Post | null; loadE
           </div>
         )}
 
-        <div className="absolute bottom-16 left-1/2 -translate-x-1/2 rounded-full bg-slate-900/70 px-4 py-1.5 text-xs text-white/80 backdrop-blur">
-          Click to walk · click a door to open or close it · click a seat to sit · Together to dance · drag to look around · W A S D to step · Q E to turn · T top view · Esc to leave
-        </div>
         {toast && <div className="absolute left-1/2 top-28 -translate-x-1/2 rounded-lg bg-slate-900/90 px-4 py-2 font-medium shadow-lg">{toast}</div>}
       </div>
     </Shell>
@@ -426,118 +544,41 @@ function HudButton(props: { children: ReactNode; onClick: () => void; title: str
   );
 }
 
-function PersonMenu(props: {
-  actor: Actor;
-  at: { x: number; y: number };
-  onClose: () => void;
-  actions: { follow: () => void; wait: () => void; leave: () => void; profile: () => void; together: (def: Interaction) => void };
-}) {
-  const { actor, at, actions } = props;
-  const item = "w-full rounded-md px-3 py-1.5 text-left font-medium hover:bg-slate-100";
+/** Sims-style bar at the bottom: pick a ready-made outfit for someone, or open their dressing room. Changes show at once and are saved. */
+function OutfitBar(props: { actor: Actor; busy: boolean; onPreset: (outfit: Outfit) => void; onRoom: () => void; onClose: () => void }) {
+  const { actor } = props;
   return (
-    <div
-      className="pointer-events-auto absolute w-60 rounded-xl bg-white p-2 text-slate-800 shadow-2xl"
-      style={{ left: Math.max(8, Math.min(at.x + 12, window.innerWidth - 250)), top: Math.max(60, Math.min(at.y - 40, window.innerHeight - 220)) }}
-    >
-      <div className="mb-1 flex items-center gap-3 px-2 py-1">
-        <FaceImage profile={actor.profile} className="h-10 w-10" />
+    <div className="pointer-events-auto absolute bottom-16 left-1/2 flex w-[min(52rem,calc(100%-1.5rem))] -translate-x-1/2 items-center gap-3 rounded-2xl border border-white/10 bg-slate-900/90 p-2 pr-3 text-white shadow-2xl backdrop-blur">
+      <div className="flex shrink-0 items-center gap-2 border-r border-white/10 pr-3">
+        <FaceImage profile={actor.profile} className="h-11 w-11" />
         <div className="min-w-0">
-          <div className="truncate font-bold">{actor.profile.name}</div>
-          <div className="truncate text-xs text-slate-500">
-            {[actor.profile.relationship, actor.seat ? "sitting" : actor.path.length ? "walking" : ""].filter(Boolean).join(" · ")}
-          </div>
+          <div className="max-w-28 truncate text-sm font-bold">{actor.profile.name}</div>
+          <div className="text-[11px] text-white/60">{props.busy ? "Busy · stop the action" : "Outfits"}</div>
         </div>
       </div>
-      <div className="mb-1 grid grid-cols-2 gap-1 border-b border-slate-100 pb-2">
-        {interactionsFor(2).map((def) => (
-          <button key={def.id} title={def.description} onClick={() => actions.together(def)} className="truncate rounded-md bg-slate-50 px-2 py-1.5 text-left text-[13px] font-medium hover:bg-brand-50 hover:text-brand-700">
-            {def.emoji} {def.label}
+      <div className="flex min-w-0 flex-1 gap-1.5 overflow-x-auto py-1" aria-label="Outfits">
+        {OUTFITS.map((outfit) => (
+          <button
+            key={outfit.id}
+            disabled={props.busy}
+            title={outfit.description}
+            onClick={() => props.onPreset(outfit)}
+            className="flex shrink-0 flex-col items-center gap-1 rounded-xl bg-white/10 px-3 py-1.5 text-xs font-semibold hover:bg-white/20 disabled:opacity-40"
+          >
+            <span className="flex">
+              {outfit.wearing.slice(-3).map((w, i) => <span key={i} className="-ml-1 h-3.5 w-3.5 rounded-full border border-slate-900 first:ml-0" style={{ background: w.color }} />)}
+              {!outfit.wearing.length && <TShirtIcon size={14} />}
+            </span>
+            {outfit.label}
           </button>
         ))}
       </div>
-      <button className={item} onClick={actions.follow}>
-        {actor.following ? "✓ Following you" : "Follow me"}
+      <button onClick={props.onRoom} disabled={props.busy} className="flex shrink-0 items-center gap-1.5 rounded-xl bg-brand-600 px-3 py-2 text-sm font-semibold hover:bg-brand-700 disabled:opacity-40">
+        <TShirtIcon size={16} /> Dressing room
       </button>
-      <button className={item} onClick={actions.wait}>
-        Wait here
+      <button onClick={props.onClose} aria-label="Close outfit bar" className="shrink-0 text-white/60 hover:text-white">
+        <XIcon />
       </button>
-      <button className={item} onClick={actions.profile}>
-        Open profile
-      </button>
-      <button className={`${item} text-rose-600`} onClick={actions.leave}>
-        Send home
-      </button>
-    </div>
-  );
-}
-
-/** Pick people (you're always in) and something to do together; only what fits the group can start. */
-function TogetherPanel(props: {
-  others: Actor[];
-  chosen: Set<string> | null;
-  onChoose: (ids: Set<string>) => void;
-  onStart: (def: Interaction, people: Actor[]) => void;
-  onClose: () => void;
-}) {
-  const { others } = props;
-  // Everyone here, until chosen otherwise.
-  const chosen = props.chosen ? others.filter((a) => props.chosen!.has(a.id)) : others;
-  const count = chosen.length + 1;
-  const toggle = (id: string) => {
-    const next = new Set(chosen.map((a) => a.id));
-    if (next.has(id)) next.delete(id);
-    else next.add(id);
-    props.onChoose(next);
-  };
-  return (
-    <div className="pointer-events-auto absolute right-3 top-16 max-h-[70vh] w-80 overflow-y-auto rounded-xl bg-white p-3 text-slate-800 shadow-2xl">
-      <div className="mb-2 flex items-center justify-between">
-        <h3 className="font-bold">Do something together</h3>
-        <button onClick={props.onClose} className="text-slate-400 hover:text-slate-600">
-          <XIcon />
-        </button>
-      </div>
-      {others.length === 0 ? (
-        <p className="text-sm text-slate-500">You're on your own. Invite someone first.</p>
-      ) : (
-        <div className="mb-3 flex flex-wrap gap-1.5">
-          <span className="flex items-center gap-1.5 rounded-full bg-brand-600 py-0.5 pl-0.5 pr-3 text-sm font-medium text-white">You</span>
-          {others.map((a) => {
-            const on = chosen.includes(a);
-            return (
-              <button
-                key={a.id}
-                onClick={() => toggle(a.id)}
-                className={`flex items-center gap-1.5 rounded-full py-0.5 pl-0.5 pr-3 text-sm font-medium ${on ? "bg-brand-600 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"}`}
-              >
-                <FaceImage profile={a.profile} className="h-6 w-6" /> {a.profile.name.split(" ")[0]}
-              </button>
-            );
-          })}
-        </div>
-      )}
-      <div className="space-y-1">
-        {INTERACTIONS.map((def) => {
-          const fits = count >= def.people.min && count <= def.people.max;
-          const range = def.people.min === def.people.max ? `${def.people.min} people` : `${def.people.min}–${def.people.max} people`;
-          return (
-            <button
-              key={def.id}
-              disabled={!fits}
-              onClick={() => props.onStart(def, chosen)}
-              className="flex w-full items-start gap-2 rounded-lg px-2 py-1.5 text-left hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent"
-            >
-              <span className="text-xl leading-6">{def.emoji}</span>
-              <span className="min-w-0">
-                <span className="block font-semibold">{def.label}</span>
-                <span className="block text-xs text-slate-500">
-                  {def.description} · {range}
-                </span>
-              </span>
-            </button>
-          );
-        })}
-      </div>
     </div>
   );
 }

@@ -1,0 +1,351 @@
+{
+ "id": "therapy-breathing",
+ "label": "Guided breathing",
+ "emoji": "🧘",
+  "category": "care",
+ "description": "A therapist leads the client through slow breathing: arms rise on the in-breath and lower on the out-breath.",
+ "people": {
+  "min": 2,
+  "max": 2
+ },
+ "beat": 1.0,
+ "length": 18,
+ "loop": false,
+ "formation": {
+  "type": "spots",
+  "spots": [
+   {
+    "role": "therapist",
+    "at": [
+     0,
+     0
+    ],
+    "facing": 0
+   },
+   {
+    "role": "client",
+    "at": [
+     0,
+     0.9
+    ],
+    "facing": 180
+   }
+  ]
+ },
+ "roles": {
+  "therapist": [
+   {
+    "beat": 0
+   },
+   {
+    "beat": 1,
+    "emote": "🧘"
+   },
+   {
+    "beat": 2,
+    "armL": [
+     110,
+     40
+    ],
+    "armR": [
+     110,
+     40
+    ],
+    "elbowL": 10,
+    "elbowR": 10,
+    "head": [
+     -6,
+     0,
+     0
+    ],
+    "bob": 0.02
+   },
+   {
+    "beat": 4,
+    "armL": [
+     10,
+     25
+    ],
+    "armR": [
+     10,
+     25
+    ],
+    "head": [
+     4,
+     0,
+     0
+    ],
+    "bob": 0
+   },
+   {
+    "beat": 6,
+    "armL": [
+     110,
+     40
+    ],
+    "armR": [
+     110,
+     40
+    ],
+    "elbowL": 10,
+    "elbowR": 10,
+    "head": [
+     -6,
+     0,
+     0
+    ],
+    "bob": 0.02
+   },
+   {
+    "beat": 8,
+    "armL": [
+     10,
+     25
+    ],
+    "armR": [
+     10,
+     25
+    ],
+    "head": [
+     4,
+     0,
+     0
+    ],
+    "bob": 0
+   },
+   {
+    "beat": 10,
+    "armL": [
+     110,
+     40
+    ],
+    "armR": [
+     110,
+     40
+    ],
+    "elbowL": 10,
+    "elbowR": 10,
+    "head": [
+     -6,
+     0,
+     0
+    ],
+    "bob": 0.02
+   },
+   {
+    "beat": 12,
+    "armL": [
+     10,
+     25
+    ],
+    "armR": [
+     10,
+     25
+    ],
+    "head": [
+     4,
+     0,
+     0
+    ],
+    "bob": 0
+   },
+   {
+    "beat": 14,
+    "armL": [
+     110,
+     40
+    ],
+    "armR": [
+     110,
+     40
+    ],
+    "elbowL": 10,
+    "elbowR": 10,
+    "head": [
+     -6,
+     0,
+     0
+    ],
+    "bob": 0.02
+   },
+   {
+    "beat": 16,
+    "armL": [
+     10,
+     25
+    ],
+    "armR": [
+     10,
+     25
+    ],
+    "head": [
+     4,
+     0,
+     0
+    ],
+    "bob": 0
+   },
+   {
+    "beat": 18,
+    "emote": ""
+   }
+  ],
+  "client": [
+   {
+    "beat": 0
+   },
+   {
+    "beat": 1,
+    "emote": "😌"
+   },
+   {
+    "beat": 2,
+    "armL": [
+     110,
+     40
+    ],
+    "armR": [
+     110,
+     40
+    ],
+    "elbowL": 10,
+    "elbowR": 10,
+    "head": [
+     -6,
+     0,
+     0
+    ],
+    "bob": 0.02
+   },
+   {
+    "beat": 4,
+    "armL": [
+     10,
+     25
+    ],
+    "armR": [
+     10,
+     25
+    ],
+    "head": [
+     4,
+     0,
+     0
+    ],
+    "bob": 0
+   },
+   {
+    "beat": 6,
+    "armL": [
+     110,
+     40
+    ],
+    "armR": [
+     110,
+     40
+    ],
+    "elbowL": 10,
+    "elbowR": 10,
+    "head": [
+     -6,
+     0,
+     0
+    ],
+    "bob": 0.02
+   },
+   {
+    "beat": 8,
+    "armL": [
+     10,
+     25
+    ],
+    "armR": [
+     10,
+     25
+    ],
+    "head": [
+     4,
+     0,
+     0
+    ],
+    "bob": 0
+   },
+   {
+    "beat": 10,
+    "armL": [
+     110,
+     40
+    ],
+    "armR": [
+     110,
+     40
+    ],
+    "elbowL": 10,
+    "elbowR": 10,
+    "head": [
+     -6,
+     0,
+     0
+    ],
+    "bob": 0.02
+   },
+   {
+    "beat": 12,
+    "armL": [
+     10,
+     25
+    ],
+    "armR": [
+     10,
+     25
+    ],
+    "head": [
+     4,
+     0,
+     0
+    ],
+    "bob": 0
+   },
+   {
+    "beat": 14,
+    "armL": [
+     110,
+     40
+    ],
+    "armR": [
+     110,
+     40
+    ],
+    "elbowL": 10,
+    "elbowR": 10,
+    "head": [
+     -6,
+     0,
+     0
+    ],
+    "bob": 0.02
+   },
+   {
+    "beat": 16,
+    "armL": [
+     10,
+     25
+    ],
+    "armR": [
+     10,
+     25
+    ],
+    "head": [
+     4,
+     0,
+     0
+    ],
+    "bob": 0
+   },
+   {
+    "beat": 18,
+    "emote": ""
+   }
+  ]
+ }
+}

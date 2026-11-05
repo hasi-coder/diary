@@ -481,7 +481,7 @@ fn places(ws: &mut Workspace, me_id: &str, sarah: &Profile, dev: &Profile, robin
 
     // How each person looks in the world (see src/lib/places/character.ts).
     let looks = [
-        (me_id, json!({ "age": "adult", "figure": "neutral", "build": "average", "skin": "#c68e64", "hair": { "style": "short", "color": "#1f1a17" }, "top": "#2563eb", "bottom": "#334155", "glasses": true })),
+        (me_id, json!({ "age": "adult", "figure": "masculine", "build": "average", "skin": "#a07e56", "hair": { "style": "curly", "color": "#1f1a17" }, "top": "#2563eb", "bottom": "#334155", "wearing": [{ "garment": "tee", "color": "#2563eb" }, { "garment": "jeans", "color": "#334155" }, { "garment": "shoes", "color": "#292524" }] })),
         (&sarah.id, json!({ "age": "adult", "figure": "feminine", "build": "slim", "skin": "#e0ac85", "hair": { "style": "long", "color": "#6b3f1d" }, "top": "#0ea5e9", "bottom": "#1e3a8a" })),
         (&dev.id, json!({ "age": "adult", "figure": "masculine", "build": "broad", "skin": "#a5683f", "hair": { "style": "short", "color": "#171412" }, "top": "#16a34a", "bottom": "#1e293b", "beard": true })),
         (&robin.id, json!({ "age": "adult", "figure": "neutral", "build": "slim", "skin": "#6f4429", "hair": { "style": "curly", "color": "#0c0a09" }, "top": "#10b981", "bottom": "#475569" })),
@@ -491,6 +491,17 @@ fn places(ws: &mut Workspace, me_id: &str, sarah: &Profile, dev: &Profile, robin
     ];
     for (id, look) in looks {
         ws.set_profile_character(id, Some(look))?;
+    }
+    // The owner's head: four illustrated views made from a photo with the
+    // generate-face-views skill (assets/places/faces/photo-reference).
+    for (slot, name, bytes) in [
+        (PhotoSlot::FaceFront, "front.png", &include_bytes!("../../../assets/places/faces/photo-reference/front.png")[..]),
+        (PhotoSlot::FaceLeft, "left.png", &include_bytes!("../../../assets/places/faces/photo-reference/left.png")[..]),
+        (PhotoSlot::FaceRight, "right.png", &include_bytes!("../../../assets/places/faces/photo-reference/right.png")[..]),
+        (PhotoSlot::FaceBack, "back.png", &include_bytes!("../../../assets/places/faces/photo-reference/back.png")[..]),
+    ] {
+        let id = ws.stage_media(name, bytes.to_vec())?.id;
+        ws.set_profile_photo(me_id, slot, Some(id))?;
     }
 
     // Group visits: "Open place" puts the tagged people where it happened.

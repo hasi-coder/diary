@@ -206,24 +206,39 @@ pub struct RelationInput {
     pub since: String,
 }
 
-/// A character's head seen from four sides. `left` and `right` are profiles
-/// with the nose toward that edge of the image. Bytes live in `media/<id>.enc`.
+/// A character's head seen from around. `left` and `right` are 90° profiles
+/// with the nose toward that edge of the image; `front_left` and `front_right`
+/// (optional) are turned 45° that way. `up`, `sleeping`, `sleeping_left`, `sleeping_right` and `down` (optional) are for people lying down. Bytes live in `media/<id>.enc`.
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Faces {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub front: Option<MediaRef>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub front_left: Option<MediaRef>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub front_right: Option<MediaRef>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub left: Option<MediaRef>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub right: Option<MediaRef>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub back: Option<MediaRef>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub up: Option<MediaRef>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sleeping: Option<MediaRef>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sleeping_left: Option<MediaRef>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sleeping_right: Option<MediaRef>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub down: Option<MediaRef>,
 }
 
 impl Faces {
     pub fn is_empty(&self) -> bool {
-        self.front.is_none() && self.left.is_none() && self.right.is_none() && self.back.is_none()
+        self.front.is_none() && self.front_left.is_none() && self.front_right.is_none() && self.left.is_none() && self.right.is_none() && self.back.is_none() && self.up.is_none() && self.sleeping.is_none() && self.sleeping_left.is_none() && self.sleeping_right.is_none() && self.down.is_none()
     }
 }
 
@@ -233,9 +248,16 @@ pub enum PhotoSlot {
     Avatar,
     Cover,
     FaceFront,
+    FaceFrontLeft,
+    FaceFrontRight,
     FaceLeft,
     FaceRight,
     FaceBack,
+    FaceUp,
+    FaceSleeping,
+    FaceSleepingLeft,
+    FaceSleepingRight,
+    FaceDown,
 }
 
 impl PhotoSlot {
@@ -259,9 +281,16 @@ impl Profile {
             PhotoSlot::Avatar => self.avatar.as_ref(),
             PhotoSlot::Cover => self.cover.as_ref(),
             PhotoSlot::FaceFront => self.faces.front.as_ref(),
+            PhotoSlot::FaceFrontLeft => self.faces.front_left.as_ref(),
+            PhotoSlot::FaceFrontRight => self.faces.front_right.as_ref(),
             PhotoSlot::FaceLeft => self.faces.left.as_ref(),
             PhotoSlot::FaceRight => self.faces.right.as_ref(),
             PhotoSlot::FaceBack => self.faces.back.as_ref(),
+            PhotoSlot::FaceUp => self.faces.up.as_ref(),
+            PhotoSlot::FaceSleeping => self.faces.sleeping.as_ref(),
+            PhotoSlot::FaceSleepingLeft => self.faces.sleeping_left.as_ref(),
+            PhotoSlot::FaceSleepingRight => self.faces.sleeping_right.as_ref(),
+            PhotoSlot::FaceDown => self.faces.down.as_ref(),
         }
     }
 
@@ -270,20 +299,28 @@ impl Profile {
             PhotoSlot::Avatar => &mut self.avatar,
             PhotoSlot::Cover => &mut self.cover,
             PhotoSlot::FaceFront => &mut self.faces.front,
+            PhotoSlot::FaceFrontLeft => &mut self.faces.front_left,
+            PhotoSlot::FaceFrontRight => &mut self.faces.front_right,
             PhotoSlot::FaceLeft => &mut self.faces.left,
             PhotoSlot::FaceRight => &mut self.faces.right,
             PhotoSlot::FaceBack => &mut self.faces.back,
+            PhotoSlot::FaceUp => &mut self.faces.up,
+            PhotoSlot::FaceSleeping => &mut self.faces.sleeping,
+            PhotoSlot::FaceSleepingLeft => &mut self.faces.sleeping_left,
+            PhotoSlot::FaceSleepingRight => &mut self.faces.sleeping_right,
+            PhotoSlot::FaceDown => &mut self.faces.down,
         }
     }
 
     /// Every photo the profile itself holds: avatar, cover and face views.
     pub fn photos(&self) -> impl Iterator<Item = &MediaRef> {
-        [&self.avatar, &self.cover, &self.faces.front, &self.faces.left, &self.faces.right, &self.faces.back].into_iter().flatten()
+        let f = &self.faces;
+        [&self.avatar, &self.cover, &f.front, &f.front_left, &f.front_right, &f.left, &f.right, &f.back, &f.up, &f.sleeping, &f.sleeping_left, &f.sleeping_right, &f.down].into_iter().flatten()
     }
 
     pub fn photos_mut(&mut self) -> impl Iterator<Item = &mut MediaRef> {
-        let Faces { front, left, right, back } = &mut self.faces;
-        [&mut self.avatar, &mut self.cover, front, left, right, back].into_iter().flatten()
+        let Faces { front, front_left, front_right, left, right, back, up, sleeping, sleeping_left, sleeping_right, down } = &mut self.faces;
+        [&mut self.avatar, &mut self.cover, front, front_left, front_right, left, right, back, up, sleeping, sleeping_left, sleeping_right, down].into_iter().flatten()
     }
 }
 

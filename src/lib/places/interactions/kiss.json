@@ -1,0 +1,51 @@
+{
+  "id": "kiss",
+  "label": "Kiss",
+  "emoji": "💋",
+  "category": "romantic",
+  "description": "Kiss gently, then step back.",
+  "people": {
+    "min": 2,
+    "max": 2
+  },
+  "beat": 0.55,
+  "length": 8,
+  "loop": false,
+  "formation": {
+    "type": "spots",
+    "spots": [
+      {
+        "role": "lead",
+        "at": [
+          0,
+          0
+        ],
+        "facing": 0
+      },
+      {
+        "role": "partner",
+        "at": [
+          0,
+          0.48
+        ],
+        "facing": 180
+      }
+    ]
+  },
+  "roles": {
+    "lead": [
+      {"beat": 0},
+      {"beat": 2, "armL": [60, 5], "armR": [60, 5], "elbowL": 35, "elbowR": 35, "lean": 10, "head": [0, 8, 8], "emote": "💋"},
+      {"beat": 4, "armL": [60, 5], "armR": [60, 5], "elbowL": 35, "elbowR": 35, "lean": 10, "head": [0, 8, 8]},
+      {"beat": 6},
+      {"beat": 8}
+    ],
+    "partner": [
+      {"beat": 0},
+      {"beat": 2, "armL": [45, 5], "armR": [45, 5], "elbowL": 25, "elbowR": 25, "lean": 6, "head": [-5, -8, -8], "emote": "💕"},
+      {"beat": 4, "armL": [45, 5], "armR": [45, 5], "elbowL": 25, "elbowR": 25, "lean": 6, "head": [-5, -8, -8]},
+      {"beat": 6},
+      {"beat": 8}
+    ]
+  }
+}

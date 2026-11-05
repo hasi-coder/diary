@@ -1,0 +1,8 @@
+{
+  "label": "Underwear",
+  "description": "Opaque underwear vest and boxer briefs",
+  "wearing": [
+    { "garment": "underwear_vest", "color": "#c4b5fd" },
+    { "garment": "boxer_briefs", "color": "#818cf8" }
+  ]
+}

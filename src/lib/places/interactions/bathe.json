@@ -1,0 +1,86 @@
+{
+  "id": "bathe",
+  "label": "Take a bath",
+  "emoji": "\ud83d\udec1",
+  "category": "household",
+  "description": "Relaxing in the bath\u2026",
+  "people": {
+    "min": 1,
+    "max": 1
+  },
+  "beat": 0.65,
+  "length": 14,
+  "loop": false,
+  "formation": {
+    "type": "stay",
+    "role": "person"
+  },
+  "target": {
+    "kinds": [
+      "bath"
+    ],
+    "posture": "inside",
+    "rest": {
+      "height": 0.4,
+      "pitch": 0
+    }
+  },
+  "water": true,
+  "roles": {
+    "person": [
+      {
+        "beat": 0,
+        "legL": 80,
+        "legR": 80,
+        "kneeL": 25,
+        "kneeR": 25
+      },
+      {
+        "beat": 2,
+        "armL": [
+          25,
+          25
+        ],
+        "armR": [
+          25,
+          25
+        ],
+        "elbowL": 80,
+        "elbowR": 80,
+        "legL": 80,
+        "legR": 80,
+        "kneeL": 25,
+        "kneeR": 25
+      },
+      {
+        "beat": 12,
+        "legL": 80,
+        "legR": 80,
+        "kneeL": 25,
+        "kneeR": 25
+      },
+      {
+        "beat": 14,
+        "legL": 80,
+        "legR": 80,
+        "kneeL": 25,
+        "kneeR": 25
+      }
+    ]
+  },
+  "wardrobe": {
+    "at": 1,
+    "restoreAt": 13,
+    "remove": [
+      "torso",
+      "upperArms",
+      "forearms",
+      "hips",
+      "thighs",
+      "calves",
+      "feet",
+      "neck",
+      "wrists"
+    ]
+  }
+}

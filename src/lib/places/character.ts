@@ -1,15 +1,22 @@
 // How a person looks in the Places world. Stored as `Profile.character`; any
 // field left out is filled in from the profile (age from the birthday, body
 // shape from the relationship words), so everyone has a character.
-import type { Profile } from "../api";
+import type { PhotoSlot, Profile } from "../api";
 import type { Worn } from "./garments";
 
 export type Age = "child" | "teen" | "adult" | "elder";
 export type Figure = "feminine" | "masculine" | "neutral";
 export type Build = "slim" | "average" | "broad";
 export type HairStyle = "short" | "long" | "bun" | "curly" | "bald";
-/** The four head images; `left` and `right` are profiles with the nose toward that edge. */
-export type FaceView = "front" | "left" | "right" | "back";
+/**
+ * The head images. `left` and `right` are 90° profiles with the nose toward that
+ * edge; `frontLeft` and `frontRight` are turned 45° that way. The rest are for
+ * people lying down, seen from the raised camera: `up` is the face looking at the
+ * ceiling, `sleeping` the same with closed eyes, `sleepingLeft` / `sleepingRight`
+ * closed-eye profiles on a pillow, `down` the head turned face-down. Every view but
+ * the first four is optional: the fallback stands in until an image exists.
+ */
+export type FaceView = "front" | "frontLeft" | "frontRight" | "left" | "right" | "back" | "up" | "sleeping" | "sleepingLeft" | "sleepingRight" | "down";
 
 export interface Character {
   age: Age;
@@ -47,7 +54,30 @@ export const AGES: Record<Age, { label: string; height: number }> = {
 export const FIGURES: Record<Figure, string> = { feminine: "Feminine", masculine: "Masculine", neutral: "Neutral" };
 export const BUILDS: Record<Build, string> = { slim: "Slim", average: "Average", broad: "Broad" };
 export const HAIR_STYLES: Record<HairStyle, string> = { short: "Short", long: "Long", bun: "Bun", curly: "Curly", bald: "Bald" };
-export const FACE_VIEWS: FaceView[] = ["front", "left", "right", "back"];
+/**
+ * Every head view: its photo slot, a label, what it shows (for people and the
+ * face-generation skill) and what shows in its place without an image. To add a
+ * view, add it here and to the Rust `Faces` and `PhotoSlot`, `set_person_faces`,
+ * and the generate-face-views skill; the editor and the world pick it up from here.
+ */
+export const FACE_DEFS: Record<FaceView, { slot: string; label: string; hint: string; fallback?: FaceView }> = {
+  front: { slot: "face_front", label: "Front", hint: "front face view" },
+  frontLeft: { slot: "face_front_left", label: "45° left", hint: "45° left face view", fallback: "front" },
+  frontRight: { slot: "face_front_right", label: "45° right", hint: "45° right face view", fallback: "front" },
+  left: { slot: "face_left", label: "Left", hint: "left face view" },
+  right: { slot: "face_right", label: "Right", hint: "right face view" },
+  back: { slot: "face_back", label: "Back", hint: "back-of-head view" },
+  up: { slot: "face_up", label: "Looking up", hint: "face looking up at the ceiling (lying on the back)", fallback: "front" },
+  sleeping: { slot: "face_sleeping", label: "Sleeping", hint: "sleeping face, eyes closed, lying on the back", fallback: "up" },
+  sleepingLeft: { slot: "face_sleeping_left", label: "Sleeping, left", hint: "sleeping profile, eyes closed, nose to the left", fallback: "left" },
+  sleepingRight: { slot: "face_sleeping_right", label: "Sleeping, right", hint: "sleeping profile, eyes closed, nose to the right", fallback: "right" },
+  down: { slot: "face_down", label: "Looking down", hint: "head turned down, face toward the bed", fallback: "back" },
+};
+export const FACE_VIEWS = Object.keys(FACE_DEFS) as FaceView[];
+/** The view shown when a person has no image for this one. */
+export const FALLBACK_VIEW: Partial<Record<FaceView, FaceView>> = Object.fromEntries(FACE_VIEWS.filter((v) => FACE_DEFS[v].fallback).map((v) => [v, FACE_DEFS[v].fallback]));
+/** The photo slot that holds each view. */
+export const FACE_SLOTS = Object.fromEntries(FACE_VIEWS.map((v) => [v, FACE_DEFS[v].slot])) as Record<FaceView, PhotoSlot>;
 
 export const SKIN_TONES = ["#f6d5bf", "#e8b796", "#e0ac85", "#c68e64", "#a5683f", "#7a4a2e", "#5a3420"];
 /** The Monk Skin Tone Scale, lightest to deepest (Ellis Monk and Google, CC BY 4.0: skintone.google). */
@@ -73,6 +103,7 @@ export function ageFromBirthday(birthday: string, now = new Date()): Age | null 
 /** The profile's character with every field filled in. */
 export function characterOf(profile: Profile): Character {
   const saved = (profile.character ?? {}) as Partial<Character>;
+  // Unsigned shifts (>>>): the hash can be over 2^31, and >> would make it negative.
   const h = hash(profile.id);
   const figure: Figure = profile.terms === "feminine" ? "feminine" : profile.terms === "masculine" ? "masculine" : "neutral";
   const age = saved.age ?? ageFromBirthday(profile.birthday) ?? "adult";
@@ -83,9 +114,9 @@ export function characterOf(profile: Profile): Character {
     skin: saved.skin ?? SKIN_TONES[h % SKIN_TONES.length],
     hair: {
       style: saved.hair?.style ?? (figure === "feminine" ? "long" : "short"),
-      color: saved.hair?.color ?? (age === "elder" ? "#d4d4d4" : HAIR_COLORS[(h >> 3) % 4]),
+      color: saved.hair?.color ?? (age === "elder" ? "#d4d4d4" : HAIR_COLORS[(h >>> 3) % 4]),
     },
-    top: saved.top ?? OUTFIT_COLORS[(h >> 5) % OUTFIT_COLORS.length],
+    top: saved.top ?? OUTFIT_COLORS[(h >>> 5) % OUTFIT_COLORS.length],
     bottom: saved.bottom ?? "#334155",
     skirt: saved.skirt ?? false,
     glasses: saved.glasses ?? false,

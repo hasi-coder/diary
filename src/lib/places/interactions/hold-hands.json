@@ -1,0 +1,49 @@
+{
+  "id": "hold-hands",
+  "label": "Hold hands",
+  "emoji": "🤝",
+  "category": "social",
+  "description": "Stand side by side and hold hands.",
+  "people": {
+    "min": 2,
+    "max": 2
+  },
+  "beat": 0.55,
+  "length": 8,
+  "loop": false,
+  "formation": {
+    "type": "spots",
+    "spots": [
+      {
+        "role": "lead",
+        "at": [
+          0,
+          0
+        ],
+        "facing": 0
+      },
+      {
+        "role": "partner",
+        "at": [
+          0.55,
+          0
+        ],
+        "facing": 0
+      }
+    ]
+  },
+  "roles": {
+    "lead": [
+      {"beat": 0},
+      {"beat": 2, "armR": [10, 35], "elbowR": 25, "wristR": [0, -10, 0], "emote": "💕"},
+      {"beat": 6, "armR": [10, 35], "elbowR": 25, "wristR": [0, -10, 0]},
+      {"beat": 8}
+    ],
+    "partner": [
+      {"beat": 0},
+      {"beat": 2, "armL": [10, 35], "elbowL": 25, "wristL": [0, -10, 0], "emote": "💕"},
+      {"beat": 6, "armL": [10, 35], "elbowL": 25, "wristL": [0, -10, 0]},
+      {"beat": 8}
+    ]
+  }
+}

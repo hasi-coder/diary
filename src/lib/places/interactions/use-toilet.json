@@ -1,0 +1,55 @@
+{
+  "id": "use-toilet",
+  "label": "Use toilet",
+  "emoji": "\ud83d\udebb",
+  "category": "household",
+  "description": "Use the toilet privately, then leave the seat.",
+  "people": {
+    "min": 1,
+    "max": 1
+  },
+  "beat": 0.55,
+  "length": 12,
+  "loop": false,
+  "formation": {
+    "type": "stay",
+    "role": "person"
+  },
+  "target": {
+    "kinds": [
+      "toilet"
+    ],
+    "posture": "sit",
+    "leaveSeat": true
+  },
+  "roles": {
+    "person": [
+      {
+        "beat": 0
+      },
+      {
+        "beat": 2,
+        "head": [
+          8,
+          0,
+          0
+        ]
+      },
+      {
+        "beat": 10
+      },
+      {
+        "beat": 12
+      }
+    ]
+  },
+  "wardrobe": {
+    "at": 1,
+    "restoreAt": 11,
+    "remove": [
+      "hips",
+      "thighs",
+      "calves"
+    ]
+  }
+}

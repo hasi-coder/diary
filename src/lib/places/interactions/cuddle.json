@@ -1,0 +1,56 @@
+{
+  "id": "cuddle",
+  "label": "Cuddle on the sofa",
+  "emoji": "🛋️",
+  "category": "romantic",
+  "description": "Sit together, put an arm around each other and lean close.",
+  "people": {
+    "min": 2,
+    "max": 2
+  },
+  "beat": 0.55,
+  "length": 10,
+  "loop": false,
+  "formation": {
+    "type": "spots",
+    "spots": [
+      {
+        "role": "lead",
+        "at": [
+          0,
+          0
+        ],
+        "facing": 0
+      },
+      {
+        "role": "partner",
+        "at": [
+          0,
+          0.5
+        ],
+        "facing": 180
+      }
+    ]
+  },
+  "target": {
+    "kinds": [
+      "sofa",
+      "bench"
+    ],
+    "posture": "sit"
+  },
+  "roles": {
+    "lead": [
+      {"beat": 0},
+      {"beat": 2, "armL": [15, 55], "elbowL": 45, "tilt": -12, "head": [0, 0, -8], "emote": "💞"},
+      {"beat": 8, "armL": [15, 55], "elbowL": 45, "tilt": -12, "head": [0, 0, -8]},
+      {"beat": 10}
+    ],
+    "partner": [
+      {"beat": 0},
+      {"beat": 2, "armR": [15, 55], "elbowR": 45, "tilt": 12, "head": [0, 0, 8], "emote": "💞"},
+      {"beat": 8, "armR": [15, 55], "elbowR": 45, "tilt": 12, "head": [0, 0, 8]},
+      {"beat": 10}
+    ]
+  }
+}

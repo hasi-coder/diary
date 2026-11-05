@@ -1,0 +1,26 @@
+{
+  "label": "Sri Lankan school · white frock",
+  "description": "White collared, pleated frock with waistband, white socks and shoes. Colours and accessories can be adjusted for the school.",
+  "wearing": [
+    {
+      "garment": "feminine_underwear_vest",
+      "color": "#f1f5f9"
+    },
+    {
+      "garment": "feminine_underwear_briefs",
+      "color": "#cbd5e1"
+    },
+    {
+      "garment": "feminine_base_school_frock",
+      "color": "#f8fafc"
+    },
+    {
+      "garment": "feminine_footwear_crew_socks",
+      "color": "#f8fafc"
+    },
+    {
+      "garment": "feminine_footwear_school_shoes",
+      "color": "#f8fafc"
+    }
+  ]
+}

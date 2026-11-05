@@ -1,0 +1,37 @@
+{
+  "id": "wash-hands",
+  "label": "Wash hands",
+  "emoji": "🫧",
+  "category": "household",
+  "description": "Wash hands at the sink.",
+  "people": {
+    "min": 1,
+    "max": 1
+  },
+  "beat": 0.55,
+  "length": 8,
+  "loop": false,
+  "formation": {
+    "type": "stay",
+    "role": "person"
+  },
+  "target": {
+    "kinds": [
+      "sink"
+    ],
+    "posture": "stand"
+  },
+  "water": true,
+  "roles": {
+    "person": [
+      {"beat": 0},
+      {"beat": 1, "armL": [35, -8], "armR": [35, -8], "elbowL": 50, "elbowR": 50, "lean": 12, "emote": "🫧"},
+      {"beat": 2, "armL": [35, -8], "armR": [35, -8], "elbowL": 50, "elbowR": 50, "wristL": [-10, 0, 15], "wristR": [10, 0, -15], "lean": 12},
+      {"beat": 3, "armL": [35, -8], "armR": [35, -8], "elbowL": 50, "elbowR": 50, "wristL": [10, 0, 15], "wristR": [-10, 0, -15], "lean": 12},
+      {"beat": 4, "armL": [35, -8], "armR": [35, -8], "elbowL": 50, "elbowR": 50, "wristL": [-10, 0, 15], "wristR": [10, 0, -15], "lean": 12},
+      {"beat": 5, "armL": [35, -8], "armR": [35, -8], "elbowL": 50, "elbowR": 50, "wristL": [10, 0, 15], "wristR": [-10, 0, -15], "lean": 12},
+      {"beat": 6, "armL": [35, -8], "armR": [35, -8], "elbowL": 50, "elbowR": 50, "wristL": [-10, 0, 15], "wristR": [10, 0, -15], "lean": 12},
+      {"beat": 8}
+    ]
+  }
+}

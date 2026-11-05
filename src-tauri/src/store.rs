@@ -3243,6 +3243,10 @@ mod tests {
         assert_eq!((edited.character, edited.faces.front.map(|m| m.id)), (Some(look), Some(front.id.clone())));
         let back = ws.stage_media("back.png", png(2)).unwrap();
         ws.set_profile_photo(&june.id, PhotoSlot::FaceBack, Some(back.id.clone())).unwrap();
+        let asleep = ws.stage_media("asleep.png", png(4)).unwrap();
+        ws.set_profile_photo(&june.id, PhotoSlot::FaceSleeping, Some(asleep.id.clone())).unwrap();
+        assert_eq!(ws.profiles[&june.id].faces.sleeping.as_ref().unwrap().id, asleep.id);
+        assert!(ws.profiles[&june.id].photos().any(|m| m.id == asleep.id), "lying-down views count as the person's photos");
         let ws2 = open_workspace(root.path(), "workspace_personal", "correct horse").unwrap();
         assert_eq!(ws2.profiles[&june.id].faces.back.as_ref().unwrap().id, back.id);
         let other = ws.stage_media("front2.png", png(3)).unwrap();

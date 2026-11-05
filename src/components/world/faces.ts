@@ -10,14 +10,25 @@ function shade(hex: string, f: number): string {
   return `rgb(${ch.map((c) => Math.round(f >= 0 ? c + (255 - c) * f : c * (1 + f))).join(",")})`;
 }
 
+/** How a drawn face stands in for the views that are only drawn from a photo. */
+const DRAWN_AS: Partial<Record<FaceView, { view: "front" | "left" | "right" | "back"; closed?: boolean }>> = {
+  frontLeft: { view: "front" }, frontRight: { view: "front" },
+  up: { view: "front" }, down: { view: "back" },
+  sleeping: { view: "front", closed: true }, sleepingLeft: { view: "left", closed: true }, sleepingRight: { view: "right", closed: true },
+};
+
 /** Draws a head of radius r centred at (cx, cy). "left" is "right" mirrored. */
-export function drawFace(ctx: CanvasRenderingContext2D, cx: number, cy: number, r: number, view: FaceView, look: Character) {
+export function drawFace(ctx: CanvasRenderingContext2D, cx: number, cy: number, r: number, view: FaceView, look: Character, closed = false) {
+  // Drawn faces have no 45° views; the front stands in, as it does in the world.
+  // Lying-down views are the same faces seen from above; sleeping ones have closed eyes.
+  const base = DRAWN_AS[view];
+  if (base) { view = base.view; closed = closed || !!base.closed; }
   if (view === "left") {
     ctx.save();
     ctx.translate(cx, 0);
     ctx.scale(-1, 1);
     ctx.translate(-cx, 0);
-    drawFace(ctx, cx, cy, r, "right", look);
+    drawFace(ctx, cx, cy, r, "right", look, closed);
     ctx.restore();
     return;
   }
@@ -104,8 +115,14 @@ export function drawFace(ctx: CanvasRenderingContext2D, cx: number, cy: number, 
   if (view === "front") {
     ctx.fillStyle = ink;
     for (const s of [-1, 1]) {
-      circle(cx + s * r * 0.36, cy + r * 0.12, r * 0.12);
-      ctx.fill();
+      if (closed) {
+        ctx.beginPath();
+        ctx.arc(cx + s * r * 0.36, cy + r * 0.1, r * 0.14, 0.15 * Math.PI, 0.85 * Math.PI);
+        ctx.stroke();
+      } else {
+        circle(cx + s * r * 0.36, cy + r * 0.12, r * 0.12);
+        ctx.fill();
+      }
     }
     ctx.beginPath();
     ctx.arc(cx, cy + r * 0.35, r * 0.25, 0.2 * Math.PI, 0.8 * Math.PI);
@@ -139,8 +156,14 @@ export function drawFace(ctx: CanvasRenderingContext2D, cx: number, cy: number, 
     ctx.ellipse(cx - r * 0.15, cy + r * 0.15, r * 0.17, r * 0.25, 0, 0, Math.PI * 2);
     ctx.fill();
     ctx.fillStyle = ink;
-    circle(cx + r * 0.5, cy + r * 0.1, r * 0.12);
-    ctx.fill();
+    if (closed) {
+      ctx.beginPath();
+      ctx.arc(cx + r * 0.5, cy + r * 0.08, r * 0.13, 0.15 * Math.PI, 0.85 * Math.PI);
+      ctx.stroke();
+    } else {
+      circle(cx + r * 0.5, cy + r * 0.1, r * 0.12);
+      ctx.fill();
+    }
     ctx.beginPath();
     ctx.moveTo(cx + r * 0.55, cy + r * 0.58);
     ctx.lineTo(cx + r * 0.85, cy + r * 0.55);
@@ -190,7 +213,12 @@ export function faceAvatar(profile: Profile, size = 64): HTMLCanvasElement {
 
 const photoCache = new Map<string, Promise<HTMLCanvasElement | null>>();
 
-/** A face photo cut to a circle, as a square canvas; null when it can't load. */
+/**
+ * A face image as a square canvas; null when it can't load. Images with a
+ * transparent background (made for the purpose) are used as they are; one on a
+ * plain white background (a face view uploaded as JPEG) has the white around it
+ * removed; anything else, a real photo, is cut to a circle.
+ */
 export function photoHead(mediaId: string, size = 256): Promise<HTMLCanvasElement | null> {
   const key = `${mediaId}:${size}`;
   let p = photoCache.get(key);
@@ -201,12 +229,26 @@ export function photoHead(mediaId: string, size = 256): Promise<HTMLCanvasElemen
       img.onload = () => {
         const canvas = document.createElement("canvas");
         canvas.width = canvas.height = size;
-        const c = canvas.getContext("2d")!;
-        c.beginPath();
-        c.arc(size / 2, size / 2, size * 0.48, 0, Math.PI * 2);
-        c.clip();
+        const c = canvas.getContext("2d", { willReadFrequently: true })!;
         const s = Math.min(img.width, img.height);
-        c.drawImage(img, (img.width - s) / 2, (img.height - s) / 2, s, s, 0, 0, size, size);
+        const draw = () => c.drawImage(img, (img.width - s) / 2, (img.height - s) / 2, s, s, 0, 0, size, size);
+        draw();
+        const data = c.getImageData(0, 0, size, size);
+        const corners = [0, size - 1, size * (size - 1), size * size - 1].map((i) => i * 4);
+        if (corners.some((i) => data.data[i + 3] < 32)) {
+          // Already transparent.
+        } else if (corners.every((i) => isPaper(data.data, i))) {
+          clearPaper(data, size);
+          c.putImageData(data, 0, 0);
+        } else {
+          c.clearRect(0, 0, size, size);
+          c.save();
+          c.beginPath();
+          c.arc(size / 2, size / 2, size * 0.48, 0, Math.PI * 2);
+          c.clip();
+          draw();
+          c.restore();
+        }
         resolve(canvas);
       };
       img.onerror = () => resolve(null);
@@ -215,4 +257,36 @@ export function photoHead(mediaId: string, size = 256): Promise<HTMLCanvasElemen
     photoCache.set(key, p);
   }
   return p;
+}
+
+/** Near-white and grey-free: the plain background a face view was flattened onto. */
+function isPaper(px: Uint8ClampedArray, i: number): boolean {
+  const [r, g, b] = [px[i], px[i + 1], px[i + 2]];
+  return Math.min(r, g, b) > 228 && Math.max(r, g, b) - Math.min(r, g, b) < 18;
+}
+
+/** Makes the white background transparent: only white reachable from the edges, so a white collar or eye stays. */
+function clearPaper(data: ImageData, size: number) {
+  const px = data.data;
+  const seen = new Uint8Array(size * size);
+  const stack: number[] = [];
+  for (let i = 0; i < size; i++) stack.push(i, size * (size - 1) + i, i * size, i * size + size - 1);
+  while (stack.length) {
+    const p = stack.pop()!;
+    if (seen[p] || !isPaper(px, p * 4)) continue;
+    seen[p] = 1;
+    px[p * 4 + 3] = 0;
+    const x = p % size;
+    if (x > 0) stack.push(p - 1);
+    if (x < size - 1) stack.push(p + 1);
+    if (p >= size) stack.push(p - size);
+    if (p < size * (size - 1)) stack.push(p + size);
+  }
+  // Soften the cut: edge pixels next to the cleared background go half see-through.
+  for (let p = 0; p < size * size; p++) {
+    if (seen[p]) continue;
+    const x = p % size;
+    const near = (x > 0 && seen[p - 1]) || (x < size - 1 && seen[p + 1]) || (p >= size && seen[p - size]) || (p < size * (size - 1) && seen[p + size]);
+    if (near) px[p * 4 + 3] = 140;
+  }
 }

@@ -1,0 +1,140 @@
+{
+ "id": "doctor-throat",
+ "label": "Check the throat",
+ "emoji": "🔦",
+  "category": "care",
+ "description": "A doctor shines a light into the patient's open mouth and looks at the throat.",
+ "people": {
+  "min": 2,
+  "max": 2
+ },
+ "beat": 0.8,
+ "length": 10,
+ "loop": false,
+ "formation": {
+  "type": "spots",
+  "spots": [
+   {
+    "role": "doctor",
+    "at": [
+     0,
+     0
+    ],
+    "facing": 0
+   },
+   {
+    "role": "patient",
+    "at": [
+     0,
+     0.55
+    ],
+    "facing": 180
+   }
+  ]
+ },
+ "roles": {
+  "doctor": [
+   {
+    "beat": 0
+   },
+   {
+    "beat": 1,
+    "armR": [
+     105,
+     6
+    ],
+    "elbowR": 8,
+    "armL": [
+     20,
+     12
+    ],
+    "elbowL": 10,
+    "lean": 8,
+    "head": [
+     10,
+     0,
+     0
+    ],
+    "emote": "🔦"
+   },
+   {
+    "beat": 6,
+    "armR": [
+     105,
+     6
+    ],
+    "elbowR": 8,
+    "armL": [
+     20,
+     12
+    ],
+    "elbowL": 10,
+    "lean": 10,
+    "head": [
+     14,
+     0,
+     0
+    ]
+   },
+   {
+    "beat": 8,
+    "armR": [
+     25,
+     10
+    ],
+    "elbowR": 85,
+    "armL": [
+     15,
+     10
+    ],
+    "lean": 0,
+    "head": [
+     0,
+     0,
+     0
+    ],
+    "emote": "👍"
+   },
+   {
+    "beat": 10,
+    "emote": ""
+   }
+  ],
+  "patient": [
+   {
+    "beat": 0
+   },
+   {
+    "beat": 1,
+    "head": [
+     -14,
+     0,
+     0
+    ],
+    "emote": "😮"
+   },
+   {
+    "beat": 6,
+    "head": [
+     -16,
+     0,
+     0
+    ],
+    "emote": "😮"
+   },
+   {
+    "beat": 8,
+    "head": [
+     0,
+     0,
+     0
+    ],
+    "emote": "😌"
+   },
+   {
+    "beat": 10,
+    "emote": ""
+   }
+  ]
+ }
+}

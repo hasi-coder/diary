@@ -9,13 +9,16 @@ import { useJournal } from "../lib/journal";
 import { AgentAccessCard } from "../components/AgentAccessCard";
 import { SyncCard } from "../components/SyncParts";
 import { ChangePasswordDialog } from "../components/ChangePassword";
+import { InteractionSettingsCard } from "../components/InteractionSettingsCard";
 import { Page } from "../components/Shell";
 import { Button, ErrorText } from "../components/ui";
 
 export function SettingsView() {
-  const { snapshot, owner } = useJournal();
+  const { snapshot, owner, route } = useJournal();
   const { workspace, storage } = snapshot;
   const [changingPassword, setChangingPassword] = useState(false);
+  const section = route.view === "settings" ? route.section : undefined;
+  useEffect(() => { if (section) document.getElementById(section)?.scrollIntoView({ block: "start" }); }, [section]);
 
   return (
     <Page
@@ -26,6 +29,8 @@ export function SettingsView() {
       }
     >
       <div className="space-y-6">
+        <InteractionSettingsCard />
+
         <MigrationCard />
 
         <StorageCard />

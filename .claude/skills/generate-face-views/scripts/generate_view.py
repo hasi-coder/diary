@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate one head view (front, left, right or back) of a person from reference images.
+"""Generate one head view (front, frontLeft, frontRight, left, right, back, up, sleeping, sleepingLeft, sleepingRight or down) of a person from reference images.
 
     python3 generate_view.py --view front --style illustrated --ref photo.jpg --out front.png
     python3 generate_view.py --view left --ref front.png --ref photo.jpg --out left.png
@@ -22,9 +22,16 @@ URL = "https://api.openai.com/v1/images/edits"
 
 VIEWS = {
     "front": "Looking straight at the viewer, face fully visible, neutral friendly expression.",
+    "frontLeft": "Three-quarter view: the person has turned 45 degrees so their nose points toward the LEFT edge of the image; both eyes visible, the far eye partly hidden by the nose bridge; not a full profile, not straight on.",
+    "frontRight": "Three-quarter view: the person has turned 45 degrees so their nose points toward the RIGHT edge of the image; both eyes visible, the far eye partly hidden by the nose bridge; not a full profile, not straight on.",
     "left": "Exact side profile: the person has turned so their nose points to the LEFT edge of the image; only one eye visible.",
     "right": "Exact side profile: the person has turned so their nose points to the RIGHT edge of the image; only one eye visible.",
     "back": "Seen from directly behind: the back of the head and hair only, no face, no ears' front, same hairstyle and colour.",
+    "up": "The person is lying on their back and looking up at the viewer, who is above them: face fully visible, chin toward the bottom of the image, eyes open, relaxed expression.",
+    "sleeping": "The person is lying on their back, seen from above: face fully visible, chin toward the bottom of the image, eyes gently closed, completely relaxed, peaceful sleeping expression.",
+    "sleepingLeft": "Exact side profile of a sleeping person: nose points to the LEFT edge of the image, one eye visible and gently closed, relaxed peaceful expression.",
+    "sleepingRight": "Exact side profile of a sleeping person: nose points to the RIGHT edge of the image, one eye visible and gently closed, relaxed peaceful expression.",
+    "down": "The person's head is bowed face-down, seen from above and slightly behind: the forehead and crown of the head with hair, the face hidden, same hairstyle and colour.",
 }
 
 STYLES = {

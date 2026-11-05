@@ -1,0 +1,264 @@
+{
+ "id": "doctor-consultation",
+ "label": "Consultation",
+ "emoji": "🧑‍⚕️",
+  "category": "care",
+ "description": "A doctor explains the diagnosis while the patient listens, asks and nods.",
+ "people": {
+  "min": 2,
+  "max": 2
+ },
+ "beat": 0.8,
+ "length": 16,
+ "loop": false,
+ "formation": {
+  "type": "spots",
+  "spots": [
+   {
+    "role": "doctor",
+    "at": [
+     0,
+     0
+    ],
+    "facing": 0
+   },
+   {
+    "role": "patient",
+    "at": [
+     0,
+     0.9
+    ],
+    "facing": 180
+   }
+  ]
+ },
+ "roles": {
+  "doctor": [
+   {
+    "beat": 0
+   },
+   {
+    "beat": 1,
+    "armR": [
+     55,
+     25
+    ],
+    "elbowR": 75,
+    "armL": [
+     30,
+     15
+    ],
+    "head": [
+     4,
+     0,
+     0
+    ],
+    "emote": "💬"
+   },
+   {
+    "beat": 3,
+    "armR": [
+     60,
+     35
+    ],
+    "elbowR": 60,
+    "wristR": [
+     -10,
+     0,
+     20
+    ],
+    "armL": [
+     30,
+     15
+    ],
+    "head": [
+     4,
+     0,
+     0
+    ]
+   },
+   {
+    "beat": 5,
+    "armR": [
+     50,
+     20
+    ],
+    "elbowR": 85,
+    "armL": [
+     55,
+     22
+    ],
+    "elbowL": 70,
+    "head": [
+     4,
+     0,
+     0
+    ]
+   },
+   {
+    "beat": 7,
+    "armR": [
+     62,
+     32
+    ],
+    "elbowR": 55,
+    "armL": [
+     30,
+     15
+    ],
+    "head": [
+     6,
+     -8,
+     0
+    ]
+   },
+   {
+    "beat": 9,
+    "armR": [
+     48,
+     20
+    ],
+    "elbowR": 80,
+    "armL": [
+     48,
+     24
+    ],
+    "elbowL": 75,
+    "emote": "📋",
+    "head": [
+     6,
+     -8,
+     0
+    ]
+   },
+   {
+    "beat": 12,
+    "armR": [
+     58,
+     28
+    ],
+    "elbowR": 65,
+    "head": [
+     4,
+     6,
+     0
+    ],
+    "armL": [
+     48,
+     24
+    ],
+    "elbowL": 75
+   },
+   {
+    "beat": 14,
+    "armR": [
+     20,
+     12
+    ],
+    "armL": [
+     20,
+     12
+    ],
+    "head": [
+     0,
+     0,
+     0
+    ],
+    "emote": "🙂"
+   },
+   {
+    "beat": 16,
+    "emote": ""
+   }
+  ],
+  "patient": [
+   {
+    "beat": 0
+   },
+   {
+    "beat": 2,
+    "head": [
+     8,
+     0,
+     0
+    ],
+    "emote": "🤔"
+   },
+   {
+    "beat": 4,
+    "head": [
+     14,
+     0,
+     3
+    ]
+   },
+   {
+    "beat": 6,
+    "head": [
+     0,
+     0,
+     0
+    ],
+    "armR": [
+     45,
+     25
+    ],
+    "elbowR": 75,
+    "emote": "❓"
+   },
+   {
+    "beat": 8,
+    "head": [
+     10,
+     0,
+     0
+    ],
+    "armR": [
+     45,
+     25
+    ],
+    "elbowR": 75
+   },
+   {
+    "beat": 10,
+    "head": [
+     14,
+     0,
+     -3
+    ],
+    "armR": [
+     45,
+     25
+    ],
+    "elbowR": 75
+   },
+   {
+    "beat": 12,
+    "head": [
+     0,
+     0,
+     0
+    ],
+    "emote": "😌",
+    "armR": [
+     45,
+     25
+    ],
+    "elbowR": 75
+   },
+   {
+    "beat": 14,
+    "head": [
+     16,
+     0,
+     0
+    ],
+    "emote": "🙏"
+   },
+   {
+    "beat": 16,
+    "emote": ""
+   }
+  ]
+ }
+}

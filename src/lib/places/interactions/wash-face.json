@@ -1,0 +1,37 @@
+{
+  "id": "wash-face",
+  "label": "Wash face",
+  "emoji": "💦",
+  "category": "household",
+  "description": "Wash face at the sink.",
+  "people": {
+    "min": 1,
+    "max": 1
+  },
+  "beat": 0.55,
+  "length": 8,
+  "loop": false,
+  "formation": {
+    "type": "stay",
+    "role": "person"
+  },
+  "target": {
+    "kinds": [
+      "sink"
+    ],
+    "posture": "stand"
+  },
+  "water": true,
+  "roles": {
+    "person": [
+      {"beat": 0},
+      {"beat": 1, "armL": [25, -10], "armR": [25, -10], "elbowL": 115, "elbowR": 115, "head": [15, 0, 0], "lean": 12, "emote": "💦"},
+      {"beat": 2, "armL": [25, -10], "armR": [25, -10], "elbowL": 65, "elbowR": 65, "head": [15, 0, 0], "lean": 12, "emote": "💦"},
+      {"beat": 3, "armL": [25, -10], "armR": [25, -10], "elbowL": 115, "elbowR": 115, "head": [15, 0, 0], "lean": 12, "emote": "💦"},
+      {"beat": 4, "armL": [25, -10], "armR": [25, -10], "elbowL": 65, "elbowR": 65, "head": [15, 0, 0], "lean": 12, "emote": "💦"},
+      {"beat": 5, "armL": [25, -10], "armR": [25, -10], "elbowL": 115, "elbowR": 115, "head": [15, 0, 0], "lean": 12, "emote": "💦"},
+      {"beat": 6, "armL": [25, -10], "armR": [25, -10], "elbowL": 65, "elbowR": 65, "head": [15, 0, 0], "lean": 12, "emote": "💦"},
+      {"beat": 8}
+    ]
+  }
+}

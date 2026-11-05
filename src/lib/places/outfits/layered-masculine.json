@@ -1,0 +1,42 @@
+{
+  "label": "Layered casual · masculine",
+  "description": "Underwear, base clothes, cardigan, open jacket, socks, shoes and scarf. Every layer can be changed independently.",
+  "wearing": [
+    {
+      "garment": "masculine_underwear_vest",
+      "color": "#e2e8f0"
+    },
+    {
+      "garment": "masculine_underwear_briefs",
+      "color": "#64748b"
+    },
+    {
+      "garment": "masculine_base_tee",
+      "color": "#38bdf8"
+    },
+    {
+      "garment": "masculine_base_chinos",
+      "color": "#334155"
+    },
+    {
+      "garment": "masculine_mid_cardigan",
+      "color": "#f5d0fe"
+    },
+    {
+      "garment": "masculine_outer_blazer",
+      "color": "#881337"
+    },
+    {
+      "garment": "masculine_footwear_crew_socks",
+      "color": "#f8fafc"
+    },
+    {
+      "garment": "masculine_footwear_loafers",
+      "color": "#292524"
+    },
+    {
+      "garment": "masculine_accessories_scarf",
+      "color": "#fbbf24"
+    }
+  ]
+}

@@ -47,6 +47,7 @@ export const WorldScene = forwardRef<WorldSceneHandle, Props>(function WorldScen
     const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.outputColorSpace = THREE.SRGBColorSpace;
+    renderer.localClippingEnabled = true;
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     renderer.domElement.style.display = "block";
@@ -63,14 +64,27 @@ export const WorldScene = forwardRef<WorldSceneHandle, Props>(function WorldScen
     scene.add(ground);
     const view = buildPlace(world.place);
     scene.add(view.group);
+    const water = new THREE.Group();
+    water.visible = false;
+    const dropGeometry = new THREE.SphereGeometry(0.018, 5, 4);
+    const dropMaterial = new THREE.MeshBasicMaterial({ color: "#7dd3fc", transparent: true, opacity: 0.8 });
+    for (let i = 0; i < 16; i++) water.add(new THREE.Mesh(dropGeometry, dropMaterial));
+    scene.add(water);
 
     const figures = new Map<string, Figure>();
+    const failed = new Set<string>();
     const syncFigures = () => {
       for (const a of world.actors)
-        if (!figures.has(a.id)) {
-          const f = new Figure(a);
-          figures.set(a.id, f);
-          scene.add(f.group);
+        if (!figures.has(a.id) && !failed.has(a.id)) {
+          // One person who can't be drawn mustn't stop the world for everyone.
+          try {
+            const f = new Figure(a);
+            figures.set(a.id, f);
+            scene.add(f.group);
+          } catch (e) {
+            failed.add(a.id);
+            console.error(`Can't draw ${a.profile.name}`, e);
+          }
         }
       for (const [id, f] of figures)
         if (!world.actors.some((a) => a.id === id)) {
@@ -133,7 +147,10 @@ export const WorldScene = forwardRef<WorldSceneHandle, Props>(function WorldScen
         if (!o) continue;
         const pick = o.userData.pick;
         const at = { x: e.clientX - rect.left, y: e.clientY - rect.top };
-        if (typeof pick === "string" && pick !== "floor") return live.current.onPick({ kind: "actor", id: pick }, at);
+        if (typeof pick === "string" && pick !== "floor") {
+          if (world.actors.find((actor) => actor.id === pick)?.hidden) continue;
+          return live.current.onPick({ kind: "actor", id: pick }, at);
+        }
         if (pick === "floor") return live.current.onPick({ kind: "floor", x: hit.point.x, y: hit.point.z }, at);
         if ("edge" in pick) return live.current.onPick({ kind: "door", door: pick }, at);
         if ("spec" in pick) return live.current.onPick({ kind: "item", item: pick, x: hit.point.x, y: hit.point.z }, at);
@@ -184,6 +201,17 @@ export const WorldScene = forwardRef<WorldSceneHandle, Props>(function WorldScen
       const me = world.author;
       view.update({ walls: p.top ? "down" : p.walls, author: me ? world.cellOf(me) : null, azimuth, dt });
       view.labels.visible = p.labels;
+      const activity = world.activity;
+      const fixture = activity?.state === "playing" && activity.def.water ? activity.target : undefined;
+      water.visible = !!fixture;
+      if (fixture) {
+        const shower = fixture.kind === "shower";
+        water.position.set(fixture.x + fixture.w / 2, 0, fixture.y + fixture.h / 2);
+        water.children.forEach((drop, index) => {
+          const phase = (world.t * 1.5 + index / water.children.length) % 1;
+          drop.position.set(Math.sin(index * 7) * (shower ? 0.2 : 0.08), (shower ? 1.9 : 1.05) - phase * (shower ? 1.7 : 0.22), Math.cos(index * 7) * (shower ? 0.2 : 0.08));
+        });
+      }
       for (const [id, f] of figures) {
         const tag = p.tags.get(id);
         f.update(azimuth, world.t, { selected: p.selectedId === id, tag: tag?.text ?? null, tagColor: tag?.color });
@@ -201,6 +229,8 @@ export const WorldScene = forwardRef<WorldSceneHandle, Props>(function WorldScen
       renderer.domElement.removeEventListener("wheel", onWheel);
       for (const f of figures.values()) f.dispose();
       view.dispose();
+      dropGeometry.dispose();
+      dropMaterial.dispose();
       ground.geometry.dispose();
       renderer.dispose();
       renderer.domElement.remove();

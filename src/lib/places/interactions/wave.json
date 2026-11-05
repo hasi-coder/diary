@@ -2,6 +2,7 @@
   "id": "wave",
   "label": "Wave hello",
   "emoji": "👋",
+  "category": "social",
   "description": "Everyone waves, one after another.",
   "people": {"min": 2, "max": 12},
   "beat": 0.3,

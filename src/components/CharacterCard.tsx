@@ -8,18 +8,18 @@ import {
   AGES,
   BUILDS,
   characterOf,
+  FACE_DEFS,
+  FACE_SLOTS,
   FACE_VIEWS,
   FIGURES,
   HAIR_COLORS,
   HAIR_STYLES,
   MONK_SKIN_TONES,
-  OUTFIT_COLORS,
   type BodySliders,
   type Character,
   type FaceView,
 } from "../lib/places/character";
-import { GARMENTS, garment, legacyFields, outfitOf, SHOE_COLORS, SLOTS, withSlot, type Slot } from "../lib/places/garments";
-import { applyOutfit, OUTFITS } from "../lib/places/outfits";
+import { ClothingEditor } from "./ClothingEditor";
 import { PhotoDialog } from "./ProfileExtras";
 import { presetSliders } from "./world/body";
 import { CharacterPreview } from "./world/CharacterPreview";
@@ -34,7 +34,6 @@ const SLIDERS: { key: keyof BodySliders; label: string; ends: [string, string]; 
   { key: "bust", label: "Bust", ends: ["Smaller", "Larger"], min: -1 },
 ];
 
-const FACE_HINTS: Record<FaceView, string> = { front: "Front", left: "Left (nose to the left)", right: "Right (nose to the right)", back: "Back of the head" };
 
 export function CharacterCard({ profile }: { profile: Profile }) {
   const { refresh } = useJournal();
@@ -46,13 +45,6 @@ export function CharacterCard({ profile }: { profile: Profile }) {
   const dirty = JSON.stringify(look) !== JSON.stringify(saved);
   const set = (patch: Partial<Character>) => setLook((l) => ({ ...l, ...patch }));
   const sliders = { ...presetSliders(look), ...look.body };
-  const worn = outfitOf(look);
-  const wear = (slot: Slot, garmentId: string | null, color?: string) => {
-    const now = worn.find((w) => garment(w.garment)?.slot === slot);
-    const next = garmentId ? { garment: garmentId, color: color ?? now?.color ?? (slot === "feet" ? SHOE_COLORS[0] : OUTFIT_COLORS[0]) } : null;
-    const wearing = withSlot(worn, slot, next);
-    set({ wearing, ...legacyFields(wearing) });
-  };
 
   const save = async (character: Character | null) => {
     setBusy(true);
@@ -116,45 +108,7 @@ export function CharacterCard({ profile }: { profile: Profile }) {
             </div>
             <Swatches label="Hair colour" colors={HAIR_COLORS} value={look.hair.color} onChange={(color) => set({ hair: { ...look.hair, color } })} />
           </div>
-          <div className="space-y-2">
-            <div className="text-xs font-semibold text-slate-600">Clothes</div>
-            <div className="flex flex-wrap gap-1">
-              {OUTFITS.map((o) => {
-                const on = JSON.stringify(o.wearing) === JSON.stringify(worn);
-                return (
-                  <button
-                    key={o.id}
-                    title={o.description}
-                    onClick={() => set(applyOutfit(o))}
-                    className={`rounded-full px-3 py-1 text-xs font-medium ${on ? "bg-brand-600 text-white" : "bg-slate-100 text-slate-700 hover:bg-slate-200"}`}
-                  >
-                    {o.label}
-                  </button>
-                );
-              })}
-            </div>
-            {(Object.keys(SLOTS) as Slot[]).map((slot) => {
-              const on = worn.find((w) => garment(w.garment)?.slot === slot);
-              return (
-                <div key={slot} className="flex flex-wrap items-center gap-2">
-                  <select
-                    value={on?.garment ?? ""}
-                    onChange={(e) => wear(slot, e.target.value || null)}
-                    className="w-40 rounded-md border border-slate-300 bg-white px-2 py-1 text-sm"
-                    aria-label={SLOTS[slot].label}
-                  >
-                    {SLOTS[slot].optional && <option value="">No {SLOTS[slot].label.toLowerCase()}</option>}
-                    {GARMENTS.filter((g) => g.slot === slot).map((g) => (
-                      <option key={g.id} value={g.id}>
-                        {g.label}
-                      </option>
-                    ))}
-                  </select>
-                  {on && <Swatches colors={slot === "feet" ? SHOE_COLORS : OUTFIT_COLORS} value={on.color} onChange={(color) => wear(slot, on.garment, color)} />}
-                </div>
-              );
-            })}
-          </div>
+          <ClothingEditor profile={profile} look={look} onChange={set} />
           <div className="flex flex-wrap gap-4 text-sm text-slate-700">
             {(["glasses", "beard"] as const).map((k) => (
               <label key={k} className="flex items-center gap-1.5">
@@ -178,14 +132,14 @@ export function CharacterCard({ profile }: { profile: Profile }) {
       </div>
 
       <h3 className="mb-2 mt-6 font-semibold text-slate-800">Face views</h3>
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+      <div className="grid grid-cols-3 gap-3 sm:grid-cols-6">
         {FACE_VIEWS.map((view) => (
-          <FaceSlot key={view} profile={profile} look={look} view={view} onEdit={() => setSlot(`face_${view}`)} />
+          <FaceSlot key={view} profile={profile} look={look} view={view} onEdit={() => setSlot(FACE_SLOTS[view])} />
         ))}
       </div>
       <p className="mt-2 flex items-start gap-1.5 text-xs text-slate-500">
         <SparkleIcon className="mt-0.5 shrink-0" />
-        Make all four from one photo with the generate-face-views skill (Codex). It uploads them here over Agent access. Without photos, a drawn face is used.
+        Make them from one photo with the generate-face-views skill (Codex): the first four are needed, the 45° and lying-down views are optional and fall back to the nearest one. It uploads them here over Agent access. Without photos, a drawn face is used.
       </p>
       {slot && <PhotoDialog profile={profile} slot={slot} onClose={() => setSlot(null)} />}
     </section>
@@ -198,7 +152,7 @@ function FaceSlot({ profile, look, view, onEdit }: { profile: Profile; look: Cha
   return (
     <button onClick={onEdit} className="rounded-xl border border-dashed border-slate-300 p-2 text-center hover:border-brand-500">
       <img src={photo ? mediaUrl(photo.id) : drawn!} alt="" className="mx-auto aspect-square w-full rounded-lg bg-slate-50 object-cover" />
-      <div className="mt-1 text-xs font-semibold text-slate-700">{FACE_HINTS[view]}</div>
+      <div className="mt-1 text-xs font-semibold text-slate-700">{FACE_DEFS[view].label}</div>
       <div className="text-xs text-brand-600">{photo ? "Replace" : "Add photo"}</div>
     </button>
   );

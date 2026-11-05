@@ -9,20 +9,18 @@ import { categoryOf } from "../lib/lifeEvents";
 import { lifeEventsIn, storyOf } from "../lib/story";
 import { MediaPreview } from "./Media";
 import { PasteButton } from "./PasteButton";
-import { prepareImage, usePasteImages } from "../lib/uploads";
+import { FACE_DEFS, FACE_SLOTS, FACE_VIEWS } from "../lib/places/character";
+import { loadPrefs, prepareImage, usePasteImages } from "../lib/uploads";
 import { Avatar, Button, ErrorText, Field, inputClass, Modal } from "./ui";
 
 // ---- Profile and cover photos ----
 
 /** Upload a photo, pick one already in the journal, or remove the current one. */
-const PHOTO_NOUNS: Record<PhotoSlot, string> = {
+const PHOTO_NOUNS = {
   avatar: "profile picture",
   cover: "cover photo",
-  face_front: "front face view",
-  face_left: "left face view",
-  face_right: "right face view",
-  face_back: "back-of-head view",
-};
+  ...Object.fromEntries(FACE_VIEWS.map((v) => [FACE_DEFS[v].slot, FACE_DEFS[v].hint])),
+} as Record<PhotoSlot, string>;
 
 export function PhotoDialog({ profile, slot, onClose }: { profile: Profile; slot: PhotoSlot; onClose: () => void }) {
   const { refresh } = useJournal();
@@ -30,7 +28,8 @@ export function PhotoDialog({ profile, slot, onClose }: { profile: Profile; slot
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const file = useRef<HTMLInputElement>(null);
-  const current = slot === "avatar" ? profile.avatar : slot === "cover" ? profile.cover : profile.faces?.[slot.slice(5) as "front" | "left" | "right" | "back"];
+  const faceView = FACE_VIEWS.find((v) => FACE_SLOTS[v] === slot);
+  const current = slot === "avatar" ? profile.avatar : slot === "cover" ? profile.cover : faceView && profile.faces?.[faceView];
   const noun = PHOTO_NOUNS[slot];
 
   const photos = useMemo(() => {
@@ -52,7 +51,9 @@ export function PhotoDialog({ profile, slot, onClose }: { profile: Profile; slot
   };
 
   // Converted like any upload (Settings › Photo uploads); a pasted image works too.
-  const upload = (f: File | undefined) => f && !busy && void apply(async () => (await api.stageMedia(await prepareImage(f))).id);
+  // Face views stay PNG: their transparent background is what lets the head sit on the body.
+  const prefs = faceView ? { ...loadPrefs(), format: "png" as const, maxDimension: 512 } : loadPrefs();
+  const upload = (f: File | undefined) => f && !busy && void apply(async () => (await api.stageMedia(await prepareImage(f, prefs))).id);
   usePasteImages((files) => upload(files.find((x) => x.type.startsWith("image/"))));
 
   return (

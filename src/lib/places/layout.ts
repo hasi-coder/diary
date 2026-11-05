@@ -122,6 +122,7 @@ export const ITEM_KINDS: Record<string, ItemKind> = {
   toilet: { label: "Toilet", group: "Bathroom", seat: 0.42, color: "#ffffff", act: "sit (its cubicle locks)", parts: (c) => [[0.22, 0.04, 0.78, 0.28, 0, 0.85, "#f1f5f9"], [0.26, 0.28, 0.74, 0.86, 0, 0.42, c]] },
   sink: { label: "Sink", group: "Bathroom", color: "#ffffff", act: "wash hands", parts: (c) => [[0.4, 0.12, 0.6, 0.35, 0, 0.8, "#e2e8f0"], [0.18, 0.04, 0.82, 0.55, 0.8, 0.9, c]] },
   bath: { label: "Bath", group: "Bathroom", color: "#ffffff", act: "bathe", parts: (c) => [[0.03, 0.08, 0.97, 0.92, 0, 0.55, c], [0.1, 0.16, 0.9, 0.84, 0.55, 0.56, "#bae6fd"]] },
+  shower: { label: "Shower", group: "Bathroom", color: "#bae6fd", act: "shower", parts: (c) => [[0.04, 0.04, 0.96, 0.96, 0, 0.08, "#f1f5f9"], [0.04, 0.04, 0.96, 0.1, 0.08, 2.1, c], [0.75, 0.08, 0.8, 0.35, 1.95, 2.0, STEEL], [0.65, 0.25, 0.9, 0.5, 1.9, 1.95, STEEL]] },
   fridge: { label: "Fridge", group: "Kitchen", color: "#f8fafc", act: "open", parts: (c) => [[0.08, 0.06, 0.92, 0.8, 0, 1.85, c]] },
   stove: { label: "Stove", group: "Kitchen", color: "#475569", act: "cook", parts: (c) => [[0.04, 0.08, 0.96, 0.92, 0, 0.88, c], [0.04, 0.08, 0.96, 0.92, 0.88, 0.92, "#1e293b"]] },
   kcounter: { label: "Kitchen unit", group: "Kitchen", color: "#e7e5e4", act: "prepare food", parts: (c) => [[0.02, 0.08, 0.98, 0.92, 0, 0.86, "#a8a29e"], [0, 0.04, 1, 0.96, 0.86, 0.92, c]] },

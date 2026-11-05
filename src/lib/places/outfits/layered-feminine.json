@@ -1,0 +1,46 @@
+{
+  "label": "Layered casual · feminine",
+  "description": "Underwear, base clothes, cardigan, open jacket, socks, shoes and scarf. Every layer can be changed independently.",
+  "wearing": [
+    {
+      "garment": "feminine_underwear_sports_bra",
+      "color": "#cbd5e1"
+    },
+    {
+      "garment": "feminine_underwear_vest",
+      "color": "#e2e8f0"
+    },
+    {
+      "garment": "feminine_underwear_briefs",
+      "color": "#64748b"
+    },
+    {
+      "garment": "feminine_base_tee",
+      "color": "#38bdf8"
+    },
+    {
+      "garment": "feminine_base_trousers",
+      "color": "#334155"
+    },
+    {
+      "garment": "feminine_mid_cardigan",
+      "color": "#f5d0fe"
+    },
+    {
+      "garment": "feminine_outer_cropped_blazer",
+      "color": "#881337"
+    },
+    {
+      "garment": "feminine_footwear_crew_socks",
+      "color": "#f8fafc"
+    },
+    {
+      "garment": "feminine_footwear_loafers",
+      "color": "#292524"
+    },
+    {
+      "garment": "feminine_accessories_scarf",
+      "color": "#fbbf24"
+    }
+  ]
+}

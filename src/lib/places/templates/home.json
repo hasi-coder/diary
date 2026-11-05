@@ -49,6 +49,7 @@
         {"kind": "toilet", "x": 13, "y": 5, "facing": "W"},
         {"kind": "sink", "x": 11, "y": 5, "facing": "S"},
         {"kind": "bath", "x": 11, "y": 7, "w": 3, "facing": "N"},
+        {"kind": "shower", "x": 10, "y": 7, "facing": "N"},
         {"kind": "desk", "x": 12, "y": 9, "w": 2, "facing": "S"},
         {"kind": "chair", "x": 12, "y": 10, "facing": "N", "color": "#334155"},
         {"kind": "shelf", "x": 11, "y": 8, "facing": "S"},

@@ -1,0 +1,47 @@
+{
+  "id": "sleep-together",
+  "label": "Sleep beside each other",
+  "emoji": "🌙",
+  "category": "household",
+  "description": "Rest side by side on the bed. Stop to get up.",
+  "people": {
+    "min": 2,
+    "max": 2
+  },
+  "beat": 1,
+  "length": 8,
+  "loop": true,
+  "formation": {
+    "type": "spots",
+    "spots": [
+      {
+        "role": "sleeper",
+        "at": [
+          0,
+          0
+        ],
+        "facing": 0
+      },
+      {
+        "role": "sleeper",
+        "at": [
+          0,
+          0.5
+        ],
+        "facing": 180
+      }
+    ]
+  },
+  "target": {
+    "kinds": [
+      "bed"
+    ],
+    "posture": "lie"
+  },
+  "roles": {
+    "sleeper": [
+      {"beat": 0, "face": "sleeping", "armL": [10, 8], "armR": [10, 8], "elbowL": 20, "elbowR": 20, "head": [0, 0, 5], "emote": "💤"},
+      {"beat": 4, "armL": [10, 8], "armR": [10, 8], "elbowL": 20, "elbowR": 20, "head": [0, 0, 5], "bob": 0.015, "emote": "💤"}
+    ]
+  }
+}

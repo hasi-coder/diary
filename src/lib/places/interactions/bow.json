@@ -2,6 +2,7 @@
   "id": "bow",
   "label": "Bow",
   "emoji": "🙇",
+  "category": "social",
   "description": "Everyone turns to the middle and bows.",
   "people": {"min": 2, "max": 12},
   "beat": 0.5,

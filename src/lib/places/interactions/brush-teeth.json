@@ -1,0 +1,37 @@
+{
+  "id": "brush-teeth",
+  "label": "Brush teeth",
+  "emoji": "🪥",
+  "category": "household",
+  "description": "Brush teeth at the sink.",
+  "people": {
+    "min": 1,
+    "max": 1
+  },
+  "beat": 0.55,
+  "length": 8,
+  "loop": false,
+  "formation": {
+    "type": "stay",
+    "role": "person"
+  },
+  "target": {
+    "kinds": [
+      "sink"
+    ],
+    "posture": "stand"
+  },
+  "water": true,
+  "roles": {
+    "person": [
+      {"beat": 0, "held": "toothbrush"},
+      {"beat": 1, "armR": [20, 12], "elbowR": 115, "wristR": [12, 0, 10], "head": [5, 0, 0], "emote": "🪥"},
+      {"beat": 2, "armR": [20, 12], "elbowR": 115, "wristR": [-12, 0, 10], "head": [5, 0, 0], "emote": "🪥"},
+      {"beat": 3, "armR": [20, 12], "elbowR": 115, "wristR": [12, 0, 10], "head": [5, 0, 0], "emote": "🪥"},
+      {"beat": 4, "armR": [20, 12], "elbowR": 115, "wristR": [-12, 0, 10], "head": [5, 0, 0], "emote": "🪥"},
+      {"beat": 5, "armR": [20, 12], "elbowR": 115, "wristR": [12, 0, 10], "head": [5, 0, 0], "emote": "🪥"},
+      {"beat": 6, "armR": [20, 12], "elbowR": 115, "wristR": [-12, 0, 10], "head": [5, 0, 0], "emote": "🪥"},
+      {"beat": 8, "held": ""}
+    ]
+  }
+}

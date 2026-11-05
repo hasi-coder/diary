@@ -1,0 +1,179 @@
+{
+ "id": "doctor-eyes",
+ "label": "Check the eyes",
+ "emoji": "👁️",
+  "category": "care",
+ "description": "A doctor checks the patient's eyes with a small light, left then right.",
+ "people": {
+  "min": 2,
+  "max": 2
+ },
+ "beat": 0.8,
+ "length": 10,
+ "loop": false,
+ "formation": {
+  "type": "spots",
+  "spots": [
+   {
+    "role": "doctor",
+    "at": [
+     0,
+     0
+    ],
+    "facing": 0
+   },
+   {
+    "role": "patient",
+    "at": [
+     0,
+     0.55
+    ],
+    "facing": 180
+   }
+  ]
+ },
+ "roles": {
+  "doctor": [
+   {
+    "beat": 0
+   },
+   {
+    "beat": 1,
+    "armR": [
+     105,
+     8
+    ],
+    "elbowR": 8,
+    "armL": [
+     20,
+     12
+    ],
+    "elbowL": 10,
+    "lean": 6,
+    "head": [
+     8,
+     0,
+     0
+    ],
+    "emote": "🔦"
+   },
+   {
+    "beat": 4,
+    "armR": [
+     105,
+     8
+    ],
+    "elbowR": 8,
+    "lean": 6,
+    "armL": [
+     20,
+     12
+    ],
+    "elbowL": 10,
+    "head": [
+     8,
+     0,
+     0
+    ]
+   },
+   {
+    "beat": 5,
+    "armR": [
+     105,
+     -8
+    ],
+    "elbowR": 8,
+    "lean": 6,
+    "head": [
+     8,
+     -8,
+     0
+    ],
+    "armL": [
+     20,
+     12
+    ],
+    "elbowL": 10
+   },
+   {
+    "beat": 8,
+    "armR": [
+     105,
+     -8
+    ],
+    "elbowR": 8,
+    "lean": 6
+   },
+   {
+    "beat": 9,
+    "armR": [
+     20,
+     10
+    ],
+    "armL": [
+     15,
+     10
+    ],
+    "lean": 0,
+    "head": [
+     0,
+     0,
+     0
+    ],
+    "emote": "👍"
+   },
+   {
+    "beat": 10,
+    "emote": ""
+   }
+  ],
+  "patient": [
+   {
+    "beat": 0
+   },
+   {
+    "beat": 1,
+    "head": [
+     0,
+     0,
+     0
+    ]
+   },
+   {
+    "beat": 4,
+    "head": [
+     0,
+     0,
+     0
+    ]
+   },
+   {
+    "beat": 5,
+    "head": [
+     0,
+     16,
+     0
+    ]
+   },
+   {
+    "beat": 8,
+    "head": [
+     0,
+     16,
+     0
+    ]
+   },
+   {
+    "beat": 9,
+    "head": [
+     0,
+     0,
+     0
+    ]
+   },
+   {
+    "beat": 10
+   }
+  ]
+ }
+}

@@ -1,9 +1,30 @@
 {
-  "label": "School uniform (skirt)",
-  "description": "White top, navy skirt, black shoes",
+  "label": "School uniform · blouse and skirt",
+  "description": "Collared white school blouse, navy pleated skirt, socks and black strap shoes.",
   "wearing": [
-    { "garment": "fitted_tee", "color": "#f8fafc" },
-    { "garment": "a_line_skirt", "color": "#1e3a8a" },
-    { "garment": "shoes", "color": "#292524" }
+    {
+      "garment": "feminine_underwear_vest",
+      "color": "#f1f5f9"
+    },
+    {
+      "garment": "feminine_underwear_briefs",
+      "color": "#cbd5e1"
+    },
+    {
+      "garment": "feminine_base_school_blouse",
+      "color": "#f8fafc"
+    },
+    {
+      "garment": "feminine_base_pleated",
+      "color": "#172554"
+    },
+    {
+      "garment": "feminine_footwear_crew_socks",
+      "color": "#f8fafc"
+    },
+    {
+      "garment": "feminine_footwear_school_shoes",
+      "color": "#292524"
+    }
   ]
 }

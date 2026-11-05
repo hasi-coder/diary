@@ -1,0 +1,30 @@
+{
+  "id": "sleep",
+  "label": "Sleep",
+  "emoji": "💤",
+  "category": "household",
+  "description": "Lie down on the bed and rest. Stop to get up.",
+  "people": {
+    "min": 1,
+    "max": 1
+  },
+  "beat": 1,
+  "length": 8,
+  "loop": true,
+  "formation": {
+    "type": "stay",
+    "role": "sleeper"
+  },
+  "target": {
+    "kinds": [
+      "bed"
+    ],
+    "posture": "lie"
+  },
+  "roles": {
+    "sleeper": [
+      {"beat": 0, "face": "sleeping", "armL": [10, 8], "armR": [10, 8], "elbowL": 20, "elbowR": 20, "head": [0, 0, 5], "emote": "💤"},
+      {"beat": 4, "armL": [10, 8], "armR": [10, 8], "elbowL": 20, "elbowR": 20, "head": [0, 0, 5], "bob": 0.015, "emote": "💤"}
+    ]
+  }
+}

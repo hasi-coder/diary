@@ -1,0 +1,57 @@
+{
+  "id": "therapy-bed-exercise",
+  "label": "Bed exercises with a therapist",
+  "emoji": "🧘",
+  "category": "care",
+  "description": "The client lies on the bed bending the knees and raising the hands while the therapist stands at the side, guiding each knee and massaging the legs.",
+  "people": { "min": 2, "max": 2 },
+  "beat": 0.8,
+  "length": 28,
+  "loop": false,
+  "formation": {
+    "type": "spots",
+    "spots": [
+      { "role": "therapist", "at": [0, 0], "facing": 0 },
+      { "role": "client", "at": [0, 0.5], "facing": 0 }
+    ]
+  },
+  "target": {
+    "kinds": ["bed"],
+    "posture": "lie",
+    "roles": {
+      "therapist": { "posture": "stand", "side": "right", "along": 0.5 },
+      "client": { "posture": "lie", "side": "right", "across": 0.4 }
+    }
+  },
+  "roles": {
+    "therapist": [
+      { "beat": 0 },
+      { "beat": 2, "armL": [45, 10], "armR": [45, 10], "head": [10, 0, 0], "emote": "🧘" },
+      { "beat": 6, "lean": 10, "armL": [60, 8], "armR": [60, 8], "elbowL": 10, "elbowR": 10, "head": [15, 0, 0] },
+      { "beat": 8, "lean": 22, "armL": [65, 6], "armR": [65, 6], "elbowL": 15, "elbowR": 15, "head": [20, 0, 0] },
+      { "beat": 12, "lean": 22, "armL": [70, 6], "armR": [70, 6], "elbowL": 20, "elbowR": 20, "head": [20, 0, 0], "move": [0.05, 0] },
+      { "beat": 14, "lean": 22, "armL": [65, 6], "armR": [65, 6], "elbowL": 15, "elbowR": 15, "head": [20, 0, 0] },
+      { "beat": 16, "lean": 22, "armL": [70, 6], "armR": [70, 6], "elbowL": 20, "elbowR": 20, "head": [20, 0, 0], "move": [-0.05, 0] },
+      { "beat": 18, "lean": 25, "armL": [60, 6], "armR": [60, 6], "elbowL": 15, "elbowR": 15, "head": [20, 0, 0], "move": [0.25, 0] },
+      { "beat": 22, "lean": 25, "armL": [60, 6], "armR": [60, 6], "elbowL": 15, "elbowR": 15, "head": [20, 0, 0], "move": [0.35, 0] },
+      { "beat": 24, "emote": "👍" },
+      { "beat": 28 }
+    ],
+    "client": [
+      { "beat": 0, "armL": [8, 10], "armR": [8, 10] },
+      { "beat": 2, "armL": [175, 15], "armR": [175, 15], "emote": "🙆" },
+      { "beat": 4, "armL": [175, 15], "armR": [175, 15] },
+      { "beat": 6, "armL": [8, 10], "armR": [8, 10], "legL": 50, "legR": 50, "kneeL": 100, "kneeR": 100 },
+      { "beat": 8, "armL": [8, 10], "armR": [8, 10], "legL": 50, "legR": 50, "kneeL": 100, "kneeR": 100 },
+      { "beat": 10, "armL": [80, 8], "armR": [80, 8], "legL": 50, "legR": 100, "kneeL": 100, "kneeR": 120, "emote": "💪" },
+      { "beat": 12, "armL": [8, 10], "armR": [8, 10], "legL": 50, "legR": 50, "kneeL": 100, "kneeR": 100 },
+      { "beat": 14, "armL": [80, 8], "armR": [80, 8], "legL": 100, "legR": 50, "kneeL": 120, "kneeR": 100 },
+      { "beat": 16, "armL": [8, 10], "armR": [8, 10], "legL": 50, "legR": 50, "kneeL": 100, "kneeR": 100 },
+      { "beat": 18, "armL": [100, 20], "armR": [100, 20], "legL": 90, "legR": 90, "kneeL": 120, "kneeR": 120 },
+      { "beat": 20, "armL": [100, 20], "armR": [100, 20], "legL": 90, "legR": 90, "kneeL": 120, "kneeR": 120 },
+      { "beat": 22, "armL": [8, 10], "armR": [8, 10], "legL": 50, "legR": 50, "kneeL": 100, "kneeR": 100 },
+      { "beat": 24, "armL": [8, 10], "armR": [8, 10], "emote": "😊" },
+      { "beat": 28, "armL": [8, 10], "armR": [8, 10] }
+    ]
+  }
+}

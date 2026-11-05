@@ -1,0 +1,143 @@
+{
+ "id": "nurse-temperature",
+ "label": "Take temperature",
+ "emoji": "🌡️",
+  "category": "care",
+ "description": "A nurse rests a hand on the patient's forehead, then reads a thermometer.",
+ "people": {
+  "min": 2,
+  "max": 2
+ },
+ "beat": 0.8,
+ "length": 10,
+ "loop": false,
+ "formation": {
+  "type": "spots",
+  "spots": [
+   {
+    "role": "nurse",
+    "at": [
+     0,
+     0
+    ],
+    "facing": 0
+   },
+   {
+    "role": "patient",
+    "at": [
+     0,
+     0.6
+    ],
+    "facing": 180
+   }
+  ]
+ },
+ "roles": {
+  "nurse": [
+   {
+    "beat": 0
+   },
+   {
+    "beat": 1,
+    "armR": [
+     118,
+     0
+    ],
+    "elbowR": 28,
+    "lean": 6,
+    "head": [
+     8,
+     0,
+     0
+    ],
+    "emote": "🌡️"
+   },
+   {
+    "beat": 4,
+    "armR": [
+     118,
+     0
+    ],
+    "elbowR": 28,
+    "lean": 6,
+    "head": [
+     8,
+     0,
+     0
+    ]
+   },
+   {
+    "beat": 5,
+    "armR": [
+     30,
+     10
+    ],
+    "elbowR": 100,
+    "lean": 0,
+    "head": [
+     16,
+     0,
+     0
+    ]
+   },
+   {
+    "beat": 8,
+    "armR": [
+     30,
+     10
+    ],
+    "elbowR": 100,
+    "head": [
+     16,
+     0,
+     0
+    ],
+    "emote": "✅"
+   },
+   {
+    "beat": 10,
+    "emote": ""
+   }
+  ],
+  "patient": [
+   {
+    "beat": 0
+   },
+   {
+    "beat": 1,
+    "head": [
+     -6,
+     0,
+     0
+    ]
+   },
+   {
+    "beat": 4,
+    "head": [
+     -6,
+     0,
+     0
+    ]
+   },
+   {
+    "beat": 5,
+    "head": [
+     0,
+     0,
+     0
+    ]
+   },
+   {
+    "beat": 8,
+    "head": [
+     2,
+     0,
+     0
+    ]
+   },
+   {
+    "beat": 10
+   }
+  ]
+ }
+}

@@ -1,0 +1,75 @@
+{
+  "id": "woohoo",
+  "label": "Woohoo",
+  "emoji": "💞",
+  "category": "romantic",
+  "description": "Change into opaque underwear, sit together with a waist-level blanket and floating hearts, then dress again.",
+  "people": {
+    "min": 2,
+    "max": 2
+  },
+  "beat": 0.65,
+  "length": 20,
+  "loop": false,
+  "formation": {
+    "type": "spots",
+    "spots": [
+      {
+        "role": "lead",
+        "at": [
+          0,
+          0
+        ],
+        "facing": 0
+      },
+      {
+        "role": "partner",
+        "at": [
+          0,
+          0.5
+        ],
+        "facing": 180
+      }
+    ]
+  },
+  "target": {
+    "kinds": [
+      "bed"
+    ],
+    "posture": "lie"
+  },
+  "wardrobe": {
+    "at": 4,
+    "restoreAt": 15,
+    "outfitId": "underwear",
+    "preferUnderlayers": true
+  },
+  "roles": {
+    "lead": [
+      {"beat": 0},
+      {"beat": 2, "armL": [70, -10], "armR": [70, -10], "elbowL": 35, "elbowR": 35, "emote": "💞"},
+      {"beat": 3, "armL": [60, 15], "armR": [60, 15], "elbowL": 70, "elbowR": 70},
+      {"beat": 4, "armL": [140, 15], "armR": [140, 15], "elbowL": 90, "elbowR": 90, "emote": "👕"},
+      {"beat": 6, "armL": [35, 10], "armR": [35, 10], "elbowL": 65, "elbowR": 65, "head": [0, 25, 4], "emote": "💕"},
+      {"beat": 9, "armL": [40, 15], "armR": [40, 15], "elbowL": 70, "elbowR": 70, "head": [5, 20, 0]},
+      {"beat": 12, "armL": [35, 10], "armR": [35, 10], "elbowL": 65, "elbowR": 65, "head": [0, 25, 4]},
+      {"beat": 15, "armL": [130, 15], "armR": [130, 15], "elbowL": 80, "elbowR": 80, "emote": "👕"},
+      {"beat": 16, "emote": "💕"},
+      {"beat": 18, "armR": [45, 20], "elbowR": 50, "head": [0, 0, 5]},
+      {"beat": 20}
+    ],
+    "partner": [
+      {"beat": 0},
+      {"beat": 2, "armL": [70, -10], "armR": [70, -10], "elbowL": 35, "elbowR": 35, "emote": "💞"},
+      {"beat": 3, "armL": [60, 15], "armR": [60, 15], "elbowL": 70, "elbowR": 70},
+      {"beat": 4, "armL": [140, 15], "armR": [140, 15], "elbowL": 90, "elbowR": 90, "emote": "👕"},
+      {"beat": 6, "armL": [35, 10], "armR": [35, 10], "elbowL": 65, "elbowR": 65, "head": [0, -25, -4], "emote": "💕"},
+      {"beat": 9, "armL": [40, 15], "armR": [40, 15], "elbowL": 70, "elbowR": 70, "head": [5, -20, 0]},
+      {"beat": 12, "armL": [35, 10], "armR": [35, 10], "elbowL": 65, "elbowR": 65, "head": [0, -25, -4]},
+      {"beat": 15, "armL": [130, 15], "armR": [130, 15], "elbowL": 80, "elbowR": 80, "emote": "👕"},
+      {"beat": 16, "emote": "💕"},
+      {"beat": 18, "armR": [45, 20], "elbowR": 50, "head": [0, 0, -5]},
+      {"beat": 20}
+    ]
+  }
+}

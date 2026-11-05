@@ -1,0 +1,408 @@
+{
+  "id": "therapy-leg-massage",
+  "label": "Leg massage on the bed",
+  "emoji": "\ud83d\udc86",
+  "category": "care",
+  "description": "The client lies on the bed while the therapist stands at the side and massages the thighs, then the calves and feet.",
+  "people": {
+    "min": 2,
+    "max": 2
+  },
+  "beat": 0.8,
+  "length": 24,
+  "loop": false,
+  "formation": {
+    "type": "spots",
+    "spots": [
+      {
+        "role": "therapist",
+        "at": [
+          0,
+          0
+        ],
+        "facing": 0
+      },
+      {
+        "role": "client",
+        "at": [
+          0,
+          0.5
+        ],
+        "facing": 0
+      }
+    ]
+  },
+  "target": {
+    "kinds": [
+      "bed"
+    ],
+    "posture": "lie",
+    "roles": {
+      "therapist": {
+        "posture": "stand",
+        "side": "right",
+        "along": 0.5
+      },
+      "client": {
+        "posture": "lie",
+        "side": "right",
+        "across": 0.4
+      }
+    }
+  },
+  "roles": {
+    "therapist": [
+      {
+        "beat": 0
+      },
+      {
+        "beat": 2,
+        "lean": 32,
+        "armL": [
+          58,
+          2
+        ],
+        "armR": [
+          58,
+          2
+        ],
+        "elbowL": 10,
+        "elbowR": 10,
+        "head": [
+          20,
+          0,
+          0
+        ],
+        "move": [
+          0.3,
+          0.1
+        ],
+        "emote": "\ud83d\udc86"
+      },
+      {
+        "beat": 4,
+        "lean": 32,
+        "armL": [
+          60,
+          2
+        ],
+        "armR": [
+          60,
+          2
+        ],
+        "elbowL": 10,
+        "elbowR": 10,
+        "head": [
+          20,
+          0,
+          0
+        ],
+        "move": [
+          0.38,
+          0.1
+        ]
+      },
+      {
+        "beat": 6,
+        "lean": 32,
+        "armL": [
+          56,
+          2
+        ],
+        "armR": [
+          56,
+          2
+        ],
+        "elbowL": 10,
+        "elbowR": 10,
+        "head": [
+          20,
+          0,
+          0
+        ],
+        "move": [
+          0.24,
+          0.1
+        ]
+      },
+      {
+        "beat": 8,
+        "lean": 32,
+        "armL": [
+          60,
+          2
+        ],
+        "armR": [
+          60,
+          2
+        ],
+        "elbowL": 10,
+        "elbowR": 10,
+        "head": [
+          20,
+          0,
+          0
+        ],
+        "move": [
+          0.38,
+          0.1
+        ]
+      },
+      {
+        "beat": 10,
+        "lean": 32,
+        "armL": [
+          56,
+          2
+        ],
+        "armR": [
+          56,
+          2
+        ],
+        "elbowL": 10,
+        "elbowR": 10,
+        "head": [
+          20,
+          0,
+          0
+        ],
+        "move": [
+          0.24,
+          0.1
+        ]
+      },
+      {
+        "beat": 12,
+        "lean": 32,
+        "armL": [
+          58,
+          2
+        ],
+        "armR": [
+          58,
+          2
+        ],
+        "elbowL": 10,
+        "elbowR": 10,
+        "head": [
+          20,
+          0,
+          0
+        ],
+        "move": [
+          0.0,
+          0.1
+        ]
+      },
+      {
+        "beat": 14,
+        "lean": 32,
+        "armL": [
+          60,
+          2
+        ],
+        "armR": [
+          60,
+          2
+        ],
+        "elbowL": 10,
+        "elbowR": 10,
+        "head": [
+          20,
+          0,
+          0
+        ],
+        "move": [
+          -0.1,
+          0.1
+        ]
+      },
+      {
+        "beat": 16,
+        "lean": 32,
+        "armL": [
+          56,
+          2
+        ],
+        "armR": [
+          56,
+          2
+        ],
+        "elbowL": 10,
+        "elbowR": 10,
+        "head": [
+          20,
+          0,
+          0
+        ],
+        "move": [
+          0.0,
+          0.1
+        ]
+      },
+      {
+        "beat": 18,
+        "lean": 32,
+        "armL": [
+          60,
+          2
+        ],
+        "armR": [
+          60,
+          2
+        ],
+        "elbowL": 10,
+        "elbowR": 10,
+        "head": [
+          20,
+          0,
+          0
+        ],
+        "move": [
+          -0.1,
+          0.1
+        ]
+      },
+      {
+        "beat": 20,
+        "lean": 32,
+        "armL": [
+          58,
+          2
+        ],
+        "armR": [
+          58,
+          2
+        ],
+        "elbowL": 10,
+        "elbowR": 10,
+        "head": [
+          20,
+          0,
+          0
+        ],
+        "move": [
+          -0.28,
+          0.1
+        ]
+      },
+      {
+        "beat": 22,
+        "lean": 32,
+        "armL": [
+          56,
+          2
+        ],
+        "armR": [
+          56,
+          2
+        ],
+        "elbowL": 10,
+        "elbowR": 10,
+        "head": [
+          20,
+          0,
+          0
+        ],
+        "move": [
+          -0.36,
+          0.1
+        ]
+      },
+      {
+        "beat": 23,
+        "emote": "\ud83d\ude0a"
+      },
+      {
+        "beat": 24
+      }
+    ],
+    "client": [
+      {
+        "beat": 0,
+        "armL": [
+          8,
+          10
+        ],
+        "armR": [
+          8,
+          10
+        ],
+        "head": [
+          0,
+          0,
+          5
+        ]
+      },
+      {
+        "beat": 6,
+        "armL": [
+          8,
+          10
+        ],
+        "armR": [
+          8,
+          10
+        ],
+        "head": [
+          0,
+          5,
+          5
+        ],
+        "emote": "\ud83d\ude0c"
+      },
+      {
+        "beat": 14,
+        "armL": [
+          12,
+          12
+        ],
+        "armR": [
+          12,
+          12
+        ],
+        "elbowL": 15,
+        "elbowR": 15,
+        "head": [
+          0,
+          5,
+          5
+        ],
+        "bob": 0.01
+      },
+      {
+        "beat": 20,
+        "armL": [
+          8,
+          10
+        ],
+        "armR": [
+          8,
+          10
+        ],
+        "head": [
+          0,
+          0,
+          5
+        ],
+        "emote": "\ud83d\ude0c"
+      },
+      {
+        "beat": 24,
+        "armL": [
+          8,
+          10
+        ],
+        "armR": [
+          8,
+          10
+        ],
+        "head": [
+          0,
+          0,
+          5
+        ]
+      }
+    ]
+  }
+}

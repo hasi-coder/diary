@@ -1,9 +1,30 @@
 {
-  "label": "School uniform (trousers)",
-  "description": "White top, navy trousers, black shoes",
+  "label": "School uniform · navy trousers",
+  "description": "Collared white school shirt, navy straight trousers, socks and black shoes.",
   "wearing": [
-    { "garment": "tee", "color": "#f8fafc" },
-    { "garment": "jeans", "color": "#1e3a8a" },
-    { "garment": "shoes", "color": "#292524" }
+    {
+      "garment": "masculine_underwear_vest",
+      "color": "#f1f5f9"
+    },
+    {
+      "garment": "masculine_underwear_briefs",
+      "color": "#64748b"
+    },
+    {
+      "garment": "neutral_base_school_shirt",
+      "color": "#f8fafc"
+    },
+    {
+      "garment": "masculine_base_school_trousers",
+      "color": "#172554"
+    },
+    {
+      "garment": "masculine_footwear_crew_socks",
+      "color": "#f8fafc"
+    },
+    {
+      "garment": "masculine_footwear_school_shoes",
+      "color": "#292524"
+    }
   ]
 }

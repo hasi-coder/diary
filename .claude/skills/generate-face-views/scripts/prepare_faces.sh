@@ -1,10 +1,12 @@
 #!/usr/bin/env bash
-# Make the four face views in a folder square 512x512 PNGs, in place.
+# Make the face views in a folder square 512x512 PNGs, in place.
 #
 #   bash prepare_faces.sh ~/MyDiaryFaces/<name>
 #
-# Expects front.png, left.png, right.png and back.png. Uses macOS sips: scales
-# the long side to 512, then pads to a square.
+# Expects front.png, left.png, right.png and back.png; frontLeft.png and
+# frontRight.png (the 45° views) and up, sleeping,
+# sleepingLeft, sleepingRight and down (the lying-down views) are optional. Uses macOS sips: scales the long
+# side to 512, then pads to a square.
 set -euo pipefail
 
 dir="${1:?usage: prepare_faces.sh <folder>}"
@@ -14,8 +16,9 @@ for view in front left right back; do
 done
 (( missing == 0 )) || exit 1
 
-for view in front left right back; do
+for view in front frontLeft frontRight left right back up sleeping sleepingLeft sleepingRight down; do
   f="$dir/$view.png"
+  [[ -f "$f" ]] || continue
   sips -s format png -Z 512 "$f" --out "$f" >/dev/null
   sips -p 512 512 "$f" --out "$f" >/dev/null
   echo "$f: $(sips -g pixelWidth -g pixelHeight "$f" | awk '/pixel/ {printf "%s ", $2}')"

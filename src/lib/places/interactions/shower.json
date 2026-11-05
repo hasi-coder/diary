@@ -1,0 +1,66 @@
+{
+  "id": "shower",
+  "label": "Take a shower",
+  "emoji": "\ud83d\udebf",
+  "category": "household",
+  "description": "Taking a shower\u2026",
+  "people": {
+    "min": 1,
+    "max": 1
+  },
+  "beat": 0.65,
+  "length": 14,
+  "loop": false,
+  "formation": {
+    "type": "stay",
+    "role": "person"
+  },
+  "target": {
+    "kinds": [
+      "shower"
+    ],
+    "posture": "inside"
+  },
+  "water": true,
+  "roles": {
+    "person": [
+      {
+        "beat": 0
+      },
+      {
+        "beat": 2,
+        "armL": [
+          30,
+          20
+        ],
+        "armR": [
+          30,
+          20
+        ],
+        "elbowL": 80,
+        "elbowR": 80
+      },
+      {
+        "beat": 12
+      },
+      {
+        "beat": 14
+      }
+    ]
+  },
+  "wardrobe": {
+    "at": 1,
+    "restoreAt": 13,
+    "remove": [
+      "torso",
+      "upperArms",
+      "forearms",
+      "hips",
+      "thighs",
+      "calves",
+      "feet",
+      "neck",
+      "wrists"
+    ]
+  }
+}

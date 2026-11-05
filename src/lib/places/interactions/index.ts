@@ -1,5 +1,6 @@
 // The interaction library: every JSON file in this folder is one interaction.
 import { interactionProblems, type Interaction } from "../interaction";
+import { interactionEnabled } from "../interactionPolicy";
 
 const files = import.meta.glob("./*.json", { eager: true, import: "default" }) as Record<string, unknown>;
 export const INTERACTIONS: Interaction[] = Object.values(files)
@@ -11,6 +12,8 @@ export const INTERACTIONS: Interaction[] = Object.values(files)
   .map((v) => v as Interaction)
   .sort((a, b) => a.label.localeCompare(b.label));
 
-/** Interactions that `count` people can do. */
-export const interactionsFor = (count: number) => INTERACTIONS.filter((i) => count >= i.people.min && count <= i.people.max);
+/** Available actions, evaluated when read so policy changes take effect. */
+export const enabledInteractions = () => INTERACTIONS.filter(interactionEnabled);
+/** Available interactions that `count` people can do. */
+export const interactionsFor = (count: number) => enabledInteractions().filter((i) => count >= i.people.min && count <= i.people.max);
 

@@ -3,7 +3,10 @@
 // cubicles that lock with everyone inside.
 import type { Profile } from "../api";
 import { characterOf, type Character } from "./character";
-import { poseAt, type FullPose, type Interaction } from "./interaction";
+import { poseAt, type FullPose, type HeldItem, type Interaction, type Posture } from "./interaction";
+import { interactionPolicyProblem } from "./interactionPolicy";
+import { applyOutfit, OUTFITS, type Outfit } from "./outfits";
+import { garment, legacyFields, outfitOf, underwearOf } from "./garments";
 import {
   buildPlace,
   cubicleCells,
@@ -21,6 +24,7 @@ import {
   type Facing,
   type Floor,
   type Place,
+  type PlacedItem,
   type Seat,
   type Spot,
 } from "./layout";
@@ -45,6 +49,24 @@ export interface Actor {
   /** Doing something together: the pose to show and the way the body faces (radians, see `yawOf`), set every frame. */
   pose?: FullPose | null;
   yaw?: number | null;
+  hidden?: boolean;
+  held?: HeldItem | null;
+  /** Resting on a surface, rotated about the hips rather than the feet. */
+  rest?: { height: number; pitch: number } | null;
+}
+
+interface Placement {
+  at: Vec;
+  facing: Vec;
+  exit: Vec;
+  seat?: Seat;
+  /** How the body rests on the furniture while the action plays (lying, sitting in a tub); none stands. */
+  rest?: { height: number; pitch: number };
+}
+
+export interface ActivityOptions {
+  target?: PlacedItem;
+  outfit?: Outfit;
 }
 
 /** Something people are doing together, from walking to their spots to the last beat. */
@@ -57,6 +79,12 @@ export interface Activity {
   state: "gathering" | "playing";
   /** World time it started gathering, then playing. */
   since: number;
+  target?: PlacedItem;
+  placements?: Placement[];
+  outfit?: Outfit;
+  originalLooks?: Character[];
+  outfitApplied?: boolean;
+  wardrobeApplied?: boolean;
 }
 
 type Vec = [number, number];
@@ -81,6 +109,7 @@ export class World {
   t = 0;
   /** Short messages for the person playing ("Locked — with Maya"). */
   onToast?: (message: string) => void;
+  onOutfitChange?: (actor: Actor) => void;
   /** What people are doing together, if anything. */
   activity: Activity | null = null;
 
@@ -147,6 +176,7 @@ export class World {
 
   /** Whether a cell is someone's place, now or where they're heading. */
   taken(x: number, y: number, except?: Actor): boolean {
+    if (this.activity?.placements?.some((placement, i) => this.activity!.members[i].actor !== except && Math.floor(placement.exit[0]) === x && Math.floor(placement.exit[1]) === y)) return true;
     return this.actors.some((o) => {
       if (o === except) return false;
       const [cx, cy] = o.path.length ? o.path[o.path.length - 1] : this.cellOf(o);
@@ -275,6 +305,7 @@ export class World {
       if (cx !== nx || cy !== ny) {
         const e = Math.abs(nx - cx) + Math.abs(ny - cy) === 1 ? p.edges.get(edgeKey(cx, cy, nx, ny)) : undefined;
         if (e?.door) {
+          if (e.door.locked) continue;
           if (!e.door.open) e.door.manual = false;
           e.door.open = true;
           e.door.t = this.t;
@@ -384,6 +415,7 @@ export class World {
 
   /** Where each person stands at a beat, and which way they face, before their own steps. */
   private formationAt(act: Activity, beat: number): { at: Vec; facing: Vec }[] {
+    if (act.placements) return act.placements;
     const { def, members, anchor, forward } = act;
     const f = def.formation;
     const spin = (f.type === "stay" ? 0 : f.spin ?? 0) * Math.max(0, beat);
@@ -434,13 +466,131 @@ export class World {
     return true;
   }
 
+  /** Reasons shown by both the general Actions panel and furniture menus. */
+  activityProblem(def: Interaction, people: Actor[], target?: PlacedItem): string | null {
+    const policy = interactionPolicyProblem(def, people);
+    if (policy) return policy;
+    if (people.length < def.people.min || people.length > def.people.max) return `Choose ${def.people.min === def.people.max ? def.people.min : `${def.people.min}–${def.people.max}`} people, including you.`;
+    if (new Set(people).size !== people.length || people.some((person) => !this.actors.includes(person))) return "Choose people who are here.";
+    if (def.target && !(target ? this.place.items.includes(target) && def.target.kinds.includes(target.kind) : this.place.items.some((item) => def.target!.kinds.includes(item.kind)))) {
+      return `Needs ${def.target.kinds.map((kind) => kind === "bath" ? "a bath" : `a ${kind}`).join(" or ")} in this place.`;
+    }
+    return null;
+  }
+
+  /** Plan an approach before changing anyone's current activity. Each person
+   * needs a reachable, distinct entry cell; surface positions are used only
+   * after everyone arrives. A failed route never teleports people to furniture. */
+  private furniturePlan(def: Interaction, people: Actor[], selected?: PlacedItem): { target: PlacedItem; placements: Placement[] } | null {
+    const p = this.place;
+    const spec = def.target!;
+    const targets = (selected ? [selected] : p.items.filter((item) => spec.kinds.includes(item.kind)))
+      .slice().sort((a, b) => Math.hypot(a.x - people[0].x, a.y - people[0].y) - Math.hypot(b.x - people[0].x, b.y - people[0].y));
+    for (const target of targets) {
+      const centre: Vec = [target.x + target.w / 2, target.y + target.h / 2];
+      const seats = p.seats.filter((seat) => seat.item === target && (!seat.occupant || people.some((a) => a.id === seat.occupant)) && (!seat.reserved || people.some((a) => a.id === seat.reserved)));
+      const seatEntries = seats.map((seat) => ({ cell: [seat.x, seat.y] as Cell, seat }));
+      const edgeEntries: { cell: Cell; seat?: Seat }[] = [];
+      const add = (x: number, y: number, ix: number, iy: number) => {
+        if (walkable(p, x, y) && p.room[y][x] === p.room[iy]?.[ix] && !p.edges.has(edgeKey(x, y, ix, iy))) edgeEntries.push({ cell: [x, y] });
+      };
+      for (let x = target.x; x < target.x + target.w; x++) {
+        add(x, target.y - 1, x, target.y);
+        add(x, target.y + target.h, x, target.y + target.h - 1);
+      }
+      for (let y = target.y; y < target.y + target.h; y++) {
+        add(target.x - 1, y, target.x, y);
+        add(target.x + target.w, y, target.x + target.w - 1, y);
+      }
+      // Each role may use the furniture differently (lying on a bed, standing beside it).
+      const roleOf = (index: number) => def.formation.type === "spots" ? def.formation.spots[index].role : def.formation.role;
+      const postureOf = (index: number): Posture => spec.roles?.[roleOf(index)]?.posture ?? spec.posture;
+      const lyingCount = people.filter((_, i) => postureOf(i) === "lie" || postureOf(i) === "inside").length;
+      // Bodies lie along the furniture's long axis (a bath runs sideways to its facing).
+      const longX = target.w > target.h, square = target.w === target.h;
+      const facingVec: Vec = [...DIRS[target.facing]];
+      const alongAxis: boolean = square || (longX ? Math.abs(facingVec[0]) > Math.abs(facingVec[1]) : Math.abs(facingVec[1]) > Math.abs(facingVec[0]));
+      const bedFacing: Vec = alongAxis ? facingVec : longX ? [-1, 0] : [0, -1];
+      const bedSide = rightOf(bedFacing);
+      let lyingSeen = 0;
+      const used = new Set<string>();
+      const placements: Placement[] = [];
+      for (const [index, person] of people.entries()) {
+        const posture = postureOf(index);
+        const place = spec.roles?.[roleOf(index)];
+        // A role with a place of its own (beside the bed, off to one side of it) goes there.
+        const lies = posture === "lie" || posture === "inside";
+        const half = (Math.abs(bedFacing[0]) > Math.abs(bedFacing[1]) ? target.h : target.w) / 2 + 0.3;
+        const sign = place?.side === "right" ? -1 : 1;
+        const across = place?.across ?? (lies ? 0 : half);
+        const along = place?.along ?? 0;
+        const wanted: Vec | null = place && (!lies || place.across !== undefined || place.along !== undefined)
+          ? [centre[0] + bedSide[0] * sign * across + bedFacing[0] * along, centre[1] + bedSide[1] * sign * across + bedFacing[1] * along]
+          : null;
+        const entries = posture === "sit" ? seatEntries : edgeEntries;
+        const currentIndex = this.activity?.members.findIndex((member) => member.actor === person) ?? -1;
+        const currentExit = currentIndex >= 0 && this.activity?.state === "playing" ? this.activity.placements?.[currentIndex].exit : undefined;
+        const [sx, sy] = currentExit ? currentExit.map(Math.floor) : person.path[0] ?? this.cellOf(person);
+        const from: Vec = wanted && !lies ? wanted : [person.x, person.y];
+        const entry = entries.slice().sort((a, b) => Math.hypot(a.cell[0] + 0.5 - from[0], a.cell[1] + 0.5 - from[1]) - Math.hypot(b.cell[0] + 0.5 - from[0], b.cell[1] + 0.5 - from[1])).find(({ cell: [x, y] }) => {
+          if (used.has(`${x}:${y}`) || this.actors.some((a) => !people.includes(a) && this.cellOf(a)[0] === x && this.cellOf(a)[1] === y)) return false;
+          if (spec.posture === "stand" && !spec.roles && placements.length && people.length === 2 && !this.fits([placements[0].exit, [x + 0.5, y + 0.5]], people)) return false;
+          return findPath(p, sx, sy, x, y) !== null;
+        });
+        if (!entry) break;
+        used.add(entry.cell.join(":"));
+        const exit: Vec = [entry.cell[0] + 0.5, entry.cell[1] + 0.5];
+        const toward: Vec = [centre[0] - exit[0], centre[1] - exit[1]];
+        const length = Math.hypot(...toward) || 1;
+        let at = exit;
+        let facing: Vec = entry.seat ? [...DIRS[entry.seat.facing]] : [toward[0] / length, toward[1] / length];
+        if (lies) {
+          facing = bedFacing;
+          const offset = (lyingSeen++ - (lyingCount - 1) / 2) * 0.55;
+          at = wanted ?? [centre[0] + bedSide[0] * offset, centre[1] + bedSide[1] * offset];
+        } else if (wanted && Math.hypot(wanted[0] - exit[0], wanted[1] - exit[1]) < 0.8) at = wanted;
+        const custom = place?.rest ?? spec.rest;
+        const rest = custom ? { height: custom.height, pitch: (custom.pitch * Math.PI) / 180 } : posture === "lie" ? { height: target.kind === "bed" ? 0.62 : 0.68, pitch: -Math.PI / 2 } : undefined;
+        placements.push({ at, facing, exit, seat: entry.seat, rest: lies ? rest : undefined });
+      }
+      if (placements.length !== people.length) continue;
+      if (people.length === 2 && spec.posture === "stand") {
+        for (let i = 0; i < 2; i++) {
+          const [x, y] = placements[1 - i].at;
+          const dx = x - placements[i].at[0], dy = y - placements[i].at[1];
+          const length = Math.hypot(dx, dy) || 1;
+          placements[i].facing = [dx / length, dy / length];
+        }
+      }
+      return { target, placements };
+    }
+    return null;
+  }
+
+  /** The cutaway is derived from simulation time, shared with the renderer. */
+  get presentation(): { opacity: number; label: string; emoji: string; progress: number } | null {
+    const act = this.activity;
+    if (!act || act.state !== "playing" || !act.def.cutaway) return null;
+    const { from, to, label, emoji } = act.def.cutaway;
+    const beat = (this.t - act.since) / act.def.beat;
+    if (beat < from || beat > to) return null;
+    const fade = Math.min(1, (to - from) / 3);
+    const opacity = Math.max(0, Math.min(1, (beat - from) / fade, (to - beat) / fade));
+    return { opacity, label, emoji: emoji ?? act.def.emoji ?? "✨", progress: (beat - from) / (to - from) };
+  }
+
   /**
    * Starts an interaction with these people (the first starts it and takes the first spot).
    * They walk to an open space near the first person, then play it. False when it can't happen here.
    */
-  startActivity(def: Interaction, people: Actor[]): boolean {
+  startActivity(def: Interaction, people: Actor[], options: ActivityOptions = {}): boolean {
+    const problem = this.activityProblem(def, people, options.target);
+    if (problem) { this.onToast?.(problem); return false; }
+    if (def.outfitAt !== undefined && !options.outfit) { this.onToast?.("Choose an outfit first."); return false; }
+    if (def.wardrobe?.outfitId && !OUTFITS.some((outfit) => outfit.id === def.wardrobe!.outfitId)) { this.onToast?.("This scene's outfit is unavailable."); return false; }
+    const furniture = def.target ? this.furniturePlan(def, people, options.target) : null;
+    if (def.target && !furniture) { this.onToast?.("No reachable space at that furniture. Try clearing the approach."); return false; }
     this.stopActivity();
-    if (people.length < def.people.min || people.length > def.people.max) return false;
     const lead = people[0];
     const [lx, ly] = this.cellOf(lead);
     const members = people.map((actor, index) => ({
@@ -450,6 +600,25 @@ export class World {
       start: [actor.x, actor.y] as Vec,
     }));
     const act: Activity = { def, members, anchor: [lead.x, lead.y], forward: [0, -1], state: "gathering", since: this.t };
+    if (furniture) {
+      act.target = furniture.target;
+      act.placements = furniture.placements;
+      act.outfit = options.outfit;
+      if (options.outfit || def.wardrobe) act.originalLooks = people.map((a) => a.look);
+      for (const [i, { actor }] of members.entries()) {
+        const { exit, seat } = furniture.placements[i];
+        if (!this.goTo(actor, Math.floor(exit[0]), Math.floor(exit[1]), seat)) {
+          this.activity = act;
+          this.stopActivity();
+          return false;
+        }
+        // A zero-length route still needs to claim its seat.
+        if (!actor.path.length && seat) this.arrive(actor, seat);
+      }
+      this.activity = act;
+      this.onToast?.(`${def.emoji ?? ""} ${def.label}`.trim());
+      return true;
+    }
 
     if (def.formation.type !== "stay") {
       // Face the second person if there is one, then try nearby cells and directions until it fits.
@@ -495,31 +664,94 @@ export class World {
     return true;
   }
 
-  stopActivity() {
+  stopActivity(completed = false) {
     const act = this.activity;
     if (!act) return;
     this.activity = null;
-    for (const { actor } of act.members) {
+    for (const [i, { actor }] of act.members.entries()) {
       actor.pose = null;
       actor.yaw = null;
+      actor.hidden = false;
+      actor.held = null;
+      actor.rest = null;
+      if (act.placements) {
+        actor.path = [];
+        if (actor.goalSeat) { actor.goalSeat.reserved = null; actor.goalSeat = null; }
+        if (act.state === "playing" && (act.def.target?.posture === "lie" || act.def.target?.posture === "inside" || Object.values(act.def.target?.roles ?? {}).length)) {
+          [actor.x, actor.y] = act.placements[i].exit;
+        }
+        if (act.def.target?.leaveSeat && actor.seat) {
+          const cell = this.cellOf(actor);
+          this.stand(actor);
+          const candidates: Cell[] = [];
+          for (let y = cell[1] - 2; y <= cell[1] + 2; y++) for (let x = cell[0] - 2; x <= cell[0] + 2; x++) {
+            if (walkable(this.place, x, y) && !this.taken(x, y, actor) && findPath(this.place, ...cell, x, y) !== null) candidates.push([x, y]);
+          }
+          candidates.sort((a, b) => Math.hypot(a[0] - cell[0], a[1] - cell[1]) - Math.hypot(b[0] - cell[0], b[1] - cell[1]));
+          for (const exit of candidates) if (this.goTo(actor, ...exit)) break;
+        }
+      }
+      if (act.def.wardrobe && act.originalLooks) actor.look = act.originalLooks[i];
+      else if (act.outfitApplied) {
+        if (completed) this.onOutfitChange?.(actor);
+        else if (act.originalLooks) actor.look = act.originalLooks[i];
+      }
     }
   }
 
   private updateActivity() {
     const act = this.activity!;
     const { def, members } = act;
+    if (interactionPolicyProblem(def, members.map((m) => m.actor))) return this.stopActivity();
     if (act.state === "gathering") {
       const waiting = members.filter((m) => m.actor.path.length);
+      if (act.placements && waiting.length && this.t - act.since >= 20) {
+        this.onToast?.("Couldn't reach the furniture. Try again with a clear path.");
+        return this.stopActivity();
+      }
       // Start when everyone has arrived, or after 12 s without the stragglers.
-      if (waiting.length && this.t - act.since < 12) return;
+      if (waiting.length && (act.placements || this.t - act.since < 12)) return;
       for (const m of waiting) m.actor.path = [];
       for (const m of members) m.start = [m.actor.x, m.actor.y];
       act.state = "playing";
       act.since = this.t;
+      if (act.target) {
+        for (const [i, { actor }] of members.entries()) {
+          const rest = act.placements?.[i].rest;
+          if (rest) actor.rest = { ...rest };
+        }
+      }
     }
     const elapsed = (this.t - act.since) / def.beat;
     const stagger = def.stagger ?? 0;
-    if (!def.loop && elapsed > def.length + stagger * (members.length - 1) + 0.3) return this.stopActivity();
+    if (!act.outfitApplied && act.outfit && def.outfitAt !== undefined && elapsed >= def.outfitAt) {
+      for (const { actor } of members) actor.look = { ...actor.look, ...applyOutfit(act.outfit, actor.look.wearing) };
+      act.outfitApplied = true;
+    }
+    if (def.wardrobe && act.originalLooks) {
+      const active = elapsed >= def.wardrobe.at && elapsed < def.wardrobe.restoreAt;
+      if (active && !act.wardrobeApplied) {
+        const outfit = def.wardrobe.outfitId ? OUTFITS.find((outfit) => outfit.id === def.wardrobe!.outfitId)! : null;
+        for (const [i, { actor }] of members.entries()) {
+          const previous = act.originalLooks[i];
+          let look = previous;
+          if (outfit) {
+            const wearing = def.wardrobe.preferUnderlayers ? underwearOf(previous, outfit.wearing) : outfit.wearing;
+            look = { ...previous, ...applyOutfit({ ...outfit, wearing }) };
+          }
+          if (def.wardrobe.remove) {
+            const regions = def.wardrobe.remove;
+            const wearing = outfitOf(look).filter((w) => !garment(w.garment)?.covers.some((region) => regions.includes(region)));
+            look = { ...look, wearing, ...legacyFields(wearing) };
+          }
+          actor.look = look;
+        }
+      } else if (!active && act.wardrobeApplied) {
+        for (const [i, { actor }] of members.entries()) actor.look = act.originalLooks[i];
+      }
+      act.wardrobeApplied = active;
+    }
+    if (!def.loop && elapsed > def.length + stagger * (members.length - 1) + 0.3) return this.stopActivity(true);
     const spots = this.formationAt(act, elapsed);
     const settle = Math.min(1, (this.t - act.since) / 0.5);
     for (const m of members) {
@@ -534,6 +766,8 @@ export class World {
       a.facing = facingOfVec(facing);
       a.yaw = yawOf(rotate(facing, pose.turn));
       a.pose = pose;
+      a.held = pose.held || null;
+      a.hidden = (this.presentation?.opacity ?? 0) >= 1;
     }
   }
 }

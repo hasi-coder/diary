@@ -1,0 +1,307 @@
+{
+ "id": "massage",
+ "label": "Massage",
+ "emoji": "💆",
+  "category": "care",
+ "description": "A relaxed neck and shoulder massage: one person stands behind and kneads the other's shoulders, then works down the upper back.",
+ "people": {
+  "min": 2,
+  "max": 2
+ },
+ "beat": 0.8,
+ "length": 20,
+ "loop": false,
+ "formation": {
+  "type": "spots",
+  "spots": [
+   {
+    "role": "giver",
+    "at": [
+     0,
+     0
+    ],
+    "facing": 0
+   },
+   {
+    "role": "receiver",
+    "at": [
+     0,
+     0.5
+    ],
+    "facing": 0
+   }
+  ]
+ },
+ "roles": {
+  "giver": [
+   {
+    "beat": 0
+   },
+   {
+    "beat": 2,
+    "armL": [
+     70,
+     14
+    ],
+    "armR": [
+     70,
+     14
+    ],
+    "elbowL": 20,
+    "elbowR": 20,
+    "lean": 6,
+    "head": [
+     8,
+     0,
+     0
+    ],
+    "emote": "💆"
+   },
+   {
+    "beat": 4,
+    "armL": [
+     72,
+     12
+    ],
+    "armR": [
+     72,
+     12
+    ],
+    "elbowL": 42,
+    "elbowR": 42,
+    "lean": 8,
+    "head": [
+     10,
+     0,
+     0
+    ]
+   },
+   {
+    "beat": 6,
+    "armL": [
+     70,
+     14
+    ],
+    "armR": [
+     70,
+     14
+    ],
+    "elbowL": 20,
+    "elbowR": 20,
+    "lean": 6,
+    "head": [
+     8,
+     0,
+     0
+    ]
+   },
+   {
+    "beat": 8,
+    "armL": [
+     72,
+     12
+    ],
+    "armR": [
+     72,
+     12
+    ],
+    "elbowL": 42,
+    "elbowR": 42,
+    "lean": 8,
+    "head": [
+     10,
+     0,
+     0
+    ]
+   },
+   {
+    "beat": 10,
+    "armL": [
+     70,
+     14
+    ],
+    "armR": [
+     70,
+     14
+    ],
+    "elbowL": 20,
+    "elbowR": 20,
+    "lean": 6,
+    "head": [
+     8,
+     0,
+     0
+    ]
+   },
+   {
+    "beat": 12,
+    "armL": [
+     62,
+     10
+    ],
+    "armR": [
+     62,
+     10
+    ],
+    "elbowL": 24,
+    "elbowR": 24,
+    "lean": 10,
+    "head": [
+     12,
+     0,
+     0
+    ]
+   },
+   {
+    "beat": 14,
+    "armL": [
+     56,
+     10
+    ],
+    "armR": [
+     56,
+     10
+    ],
+    "elbowL": 30,
+    "elbowR": 30,
+    "lean": 12,
+    "head": [
+     12,
+     0,
+     0
+    ]
+   },
+   {
+    "beat": 16,
+    "armL": [
+     62,
+     10
+    ],
+    "armR": [
+     62,
+     10
+    ],
+    "elbowL": 24,
+    "elbowR": 24,
+    "lean": 10,
+    "head": [
+     10,
+     0,
+     0
+    ]
+   },
+   {
+    "beat": 18,
+    "armL": [
+     30,
+     14
+    ],
+    "armR": [
+     30,
+     14
+    ],
+    "elbowL": 20,
+    "elbowR": 20,
+    "head": [
+     4,
+     0,
+     0
+    ]
+   },
+   {
+    "beat": 20,
+    "emote": ""
+   }
+  ],
+  "receiver": [
+   {
+    "beat": 0
+   },
+   {
+    "beat": 2,
+    "head": [
+     14,
+     0,
+     4
+    ],
+    "emote": "😌"
+   },
+   {
+    "beat": 4,
+    "head": [
+     18,
+     0,
+     6
+    ],
+    "lean": 3
+   },
+   {
+    "beat": 6,
+    "head": [
+     12,
+     0,
+     2
+    ],
+    "lean": 2
+   },
+   {
+    "beat": 8,
+    "head": [
+     18,
+     0,
+     -4
+    ],
+    "lean": 3
+   },
+   {
+    "beat": 10,
+    "head": [
+     12,
+     0,
+     0
+    ],
+    "lean": 2
+   },
+   {
+    "beat": 12,
+    "head": [
+     20,
+     0,
+     0
+    ],
+    "lean": 5
+   },
+   {
+    "beat": 14,
+    "head": [
+     24,
+     0,
+     0
+    ],
+    "lean": 6
+   },
+   {
+    "beat": 16,
+    "head": [
+     18,
+     0,
+     0
+    ],
+    "lean": 4
+   },
+   {
+    "beat": 18,
+    "head": [
+     6,
+     0,
+     0
+    ],
+    "emote": "😊"
+   },
+   {
+    "beat": 20,
+    "emote": ""
+   }
+  ]
+ }
+}

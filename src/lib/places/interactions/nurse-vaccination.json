@@ -1,0 +1,218 @@
+{
+ "id": "nurse-vaccination",
+ "label": "Give a vaccination",
+ "emoji": "💉",
+  "category": "care",
+ "description": "A nurse gives a jab in the upper arm; the patient looks away, then gets a thumbs up.",
+ "people": {
+  "min": 2,
+  "max": 2
+ },
+ "beat": 0.8,
+ "length": 10,
+ "loop": false,
+ "formation": {
+  "type": "spots",
+  "spots": [
+   {
+    "role": "nurse",
+    "at": [
+     0,
+     0
+    ],
+    "facing": 0
+   },
+   {
+    "role": "patient",
+    "at": [
+     0,
+     0.65
+    ],
+    "facing": 180
+   }
+  ]
+ },
+ "roles": {
+  "nurse": [
+   {
+    "beat": 0
+   },
+   {
+    "beat": 1,
+    "armL": [
+     25,
+     8
+    ],
+    "elbowL": 20,
+    "armR": [
+     28,
+     22
+    ],
+    "elbowR": 30,
+    "head": [
+     12,
+     0,
+     0
+    ],
+    "emote": "💉"
+   },
+   {
+    "beat": 3,
+    "armR": [
+     40,
+     22
+    ],
+    "elbowR": 20,
+    "armL": [
+     25,
+     8
+    ],
+    "elbowL": 20,
+    "head": [
+     12,
+     0,
+     0
+    ]
+   },
+   {
+    "beat": 4,
+    "armR": [
+     40,
+     22
+    ],
+    "elbowR": 20,
+    "armL": [
+     25,
+     8
+    ],
+    "elbowL": 20,
+    "head": [
+     12,
+     0,
+     0
+    ]
+   },
+   {
+    "beat": 5,
+    "armR": [
+     28,
+     22
+    ],
+    "elbowR": 30,
+    "armL": [
+     25,
+     8
+    ],
+    "elbowL": 20,
+    "head": [
+     12,
+     0,
+     0
+    ]
+   },
+   {
+    "beat": 6,
+    "armR": [
+     28,
+     22
+    ],
+    "elbowR": 30,
+    "armL": [
+     40,
+     8
+    ],
+    "elbowL": 20,
+    "wristL": [
+     0,
+     0,
+     25
+    ],
+    "emote": "🩹",
+    "head": [
+     12,
+     0,
+     0
+    ]
+   },
+   {
+    "beat": 8,
+    "armL": [
+     25,
+     10
+    ],
+    "armR": [
+     20,
+     10
+    ],
+    "head": [
+     0,
+     0,
+     0
+    ],
+    "emote": "😊"
+   },
+   {
+    "beat": 10,
+    "emote": ""
+   }
+  ],
+  "patient": [
+   {
+    "beat": 0
+   },
+   {
+    "beat": 1,
+    "head": [
+     0,
+     -55,
+     4
+    ],
+    "tilt": 3,
+    "armL": [
+     5,
+     12
+    ]
+   },
+   {
+    "beat": 4,
+    "head": [
+     0,
+     -55,
+     4
+    ],
+    "emote": "😬",
+    "armL": [
+     5,
+     12
+    ],
+    "tilt": 3
+   },
+   {
+    "beat": 5,
+    "head": [
+     0,
+     -20,
+     0
+    ],
+    "emote": "😌",
+    "armL": [
+     5,
+     12
+    ],
+    "tilt": 3
+   },
+   {
+    "beat": 8,
+    "head": [
+     0,
+     0,
+     0
+    ]
+   },
+   {
+    "beat": 10,
+    "emote": ""
+   }
+  ]
+ }
+}
