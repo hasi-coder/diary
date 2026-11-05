@@ -1,0 +1,32 @@
+[
+  {
+    "id": "social",
+    "label": "Friendly",
+    "emoji": "\ud83d\udc4b"
+  },
+  {
+    "id": "romantic",
+    "label": "Romantic",
+    "emoji": "\ud83d\udc9e"
+  },
+  {
+    "id": "dance",
+    "label": "Dance",
+    "emoji": "\ud83d\udc83"
+  },
+  {
+    "id": "household",
+    "label": "Home",
+    "emoji": "\ud83c\udfe0"
+  },
+  {
+    "id": "care",
+    "label": "Care",
+    "emoji": "\ud83e\ude7a"
+  },
+  {
+    "id": "other",
+    "label": "More",
+    "emoji": "\u2728"
+  }
+]

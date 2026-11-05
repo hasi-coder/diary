@@ -85,28 +85,19 @@ export interface RolePlacement {
   /** Overrides the action's `rest` for this role. */
   rest?: Rest;
   /** Which side of the furniture, from the point of view of a person lying on it. */
-  side?: "left" | "right";
-  /** Metres from the middle toward that side. A standing role defaults to just outside the furniture; a lying role to the middle. */
+  side?: "left" | "right" | "center";
+  /** Metres from the middle toward that side (ignored for "center", the middle line). A standing role defaults to just outside the furniture; a lying role to the middle. */
   across?: number;
   /** Metres from the middle toward the feet (negative toward the head). */
   along?: number;
 }
 
-/** The groups of the action wheel, in the order they appear. An action names one with `category`. */
-export const ACTION_CATEGORIES: Record<string, { label: string; emoji: string }> = {
-  social: { label: "Friendly", emoji: "👋" },
-  romantic: { label: "Romantic", emoji: "💞" },
-  dance: { label: "Dance", emoji: "💃" },
-  household: { label: "Home", emoji: "🏠" },
-  care: { label: "Care", emoji: "🩺" },
-  other: { label: "More", emoji: "✨" },
-};
 
 export interface Interaction {
   id: string;
   label: string;
   emoji?: string;
-  /** Which group of the action wheel it sits in (a key of ACTION_CATEGORIES); "other" when left out. */
+  /** Which group of the action wheel and settings list it sits in. Any word works; give it a label and emoji in interactions/categories.json. "other" when left out. */
   category?: string;
   description?: string;
   /**
@@ -173,13 +164,13 @@ export function interactionProblems(value: unknown): string[] {
   const out: string[] = [];
   const name = v.id ? `"${v.id}"` : "Interaction";
   if (!v.id || !v.label) out.push(`${name}: needs an id and a label.`);
-  if (v.category !== undefined && !(v.category in ACTION_CATEGORIES)) out.push(`${name}: category must be one of ${Object.keys(ACTION_CATEGORIES).join(", ")}.`);
+  if (v.category !== undefined && (typeof v.category !== "string" || !v.category.trim())) out.push(`${name}: category must be a word.`);
   if (!(v.beat! > 0) || !(v.length! > 0)) out.push(`${name}: beat and length must be positive.`);
   if (!(v.people?.min! >= 1) || !(v.people?.max! >= v.people?.min!)) out.push(`${name}: people needs min ≥ 1 and max ≥ min.`);
   const postures = ["stand", "sit", "lie", "inside"];
   if (v.target && (!Array.isArray(v.target.kinds) || !v.target.kinds.length || v.target.kinds.some((kind) => typeof kind !== "string") || !postures.includes(v.target.posture))) out.push(`${name}: target needs furniture kinds and a stand, sit, lie or inside posture.`);
   for (const [role, place] of Object.entries(v.target?.roles ?? {})) {
-    if (!postures.includes(place?.posture) || (place.side !== undefined && !["left", "right"].includes(place.side)) || ([place.along, place.across].some((n) => n !== undefined && !Number.isFinite(n)))) out.push(`${name}: target role "${role}" needs a posture, an optional left or right side and numeric across and along.`);
+    if (!postures.includes(place?.posture) || (place.side !== undefined && !["left", "right", "center"].includes(place.side)) || ([place.along, place.across].some((n) => n !== undefined && !Number.isFinite(n)))) out.push(`${name}: target role "${role}" needs a posture, an optional left or right side and numeric across and along.`);
   }
   if (v.cutaway && (!Number.isFinite(v.cutaway.from) || !Number.isFinite(v.cutaway.to) || v.cutaway.from < 0 || v.cutaway.to <= v.cutaway.from || v.cutaway.to > v.length! || typeof v.cutaway.label !== "string")) out.push(`${name}: cutaway needs a label and a time range inside the animation.`);
   if (v.cutaway && v.outfitAt === undefined) out.push(`${name}: a cutaway is only for actions that change outfit (set outfitAt).`);

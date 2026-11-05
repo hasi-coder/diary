@@ -12,7 +12,8 @@
     "tauri:build": "tauri build",
     "seed:demo": "cargo run --manifest-path src-tauri/Cargo.toml --bin seed -- --force",
     "test:rust": "cargo test --manifest-path src-tauri/Cargo.toml",
-    "test:animation": "node tools/places/test_animation.mjs"
+    "test:animation": "node tools/places/test_animation.mjs",
+    "list:animations": "node tools/places/list_interactions.mjs"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.3.3",

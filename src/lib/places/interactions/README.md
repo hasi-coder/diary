@@ -8,7 +8,7 @@ In the world, actions open as a Sims-style **action wheel**: click yourself or p
 **Actions** for yours, click a person for things to do with them, or click furniture for its
 actions. The wheel shows groups (Friendly, Romantic, Dance, Home, Care)
 that open into rings of a few actions each, with **More** turning the page, so nothing scrolls.
-An action's group is its `category` (see `ACTION_CATEGORIES` in `../interaction.ts`). With several
+An action's group is its `category` word. **To add a category, write a new word as an action's `category`**: it appears in the wheel and the settings list straight away (labelled from the word, with ✨). Add it to [categories.json](categories.json) to choose its label, emoji and place in the order. The settings page lists every animation by group. With several
 people around, a together action asks who with; an outfit action asks which outfit. People walk to an open
 space or to the selected furniture, play the keyframes, and stop when it ends,
 when you walk away, or when you press Stop.
@@ -84,7 +84,7 @@ add a Shower from the Bathroom furniture group to use that action there.
 
 | Field | Meaning |
 |---|---|
-| `category` | The wheel group it sits in: `social`, `romantic`, `dance`, `household`, `care`; `other` when left out |
+| `category` | The wheel group it sits in: any word (`social`, `romantic`, `dance`, `household`, `care` are labelled in categories.json); `other` when left out |
 | `people` | How many can take part, the person who starts it included |
 | `beat` | Seconds per beat; keyframes are placed in beats |
 | `length` | Beats in one round |
@@ -94,7 +94,7 @@ add a Shower from the Bathroom furniture group to use that action there.
 | `roles` | Keyframes per role, in beat order |
 | `target` | `{ "kinds": ["sink"], "posture": "stand" }`; posture is `stand`, `sit`, `lie` or `inside` |
 | `cutaway` | `{ "from": 1, "to": 7, "label": "Changing…", "emoji": "👕" }`; a full-screen card, **only for outfit changes** (needs `outfitAt`). Every other action stays on screen |
-| `target.roles` | Per-role placement at the furniture: `{ "therapist": { "posture": "stand", "side": "right", "along": 0.5 }, "client": { "posture": "lie", "side": "right", "across": 0.4 } }`. `side` is the left or right of someone lying on it, `across` metres toward that side, `along` metres toward the feet |
+| `target.roles` | Per-role placement at the furniture: `{ "therapist": { "posture": "stand", "side": "right", "along": 0.5 }, "client": { "posture": "lie", "side": "right", "across": 0.4 } }`. `side` is the left, right or `center` (the middle line, `across` ignored) of someone lying on it, `across` metres toward that side, `along` metres toward the feet |
 | `wardrobe` | `{ "at": 4, "restoreAt": 15, "outfitId": "underwear" }`; temporary preset change, restored before the scene ends |
 | `wardrobe.preferUnderlayers` | Use each person's saved underwear garments and colours when present, filling missing layers from the preset |
 | `outfitAt` | Beat when the selected outfit is applied; committed on completion, rolled back on Stop |

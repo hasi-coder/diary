@@ -521,7 +521,7 @@ export class World {
         // A role with a place of its own (beside the bed, off to one side of it) goes there.
         const lies = posture === "lie" || posture === "inside";
         const half = (Math.abs(bedFacing[0]) > Math.abs(bedFacing[1]) ? target.h : target.w) / 2 + 0.3;
-        const sign = place?.side === "right" ? -1 : 1;
+        const sign = place?.side === "right" ? -1 : place?.side === "center" ? 0 : 1;
         const across = place?.across ?? (lies ? 0 : half);
         const along = place?.along ?? 0;
         const wanted: Vec | null = place && (!lies || place.across !== undefined || place.along !== undefined)

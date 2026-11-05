@@ -69,7 +69,7 @@ await test("new joints interpolate, return to neutral, and blend across loop bou
 await test("all animation files load, with neutral defaults for joints they omit", async () => {
   const folder = "src/lib/places/interactions";
   for (const file of await readdir(join(root, folder))) {
-    if (!file.endsWith(".json")) continue;
+    if (!file.endsWith(".json") || file === "categories.json") continue;
     const def = await json(`${folder}/${file}`);
     assert.deepEqual(interactionProblems(def), [], file);
     for (const role of Object.keys(def.roles)) {

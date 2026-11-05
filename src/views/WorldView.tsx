@@ -23,9 +23,9 @@ import {
 } from "@phosphor-icons/react";
 import { api, errorMessage, type Post, type Profile } from "../lib/api";
 import { useJournal } from "../lib/journal";
-import { ACTION_CATEGORIES, type Interaction } from "../lib/places/interaction";
+import type { Interaction } from "../lib/places/interaction";
 import { ActionWheel, type WheelNode } from "../components/ActionWheel";
-import { INTERACTIONS, enabledInteractions, interactionsFor } from "../lib/places/interactions";
+import { INTERACTIONS, categoriesOf, enabledInteractions, interactionsFor } from "../lib/places/interactions";
 import { interactionSettingsRevision, subscribeInteractionSettings } from "../lib/interactionSettings";
 import { applyOutfit, OUTFITS, type Outfit } from "../lib/places/outfits";
 import { DressingRoom } from "../components/DressingRoom";
@@ -186,10 +186,7 @@ function Playing(props: { world: World; place: Profile; post: Post | null; loadE
 
   // ── The action wheel's rings ───────────────────────────────────────────────
   const groupNodes = (defs: Interaction[], make: (def: Interaction) => WheelNode): WheelNode[] =>
-    Object.entries(ACTION_CATEGORIES).flatMap(([id, info]) => {
-      const inGroup = defs.filter((def) => (def.category && def.category in ACTION_CATEGORIES ? def.category : "other") === id);
-      return inGroup.length ? [{ id, label: info.label, emoji: info.emoji, hint: `${inGroup.length} action${inGroup.length === 1 ? "" : "s"}`, children: inGroup.map(make) }] : [];
-    });
+    categoriesOf(defs).map((c) => ({ id: c.id, label: c.label, emoji: c.emoji, hint: `${c.defs.length} action${c.defs.length === 1 ? "" : "s"}`, children: c.defs.map(make) }));
 
   /** One action as a wheel node: chosen straight away, or after picking an outfit or who to do it with. */
   const defNode = (def: Interaction, others: Actor[], target?: PlacedItem): WheelNode => {

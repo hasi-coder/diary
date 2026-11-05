@@ -1,6 +1,6 @@
 import { useSyncExternalStore } from "react";
 import { MusicNotesIcon } from "@phosphor-icons/react";
-import { INTERACTIONS } from "../lib/places/interactions";
+import { INTERACTIONS, categoriesOf } from "../lib/places/interactions";
 import { actionAgeChoices, INTERACTION_SETTINGS, interactionSettingsRevision, setInteractionEnabled, setInteractionMinimumAge, subscribeInteractionSettings } from "../lib/interactionSettings";
 
 export function InteractionSettingsCard() {
@@ -13,19 +13,26 @@ export function InteractionSettingsCard() {
         <input type="checkbox" checked={INTERACTION_SETTINGS.enabled} onChange={(e) => setInteractionEnabled(null, e.target.checked)} className="h-4 w-4 accent-brand-600" />
         Enable Places animations and actions
       </label>
-      <div className="divide-y divide-slate-100">
-        {INTERACTIONS.map((def) => (
-          <div key={def.id} className="flex flex-wrap items-center gap-3 py-3">
-            <label className="flex min-w-48 flex-1 cursor-pointer items-center gap-3 text-sm">
-              <input type="checkbox" aria-label={`Enable ${def.label}`} checked={INTERACTION_SETTINGS.actions[def.id] ?? true} onChange={(e) => setInteractionEnabled(def.id, e.target.checked)} className="h-4 w-4 accent-brand-600" />
-              <span className="text-xl">{def.emoji}</span><span className="font-medium text-slate-700">{def.label}</span>
-            </label>
-            <select aria-label={`Age group for ${def.label}`} value={INTERACTION_SETTINGS.minimumAges[def.id] ?? 0} onChange={(e) => setInteractionMinimumAge(def.id, Number(e.target.value))} className="rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-sm text-slate-700">
-              {actionAgeChoices(def.id).map((age) => <option key={age} value={age}>{age === 0 ? "Any age" : `${age}+`}</option>)}
-            </select>
+      <p className="mb-3 text-xs text-slate-500">{INTERACTIONS.length} animations in {categoriesOf(INTERACTIONS).length} groups. A new group is just a new <code>category</code> word on an action file.</p>
+      {categoriesOf(INTERACTIONS).map((group) => (
+        <div key={group.id} className="mb-4">
+          <h3 className="mb-1 flex items-center gap-2 text-sm font-bold text-slate-800"><span>{group.emoji}</span> {group.label} <span className="text-xs font-normal text-slate-400">{group.defs.length}</span></h3>
+          <div className="divide-y divide-slate-100">
+            {group.defs.map((def) => (
+              <div key={def.id} className="flex flex-wrap items-center gap-3 py-2.5">
+                <label className="flex min-w-48 flex-1 cursor-pointer items-center gap-3 text-sm">
+                  <input type="checkbox" aria-label={`Enable ${def.label}`} checked={INTERACTION_SETTINGS.actions[def.id] ?? true} onChange={(e) => setInteractionEnabled(def.id, e.target.checked)} className="h-4 w-4 accent-brand-600" />
+                  <span className="text-xl">{def.emoji}</span>
+                  <span className="min-w-0"><span className="block font-medium text-slate-700">{def.label}</span><span className="block truncate text-xs text-slate-400">{def.people.min === def.people.max ? def.people.min : `${def.people.min}–${def.people.max}`} {def.people.max === 1 ? "person" : "people"}{def.target ? ` · ${def.target.kinds.join(" / ")}` : ""}</span></span>
+                </label>
+                <select aria-label={`Age group for ${def.label}`} value={INTERACTION_SETTINGS.minimumAges[def.id] ?? 0} onChange={(e) => setInteractionMinimumAge(def.id, Number(e.target.value))} className="rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-sm text-slate-700">
+                  {actionAgeChoices(def.id).map((age) => <option key={age} value={age}>{age === 0 ? "Any age" : `${age}+`}</option>)}
+                </select>
+              </div>
+            ))}
           </div>
-        ))}
-      </div>
+        </div>
+      ))}
     </section>
   );
 }
