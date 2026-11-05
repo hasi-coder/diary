@@ -168,6 +168,14 @@ function Playing(props: { world: World; place: Profile; post: Post | null; loadE
     tags.set(a.id, { text: a.profile.name, color: a.following ? "rgba(24,119,242,0.92)" : undefined });
   }
 
+  /** Sends someone else to do a solo action at a piece of furniture (the author stays where they are). */
+  const startFor = (def: Interaction, who: Actor, item?: PlacedItem) => {
+    if (world.startActivity(def, [who], { target: item })) {
+      setSelected(null);
+      changed();
+    }
+  };
+
   const start = (def: Interaction, people: Actor[], outfit?: Outfit) => {
     const members = def.people.max === 1 ? [me] : [me, ...people.filter((p) => p !== me)];
     if (world.startActivity(def, members, { target: itemTarget ?? undefined, outfit })) {
@@ -253,24 +261,57 @@ function Playing(props: { world: World; place: Profile; post: Post | null; loadE
     ...enabledInteractions().filter((def) => def.target?.kinds.includes(target.kind)).map((def) => defNode(def, world.actors.filter((a) => a !== me), target)).filter((n): n is WheelNode => !!n),
   ];
 
-  const personNodes = (who: Actor): WheelNode[] => [
-    ...groupNodes(interactionsFor(2), (def) => {
+  /** Home for another person: the furniture here they can use, and what it offers them (they go and do it). */
+  const homeFor = (who: Actor): WheelNode | null => {
+    const solo = enabledInteractions().filter((def) => def.people.max === 1 && def.target);
+    const first = who.profile.name.split(" ")[0];
+    const furniture = furnitureToUse(world.place.items, solo, [who.x, who.y]).map((item): WheelNode => {
+      const children: WheelNode[] = [];
+      if (item.spec.seat && item.kind !== "toilet") {
+        children.push({ id: "sit", label: "Sit here", emoji: "🪑", onSelect: () => {
+          const seat = world.place.seats.find((s) => s.item === item && !s.occupant && !s.reserved);
+          if (!seat) return setToast("All seats are taken.");
+          world.goTo(who, seat.x, seat.y, seat);
+          setSelected(null);
+        } });
+      }
+      for (const def of solo.filter((d) => d.target!.kinds.includes(item.kind))) {
+        const access = interactionAccess(def, [who]);
+        if (access.state === "hidden") continue;
+        const problem = access.state === "locked" ? `🔒 ${access.reason}` : world.activityProblem(def, [who], item);
+        children.push({ id: def.id, label: def.label, emoji: def.emoji ?? "✨", hint: def.description, disabled: problem ?? undefined, onSelect: () => startFor(def, who, item) });
+      }
+      return { id: `use-${item.kind}`, label: item.spec.label, emoji: FURNITURE_EMOJI[item.kind] ?? "🪑", hint: `${first} uses the ${item.spec.label.toLowerCase()}`, children };
+    }).filter((n) => n.children!.length > 0);
+    return furniture.length ? { id: "household", label: "Home", emoji: "🏠", hint: `Send ${first} to use the furniture here`, children: furniture } : null;
+  };
+
+  const personNodes = (who: Actor): WheelNode[] => {
+    const groups = groupNodes(interactionsFor(2), (def) => {
       if (interactionAccess(def, [me, who]).state === "hidden") return null;
       const locked = ageLocked(def, [me, who]);
       const problem = locked ? `🔒 ${locked}` : world.activityProblem(def, [me, who]);
       return { id: def.id, label: def.label, emoji: def.emoji ?? "✨", hint: def.description, disabled: problem ?? undefined, onSelect: () => start(def, [who]) };
-    }),
-    {
-      id: "manage", label: who.profile.name.split(" ")[0], emoji: "👤", hint: "Clothes, follow, wait, profile, send home",
-      children: [
-        { id: "clothes", label: "Clothes", emoji: "👗", hint: "Change what they wear", onSelect: () => (setDressing({ id: who.id, room: false }), setSelected(null)) },
-        { id: "follow", label: who.following ? "Following" : "Follow me", emoji: "🚶", hint: "Come along", onSelect: () => ((who.following = true), world.follow(who), changed()) },
-        { id: "wait", label: "Wait here", emoji: "✋", hint: "Stay where they are", onSelect: () => (world.wait(who), changed()) },
-        { id: "profile", label: "Profile", emoji: "📖", hint: "Open their profile", onSelect: () => navigate({ view: "profile", id: who.id }) },
-        { id: "leave", label: "Send home", emoji: "🏠", hint: "They leave the place", onSelect: () => (world.remove(who), setSelected(null), changed(), setToast(`${who.profile.name} left`)) },
-      ],
-    },
-  ];
+    });
+    // Home: the other person's own furniture (toilet, bath, bed, ...), merged into any Home group already there.
+    const home = homeFor(who);
+    const withHome = !home ? groups : groups.some((g) => g.id === "household")
+      ? groups.map((g) => (g.id === "household" ? { ...g, children: [...home.children!, ...(g.children ?? [])] } : g))
+      : [...groups, home];
+    return [
+      ...withHome,
+      {
+        id: "manage", label: who.profile.name.split(" ")[0], emoji: "👤", hint: "Clothes, follow, wait, profile, send home",
+        children: [
+          { id: "clothes", label: "Clothes", emoji: "👗", hint: "Change what they wear", onSelect: () => (setDressing({ id: who.id, room: false }), setSelected(null)) },
+          { id: "follow", label: who.following ? "Following" : "Follow me", emoji: "🚶", hint: "Come along", onSelect: () => ((who.following = true), world.follow(who), changed()) },
+          { id: "wait", label: "Wait here", emoji: "✋", hint: "Stay where they are", onSelect: () => (world.wait(who), changed()) },
+          { id: "profile", label: "Profile", emoji: "📖", hint: "Open their profile", onSelect: () => navigate({ view: "profile", id: who.id }) },
+          { id: "leave", label: "Send home", emoji: "🏠", hint: "They leave the place", onSelect: () => (world.remove(who), setSelected(null), changed(), setToast(`${who.profile.name} left`)) },
+        ],
+      },
+    ];
+  };
 
   const onPick = (pick: Pick, at: { x: number; y: number }) => {
     setWheelAt(at);
