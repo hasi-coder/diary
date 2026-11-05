@@ -127,9 +127,9 @@ export function DressingRoom({ profile, look, initialLayer, onApply, onClose }: 
               <div role="tabpanel" aria-label={CLOTHING_LAYERS[layer].label} className="grid max-h-[380px] grid-cols-2 gap-2 overflow-y-auto p-0.5 sm:grid-cols-3">
                 {choices.map((g) => {
                   const active = worn.find((item) => item.garment === g.id);
-                  return <button type="button" key={g.id} draggable onDragStart={(e) => { e.dataTransfer.setData(DRAG_TYPE, g.id); e.dataTransfer.effectAllowed = "copy"; }} onClick={() => tryOn(g.id)} aria-label={active ? `Take off ${g.label}` : `Try on ${g.label}`} aria-pressed={!!active} className={`group relative flex min-h-32 flex-col items-center rounded-xl border-2 p-2 text-center transition-colors ${active ? "border-brand-400 bg-brand-50" : "border-slate-100 bg-slate-50 hover:border-brand-200 hover:bg-white"}`}>
+                  return <button type="button" key={g.id} draggable onDragStart={(e) => { e.dataTransfer.setData(DRAG_TYPE, g.id); e.dataTransfer.effectAllowed = "copy"; }} onClick={() => tryOn(g.id)} aria-label={active ? `Take off ${g.label}` : `Try on ${g.label}`} aria-pressed={!!active} className={`group relative flex min-h-40 flex-col items-center rounded-xl border-2 p-2.5 text-center transition-colors ${active ? "border-brand-400 bg-brand-50" : "border-slate-100 bg-slate-50 hover:border-brand-200 hover:bg-white"}`}>
                     {active && <span className="absolute right-1.5 top-1.5 rounded-full bg-brand-600 p-0.5 text-white"><CheckIcon size={12} weight="bold" /></span>}
-                    <GarmentIcon definition={g} color={active?.color ?? defaultColor(g)} className="mb-1 h-16 w-16 text-slate-600 transition-transform group-hover:scale-105" />
+                    <div className="mb-2 flex h-24 w-full items-center justify-center rounded-lg bg-gradient-to-b from-white/70 to-white/10"><GarmentIcon definition={g} color={active?.color ?? defaultColor(g)} className="h-24 w-24 max-w-full transition-transform duration-200 group-hover:scale-105" /></div>
                     <span className="text-xs font-semibold text-slate-700">{g.label}</span><span className="text-[10px] text-slate-400">{SLOTS[g.slot].label}</span>
                   </button>;
                 })}

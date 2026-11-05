@@ -1,5 +1,6 @@
 import type { Character } from "./character";
 import { CLOTHING_CATALOG } from "./clothingCatalog";
+import { SRI_LANKAN_GARMENTS } from "./sriLankanClothing";
 import { normalizeClothingFit } from "./clothingFit";
 import type { ClothingLayer, ClothingStyle, Garment, Slot, Worn } from "./clothingTypes";
 export type { ClothingFit, ClothingLayer, ClothingStyle, ClothingRecipe, ClothingRegion, Garment, Slot, Worn } from "./clothingTypes";
@@ -27,6 +28,7 @@ export const GARMENTS: Garment[] = [
   { ...legacy("underwear_vest", "Underwear vest", "underwearTop", "underwear", ["torso"], 1), recipe: { kind: "shell", part: "top", sleeves: 0, length: 0.82, neckline: 0.06 } },
   { ...legacy("boxer_briefs", "Boxer briefs", "underwearBottom", "underwear", ["hips", "thighs"]), recipe: { kind: "shell", part: "bottom", length: 0.22 } },
   ...CLOTHING_CATALOG,
+  ...SRI_LANKAN_GARMENTS,
 ];
 
 export const SLOTS: Record<Slot, { label: string; optional: boolean; layer: ClothingLayer }> = {
@@ -45,7 +47,7 @@ const byId = new Map(GARMENTS.map((g) => [g.id, g]));
 export const garment = (id: string) => byId.get(id);
 export const garmentsFor = (layer: ClothingLayer, style: ClothingStyle | "all" = "all") => GARMENTS.filter((g) => g.layer === layer && (style === "all" || g.styles.includes(style)));
 export const SHOE_COLORS = ["#292524", "#57534e", "#78350f", "#f5f5f4", "#1e3a8a", "#be123c"];
-export const SKIRTS = new Set(GARMENTS.filter((g) => g.id === "a_line_skirt" || g.recipe?.kind === "skirt" || g.recipe?.kind === "dress").map((g) => g.id));
+export const SKIRTS = new Set(GARMENTS.filter((g) => g.id === "a_line_skirt" || g.recipe?.kind === "skirt" || g.recipe?.kind === "dress" || (g.recipe?.kind === "drape" && g.recipe.drape !== "dupatta")).map((g) => g.id));
 
 /** Socks sit below trousers, shoes above them; a bra sits below a camisole. */
 export function clothingOrder(g: Garment): number {

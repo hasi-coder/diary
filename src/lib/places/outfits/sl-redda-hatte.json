@@ -1,0 +1,11 @@
+{
+  "label": "Sri Lankan · Redda and hatte",
+  "description": "A light short-sleeve hatte blouse and a long overlapping redda wrap skirt with a woven hem border.",
+  "wearing": [
+    { "garment": "feminine_underwear_bra", "color": "#e7c7ae" },
+    { "garment": "feminine_underwear_briefs", "color": "#e7c7ae" },
+    { "garment": "feminine_base_hatte", "color": "#fff7ed" },
+    { "garment": "feminine_base_redda", "color": "#c2410c" },
+    { "garment": "feminine_footwear_sandals", "color": "#78350f" }
+  ]
+}

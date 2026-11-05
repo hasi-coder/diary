@@ -6,11 +6,16 @@ export type ClothingRegion = "torso" | "upperArms" | "forearms" | "hips" | "thig
 /** Shared geometry recipes describe cuts, not just colour variants. New styles
  * reuse the shipped rig and morph targets, with their own silhouettes and trim. */
 export interface ClothingRecipe {
-  kind: "shell" | "skirt" | "dress" | "shoes" | "accessory";
+  kind: "shell" | "skirt" | "dress" | "shoes" | "accessory" | "drape";
+  drape?: "saree" | "osariya" | "redda" | "dupatta";
+  trim?: "gold" | "woven";
+  sleevePuff?: number;
   part?: "top" | "bottom" | "socks";
   sleeves?: number;
   length?: number;
   neckline?: number;
+  /** A continuous curved neckline instead of the default horizontal crop. */
+  necklineShape?: "round";
   openFront?: boolean;
   flare?: number;
   pleats?: number;

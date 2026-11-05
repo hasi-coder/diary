@@ -1,0 +1,12 @@
+{
+  "label": "Sri Lankan · Saree",
+  "description": "A cropped blouse, ankle-length pleated saree and shoulder pallu with gold borders. Blouse and saree colours are independent.",
+  "wearing": [
+    { "garment": "feminine_underwear_bra", "color": "#e7c7ae" },
+    { "garment": "feminine_underwear_briefs", "color": "#e7c7ae" },
+    { "garment": "feminine_underwear_petticoat", "color": "#e7c7ae" },
+    { "garment": "feminine_base_saree_blouse", "color": "#7f1d1d" },
+    { "garment": "feminine_base_saree", "color": "#b91c1c" },
+    { "garment": "feminine_footwear_sandals", "color": "#78350f" }
+  ]
+}

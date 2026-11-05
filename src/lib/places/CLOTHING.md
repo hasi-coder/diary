@@ -1,11 +1,14 @@
 # Layered clothing
 
-The catalogue has **180 new choices**: ten distinct categories in each of six
+The everyday catalogue has **180 choices**: ten distinct categories in each of six
 layers for feminine, masculine and neutral style collections. The eight original
 garment ids remain valid. Style collections are only a browsing filter, and the dressing room opens on
 "All": every garment is offered to every body (trans women and men, non-binary
 people, any age or shape), and nothing in rendering, saving or the MCP tools checks
 figure, shape or age against a garment.
+
+The Sri Lankan collection adds **nine independently editable pieces** and four
+complete outfit presets alongside the everyday catalogue.
 
 | Layer | Pieces that can coexist |
 |---|---|
@@ -39,6 +42,7 @@ a piece reveals the layer beneath it (finally, skin). Only characters saved befo
 
 - `clothingTypes.ts` defines layers, slots, regions and geometry recipes.
 - `clothingCatalog.ts` defines ten cuts per layer/style, with stable garment ids.
+- `sriLankanClothing.ts` adds the regional garments without replacing existing cuts.
 - `garments.ts` resolves legacy ids, replaces same-layer clashes, orders layers,
   preserves underwear, and derives legacy `top`, `bottom` and `skirt` fields.
 - `outfits/*.json` combine many garments into complete outfits.
@@ -107,6 +111,35 @@ school guidance rather than claiming one universal uniform:
 No school crest or logo is invented. Colours and accessories can be adjusted to
 the particular school's requirements.
 
+## Sri Lankan outfits
+
+Choose **Character → Change clothes → Try a complete outfit** and select one of:
+
+- **Sri Lankan · Saree**: cropped blouse, long pleated wrap, shoulder pallu and gold borders.
+- **Sri Lankan · Kandyan osariya**: fuller puff-sleeve blouse, shoulder drape and a pleated neriya waist frill.
+- **Sri Lankan · Redda and hatte**: light blouse and a long overlapping wrap skirt with a woven border.
+- **Sri Lankan · Salwar kameez**: long tunic, separate trousers and an independently coloured dupatta shawl.
+
+Search for “Sri Lanka”, “saree”, “osariya”, “redda”, “hatte”, “salwar”, “kameez” or
+“dupatta” to select individual pieces. Blouses, wraps, trousers and shawls keep
+their own colours and fit controls. The saree and osariya presets include a
+petticoat; the existing Keep underwear option works with these presets too.
+
+Shoulder panels follow the torso surface, skin weights and body morphs. The
+osariya frill, front pleats, wrap overlap and hem/pallu borders are actual mesh
+pieces. They approximate draped fabric on the existing rig; there is no cloth
+simulation, so deep bends and wide leg poses can still intersect the fabric.
+
+Long wraps use measured waist/hip profiles for their morphs, with a resolved fan
+of front pleats and a level hem. The blouse uses a curved neckline that retains
+the shoulder seam. The fitting-pose checks cover both feminine and masculine
+body shapes. Wardrobe cards use larger, garment-specific SVG illustrations,
+including distinct saree, osariya, shawl, underwear, footwear and accessory cuts.
+
+The silhouettes follow the sari, osariya, redde/hatte and salwar kameez described
+in the [Sri Lanka culture guide, section 9](https://www.govinfo.gov/content/pkg/GOVPUB-D301-PURL-gpo91821/pdf/GOVPUB-D301-PURL-gpo91821.pdf).
+They are configurable outfit examples rather than one universal Sri Lankan dress.
+
 ## Extending and checking
 
 Add a catalogue choice with a unique category/id, a slot, occupied regions and a
@@ -117,3 +150,6 @@ Run `npm run test:animation` for catalogue counts, unique ids, every garment's
 generated mesh/morphs, preset compatibility, partial occlusion, restoration,
 underwear retention, socks/shoes and animation regressions. Run `npm run build`
 for the production typecheck and frontend build.
+
+Run `npm run test:clothing` for regional outfit compatibility, independent pieces,
+underwear retention and the drapes' geometry, skin weights and morphs.

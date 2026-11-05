@@ -391,7 +391,11 @@ export class Body {
       const covered = new Set<number>();
       const faces = new Set<string>();
       for (const higher of this.worn) {
-        if (clothingOrder(garment(higher.garment)!) <= clothingOrder(definition)) continue;
+        const higherDefinition = garment(higher.garment)!;
+        if (clothingOrder(higherDefinition) <= clothingOrder(definition)) continue;
+        // A loose hem surrounds the feet; projecting it to nearby foot vertices
+        // does not mean shoes cover that cloth. Keep the hanging surface intact.
+        if (higherDefinition.layer === "footwear" && (definition.recipe?.kind === "skirt" || definition.recipe?.kind === "dress" || definition.recipe?.kind === "drape")) continue;
         for (const piece of this.clothing.get(higher.garment) ?? []) {
           for (const id of piece.coverage) covered.add(id);
           for (const face of piece.coverageFaces) faces.add(face);

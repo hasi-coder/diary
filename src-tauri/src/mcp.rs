@@ -373,6 +373,17 @@ fn person_summary(p: &Profile, set: Vec<String>) -> Value {
 
 /// Garments and the slot each fills: src/lib/places/garments.ts (a test keeps them in step).
 const GARMENTS: [(&str, &str); 8] = [("tee", "top"), ("fitted_tee", "top"), ("jeans", "bottom"), ("slim_jeans", "bottom"), ("a_line_skirt", "bottom"), ("shoes", "feet"), ("underwear_vest", "underwearTop"), ("boxer_briefs", "underwearBottom")];
+const REGIONAL_GARMENTS: [(&str, &str); 9] = [
+    ("feminine_base_saree_blouse", "top"), ("feminine_base_saree", "bottom"),
+    ("feminine_base_osariya_blouse", "top"), ("feminine_base_osariya", "bottom"),
+    ("feminine_base_hatte", "top"), ("feminine_base_redda", "bottom"),
+    ("feminine_base_kameez", "top"), ("feminine_base_salwar", "bottom"),
+    ("feminine_accessories_dupatta", "scarf"),
+];
+
+fn garment_slot(id: &str) -> Option<&'static str> {
+    GARMENTS.iter().chain(REGIONAL_GARMENTS.iter()).find(|(g, _)| *g == id).map(|(_, slot)| *slot)
+}
 
 /// Catalogue garments are `<style>_<layer>_<category>` (clothingCatalog.ts), e.g. `masculine_underwear_bra`
 /// never exists but `feminine_underwear_bra` does. Any style may be worn by any body.
@@ -384,10 +395,10 @@ fn catalogue_garment(id: &str) -> bool {
         && !category.is_empty()
         && category.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_')
 }
-const SKIRTS: [&str; 1] = ["a_line_skirt"];
+const SKIRTS: [&str; 4] = ["a_line_skirt", "feminine_base_saree", "feminine_base_osariya", "feminine_base_redda"];
 
 /// Outfit templates: src/lib/places/outfits/*.json.
-const OUTFITS: [(&str, &str); 14] = [
+const OUTFITS: [(&str, &str); 18] = [
     ("casual", include_str!("../../src/lib/places/outfits/casual.json")),
     ("weekend", include_str!("../../src/lib/places/outfits/weekend.json")),
     ("skirt-day", include_str!("../../src/lib/places/outfits/skirt-day.json")),
@@ -402,6 +413,10 @@ const OUTFITS: [(&str, &str); 14] = [
     ("layered-feminine", include_str!("../../src/lib/places/outfits/layered-feminine.json")),
     ("layered-masculine", include_str!("../../src/lib/places/outfits/layered-masculine.json")),
     ("layered-neutral", include_str!("../../src/lib/places/outfits/layered-neutral.json")),
+    ("sl-saree", include_str!("../../src/lib/places/outfits/sl-saree.json")),
+    ("sl-osariya", include_str!("../../src/lib/places/outfits/sl-osariya.json")),
+    ("sl-redda-hatte", include_str!("../../src/lib/places/outfits/sl-redda-hatte.json")),
+    ("sl-salwar-kameez", include_str!("../../src/lib/places/outfits/sl-salwar-kameez.json")),
 ];
 
 fn is_hex(s: &str) -> bool {
@@ -425,7 +440,7 @@ fn wearing_of(list: &Value) -> Result<Vec<Value>> {
     let mut out = Vec::new();
     for w in items {
         let id = w.get("garment").and_then(Value::as_str).unwrap_or("");
-        let slot = GARMENTS.iter().find(|(g, _)| *g == id).map(|(_, s)| *s);
+        let slot = garment_slot(id);
         if slot.is_none() && !catalogue_garment(id) {
             return Err(Error::Invalid(format!("Unknown garment \"{id}\".")));
         }
@@ -500,7 +515,7 @@ fn character_patch(current: Value, args: &Value) -> Result<(Value, Vec<&'static 
     };
     if let Some(wearing) = wearing {
         // The fields drawn faces, avatars and the box body still read.
-        let in_slot = |slot: &str| wearing.iter().find(|w| GARMENTS.iter().any(|(g, s)| *s == slot && w["garment"] == *g)).cloned();
+        let in_slot = |slot: &str| wearing.iter().find(|w| w["garment"].as_str().and_then(garment_slot) == Some(slot)).cloned();
         if let Some(top) = in_slot("top") {
             c.insert("top".into(), top["color"].clone());
         }
@@ -1269,6 +1284,26 @@ mod tests {
             let template: Value = serde_json::from_str(file).unwrap();
             wearing_of(&template["wearing"]).unwrap_or_else(|e| panic!("{id}: {e}"));
         }
+    }
+
+    #[test]
+    fn sri_lankan_outfits_keep_regional_slots_and_legacy_colours_in_sync() {
+        let ts = include_str!("../../src/lib/places/sriLankanClothing.ts");
+        for (id, slot) in REGIONAL_GARMENTS {
+            let line = ts.lines().find(|line| line.contains(&format!("id: \"{id}\""))).unwrap();
+            assert!(line.contains(&format!("slot: \"{slot}\"")));
+        }
+        let (character, _) = character_patch(json!({}), &json!({ "outfit": "sl-saree" })).unwrap();
+        assert_eq!(character["top"], "#7f1d1d");
+        assert_eq!(character["bottom"], "#b91c1c");
+        assert_eq!(character["skirt"], true);
+        let (character, _) = character_patch(character, &json!({ "outfit": "sl-salwar-kameez" })).unwrap();
+        assert_eq!(character["top"], "#6d28d9");
+        assert_eq!(character["skirt"], false);
+        assert!(wearing_of(&json!([
+            { "garment": "feminine_base_saree", "color": "#ffffff" },
+            { "garment": "feminine_base_redda", "color": "#ffffff" }
+        ])).is_err());
     }
 
     #[test]

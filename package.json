@@ -14,6 +14,7 @@
     "test:rust": "cargo test --manifest-path src-tauri/Cargo.toml",
     "test:animation": "node tools/places/test_animation.mjs",
     "test:body": "node tools/places/test_body_anatomy.mjs",
+    "test:clothing": "node tools/places/test_sri_lankan_clothing.mjs",
     "list:animations": "node tools/places/list_interactions.mjs"
   },
   "devDependencies": {

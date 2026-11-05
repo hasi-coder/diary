@@ -15,6 +15,10 @@ import slWhiteShorts from "./sl-school-white-shorts.json";
 import layeredFeminine from "./layered-feminine.json";
 import layeredMasculine from "./layered-masculine.json";
 import layeredNeutral from "./layered-neutral.json";
+import slSaree from "./sl-saree.json";
+import slOsariya from "./sl-osariya.json";
+import slReddaHatte from "./sl-redda-hatte.json";
+import slSalwarKameez from "./sl-salwar-kameez.json";
 
 export interface Outfit {
   id: string;
@@ -38,6 +42,10 @@ export const OUTFITS: Outfit[] = [
   { id: "layered-feminine", ...layeredFeminine },
   { id: "layered-masculine", ...layeredMasculine },
   { id: "layered-neutral", ...layeredNeutral },
+  { id: "sl-saree", ...slSaree },
+  { id: "sl-osariya", ...slOsariya },
+  { id: "sl-redda-hatte", ...slReddaHatte },
+  { id: "sl-salwar-kameez", ...slSalwarKameez },
 ].map((outfit) => ({ ...outfit, wearing: normalizeWorn(outfit.wearing) }));
 
 /** Problems with an outfit file; [] when every garment exists and the top and bottom are there. */
