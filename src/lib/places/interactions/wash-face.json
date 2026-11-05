@@ -2,7 +2,7 @@
   "id": "wash-face",
   "label": "Wash face",
   "emoji": "💦",
-  "category": "household",
+  "category": "bathroom",
   "requires": { "tier": "casual" },
   "description": "Wash face at the sink.",
   "people": {

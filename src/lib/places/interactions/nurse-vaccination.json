@@ -2,7 +2,7 @@
  "id": "nurse-vaccination",
  "label": "Give a vaccination",
  "emoji": "💉",
-  "category": "care",
+  "category": "nurse",
   "requires": { "tier": "casual" },
  "description": "A nurse gives a jab in the upper arm; the patient looks away, then gets a thumbs up.",
  "people": {

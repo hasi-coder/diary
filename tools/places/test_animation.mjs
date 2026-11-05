@@ -25,6 +25,7 @@ try {
         export { ageRequirement } from './src/lib/places/interaction';
         export { setShowLockedActions } from './src/lib/interactionSettings';
         export { interactionGate, interactionHidden, interactionDressed } from './src/lib/places/interactionPolicy';
+        export { categoryTree, categoriesOf } from './src/lib/places/interactions/categories';
         export { longestPlantHold } from './src/lib/places/interaction';
         export { lengthOf, interactionWarnings } from './src/lib/places/interaction';
         export { solveTwoBone, KNEEL_DROP, KNEEL_ANKLE } from './src/components/world/ik';
@@ -42,7 +43,7 @@ try {
 } finally {
   await rm(scratch, { recursive: true, force: true });
 }
-const { poseAt, interactionProblems, INTERACTION_POLICY, interactionEnabled, interactionPolicyProblem, setInteractionEnabled, setInteractionMinimumAge, subscribeInteractionPolicy, OUTFITS, outfitProblems, applyOutfit, outfitOf, withSlot, GARMENTS, CLOTHING_LAYERS, CLOTHING_STYLES, clothingProblems, normalizeWorn, garment, CLOTHING_CATALOG, solveTwoBone, KNEEL_DROP, KNEEL_ANKLE, ageRequirement, longestPlantHold, setShowLockedActions, interactionGate, interactionHidden, interactionDressed, lengthOf, interactionWarnings, FACE_DEFS, FACE_VIEWS, FALLBACK_VIEW, FACE_SLOTS, World, Body, THREE, GLTFLoader } = animation;
+const { poseAt, interactionProblems, INTERACTION_POLICY, interactionEnabled, interactionPolicyProblem, setInteractionEnabled, setInteractionMinimumAge, subscribeInteractionPolicy, OUTFITS, outfitProblems, applyOutfit, outfitOf, withSlot, GARMENTS, CLOTHING_LAYERS, CLOTHING_STYLES, clothingProblems, normalizeWorn, garment, CLOTHING_CATALOG, solveTwoBone, KNEEL_DROP, KNEEL_ANKLE, ageRequirement, categoryTree, categoriesOf, longestPlantHold, setShowLockedActions, interactionGate, interactionHidden, interactionDressed, lengthOf, interactionWarnings, FACE_DEFS, FACE_VIEWS, FALLBACK_VIEW, FACE_SLOTS, World, Body, THREE, GLTFLoader } = animation;
 const { normalizeClothingFit, withClothingFit } = animation;
 const json = async (path) => JSON.parse(await readFile(join(root, path), "utf8"));
 const interaction = (keys, loop = false) => ({
@@ -410,6 +411,38 @@ await test("removing a layer is not 'needs an adult': the age rule follows what 
   assert.equal(outerOff(w.partner), true, "a child's jacket comes off in a fitting");
   assert.ok(outfitOf(w.partner.look).some((g) => garment(g.garment).covers.includes("hips")), "but their trousers stay");
   w.world.stopActivity();
+});
+
+await test("every shipped action is reachable in the wheel, in rings short enough not to page", async () => {
+  const folder = "src/lib/places/interactions";
+  const defs = [];
+  for (const file of await readdir(join(root, folder))) if (file.endsWith(".json") && file !== "categories.json" && !file.startsWith("test_")) defs.push(await json(`${folder}/${file}`));
+  const two = defs.filter((d) => d.people.min <= 2 && d.people.max >= 2);
+  // Every action, solo or together, is in the tree the wheel is built from (your own wheel lists them all).
+  const everything = categoryTree(defs);
+  const listed = new Set();
+  const collect = (n) => { n.defs.forEach((d) => listed.add(d.id)); n.children.forEach(collect); };
+  everything.forEach(collect);
+  for (const d of defs) assert.ok(listed.has(d.id), `${d.id} is listed in the wheel`);
+  assert.ok(everything.length + 2 <= 10, "your wheel: the groups plus clothes and settings fit one ring");
+  const tree = categoryTree(two);
+  const seen = new Set();
+  const walk = (node, depth) => {
+    assert.ok(node.children.length + node.defs.length <= 8, `${node.id}: ${node.children.length + node.defs.length} choices in one ring`);
+    for (const d of node.defs) seen.add(d.id);
+    node.children.forEach((c) => walk(c, depth + 1));
+  };
+  tree.forEach((n) => walk(n, 0));
+  for (const d of two) assert.ok(seen.has(d.id), `${d.id} is in the wheel`);
+  // A person's ring: the groups plus one group for clothes, follow, wait, profile and send home.
+  assert.ok(tree.length + 1 <= 10, `${tree.length} top-level groups plus the person group`);
+  const care = tree.find((n) => n.id === "care");
+  assert.deepEqual(care.children.map((c) => c.id).sort(), ["doctor", "nurse", "therapy"]);
+  assert.ok(care.defs.some((d) => d.id === "care-haircut"), "the haircut is in Care");
+  // A category nobody listed still appears, labelled from its word.
+  const novel = categoryTree([{ ...defs[0], id: "x", category: "sports" }]);
+  assert.deepEqual([novel[0].id, novel[0].label], ["sports", "Sports"]);
+  assert.ok(categoriesOf(defs).length >= tree.length);
 });
 
 await test("clearance holds two roles apart: it lengthens an anchor, and eases free roles apart without jitter", async () => {

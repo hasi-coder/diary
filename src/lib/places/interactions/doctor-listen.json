@@ -2,7 +2,7 @@
  "id": "doctor-listen",
  "label": "Listen to the chest",
  "emoji": "🩺",
-  "category": "care",
+  "category": "doctor",
   "requires": { "tier": "casual" },
  "description": "A doctor listens to the patient's breathing with a stethoscope, front then back.",
  "people": {

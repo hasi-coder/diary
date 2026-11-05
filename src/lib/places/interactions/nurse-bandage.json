@@ -2,7 +2,7 @@
  "id": "nurse-bandage",
  "label": "Bandage a wound",
  "emoji": "🩹",
-  "category": "care",
+  "category": "nurse",
   "requires": { "tier": "casual" },
  "description": "A nurse wraps a bandage round the patient's forearm.",
  "people": {

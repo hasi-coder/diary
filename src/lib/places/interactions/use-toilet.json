@@ -2,7 +2,7 @@
   "id": "use-toilet",
   "label": "Use toilet",
   "emoji": "\ud83d\udebb",
-  "category": "household",
+  "category": "bathroom",
   "description": "Use the toilet privately, then leave the seat.",
   "people": {
     "min": 1,

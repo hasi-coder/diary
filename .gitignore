@@ -18,6 +18,8 @@ build/
 tmp/
 # Face reference images (made from a real photo): kept locally in tmp/places/faces
 assets/places/faces/
+# Scratch animations (loaded by the app, ignored by tooling and git)
+src/lib/places/interactions/test_*.json
 
 # Environment
 .env

@@ -2,7 +2,7 @@
  "id": "therapy-comfort",
  "label": "Offer comfort",
  "emoji": "🤝",
-  "category": "care",
+  "category": "therapy",
   "requires": { "tier": "casual" },
  "description": "A therapist rests a steadying hand on the client's shoulder while they settle.",
  "people": {

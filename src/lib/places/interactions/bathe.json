@@ -2,7 +2,7 @@
   "id": "bathe",
   "label": "Take a bath",
   "emoji": "\ud83d\udec1",
-  "category": "household",
+  "category": "bathroom",
   "description": "Relaxing in the bath\u2026",
   "people": {
     "min": 1,

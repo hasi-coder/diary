@@ -2,7 +2,7 @@
   "id": "brush-teeth",
   "label": "Brush teeth",
   "emoji": "🪥",
-  "category": "household",
+  "category": "bathroom",
   "requires": { "tier": "casual" },
   "description": "Brush teeth at the sink.",
   "people": {

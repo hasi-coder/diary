@@ -2,7 +2,7 @@
  "id": "massage",
  "label": "Massage",
  "emoji": "💆",
-  "category": "care",
+  "category": "therapy",
   "requires": { "tier": "casual" },
  "description": "A relaxed neck and shoulder massage: one person stands behind and kneads the other's shoulders, then works down the upper back.",
  "people": {

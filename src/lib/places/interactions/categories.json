@@ -2,31 +2,61 @@
   {
     "id": "social",
     "label": "Friendly",
-    "emoji": "\ud83d\udc4b"
+    "emoji": "👋"
   },
   {
     "id": "romantic",
     "label": "Romantic",
-    "emoji": "\ud83d\udc9e"
+    "emoji": "💞"
   },
   {
     "id": "dance",
     "label": "Dance",
-    "emoji": "\ud83d\udc83"
+    "emoji": "💃"
   },
   {
     "id": "household",
     "label": "Home",
-    "emoji": "\ud83c\udfe0"
+    "emoji": "🏠"
   },
   {
     "id": "care",
     "label": "Care",
-    "emoji": "\ud83e\ude7a"
+    "emoji": "🩺"
+  },
+  {
+    "id": "nurse",
+    "label": "Nurse",
+    "emoji": "💉",
+    "parent": "care"
+  },
+  {
+    "id": "doctor",
+    "label": "Doctor",
+    "emoji": "🩺",
+    "parent": "care"
+  },
+  {
+    "id": "therapy",
+    "label": "Therapy",
+    "emoji": "💆",
+    "parent": "care"
+  },
+  {
+    "id": "bathroom",
+    "label": "Bathroom",
+    "emoji": "🚿",
+    "parent": "household"
+  },
+  {
+    "id": "bedroom",
+    "label": "Bedroom",
+    "emoji": "🛏️",
+    "parent": "household"
   },
   {
     "id": "other",
     "label": "More",
-    "emoji": "\u2728"
+    "emoji": "✨"
   }
 ]

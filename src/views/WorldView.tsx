@@ -25,7 +25,7 @@ import { api, errorMessage, type Post, type Profile } from "../lib/api";
 import { useJournal } from "../lib/journal";
 import type { Interaction } from "../lib/places/interaction";
 import { ActionWheel, type WheelNode } from "../components/ActionWheel";
-import { INTERACTIONS, categoriesOf, enabledInteractions, interactionsFor } from "../lib/places/interactions";
+import { INTERACTIONS, categoryTree, enabledInteractions, interactionsFor, type CategoryNode } from "../lib/places/interactions";
 import { interactionGate, interactionHidden } from "../lib/places/interactionPolicy";
 import { interactionSettingsRevision, subscribeInteractionSettings } from "../lib/interactionSettings";
 import { applyOutfit, OUTFITS, type Outfit } from "../lib/places/outfits";
@@ -186,11 +186,13 @@ function Playing(props: { world: World; place: Profile; post: Post | null; loadE
   };
 
   // ── The action wheel's rings ───────────────────────────────────────────────
-  const groupNodes = (defs: Interaction[], make: (def: Interaction) => WheelNode | null): WheelNode[] =>
-    categoriesOf(defs).flatMap((c) => {
-      const nodes = c.defs.map(make).filter((n): n is WheelNode => !!n);
-      return nodes.length ? [{ id: c.id, label: c.label, emoji: c.emoji, hint: `${nodes.length} action${nodes.length === 1 ? "" : "s"}`, children: nodes }] : [];
-    });
+  const groupNodes = (defs: Interaction[], make: (def: Interaction) => WheelNode | null): WheelNode[] => {
+    const build = (c: CategoryNode): WheelNode | null => {
+      const all = [...c.children.map(build), ...c.defs.map(make)].filter((n): n is WheelNode => !!n);
+      return all.length ? { id: c.id, label: c.label, emoji: c.emoji, hint: `${all.length} ${c.children.length ? "groups and actions" : `action${all.length === 1 ? "" : "s"}`}`, children: all } : null;
+    };
+    return categoryTree(defs).map(build).filter((n): n is WheelNode => !!n);
+  };
 
   /** Actions the group's ages rule out are left off the wheel, or shown with a lock when Settings says so. */
   const ageLocked = (def: Interaction, people: Actor[]) => (interactionGate(def, people).hidden ? `Needs everyone to be ${interactionGate(def, people).minimum}+` : undefined);
@@ -246,11 +248,16 @@ function Playing(props: { world: World; place: Profile; post: Post | null; loadE
       const problem = locked ? `🔒 ${locked}` : world.activityProblem(def, [me, who]);
       return { id: def.id, label: def.label, emoji: def.emoji ?? "✨", hint: def.description, disabled: problem ?? undefined, onSelect: () => start(def, [who]) };
     }),
-    { id: "clothes", label: "Clothes", emoji: "👗", hint: "Change what they wear", onSelect: () => (setDressing({ id: who.id, room: false }), setSelected(null)) },
-    { id: "follow", label: who.following ? "Following" : "Follow me", emoji: "🚶", hint: "Come along", onSelect: () => ((who.following = true), world.follow(who), changed()) },
-    { id: "wait", label: "Wait here", emoji: "✋", hint: "Stay where they are", onSelect: () => (world.wait(who), changed()) },
-    { id: "profile", label: "Profile", emoji: "📖", hint: "Open their profile", onSelect: () => navigate({ view: "profile", id: who.id }) },
-    { id: "leave", label: "Send home", emoji: "🏠", hint: "They leave the place", onSelect: () => (world.remove(who), setSelected(null), changed(), setToast(`${who.profile.name} left`)) },
+    {
+      id: "manage", label: who.profile.name.split(" ")[0], emoji: "👤", hint: "Clothes, follow, wait, profile, send home",
+      children: [
+        { id: "clothes", label: "Clothes", emoji: "👗", hint: "Change what they wear", onSelect: () => (setDressing({ id: who.id, room: false }), setSelected(null)) },
+        { id: "follow", label: who.following ? "Following" : "Follow me", emoji: "🚶", hint: "Come along", onSelect: () => ((who.following = true), world.follow(who), changed()) },
+        { id: "wait", label: "Wait here", emoji: "✋", hint: "Stay where they are", onSelect: () => (world.wait(who), changed()) },
+        { id: "profile", label: "Profile", emoji: "📖", hint: "Open their profile", onSelect: () => navigate({ view: "profile", id: who.id }) },
+        { id: "leave", label: "Send home", emoji: "🏠", hint: "They leave the place", onSelect: () => (world.remove(who), setSelected(null), changed(), setToast(`${who.profile.name} left`)) },
+      ],
+    },
   ];
 
   const onPick = (pick: Pick, at: { x: number; y: number }) => {

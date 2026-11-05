@@ -2,7 +2,7 @@
   "id": "care-bench",
   "label": "On a bench",
   "emoji": "🪑",
-  "category": "casual",
+  "category": "social",
   "description": "Two on a bench, one talking, one listening.",
   "requires": { "tier": "casual" },
   "content": { "motion": "cyclic", "contact": "none", "witness": "fine" },

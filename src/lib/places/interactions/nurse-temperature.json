@@ -2,7 +2,7 @@
  "id": "nurse-temperature",
  "label": "Take temperature",
  "emoji": "🌡️",
-  "category": "care",
+  "category": "nurse",
   "requires": { "tier": "casual" },
  "description": "A nurse rests a hand on the patient's forehead, then reads a thermometer.",
  "people": {

@@ -2,7 +2,7 @@
  "id": "nurse-blood-pressure",
  "label": "Check blood pressure",
  "emoji": "🩺",
-  "category": "care",
+  "category": "nurse",
   "requires": { "tier": "casual" },
  "description": "A nurse fits a cuff on the patient's upper arm and squeezes the bulb.",
  "people": {

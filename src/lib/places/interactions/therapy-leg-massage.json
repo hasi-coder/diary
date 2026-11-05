@@ -2,7 +2,7 @@
   "id": "therapy-leg-massage",
   "label": "Leg massage on the bed",
   "emoji": "\ud83d\udc86",
-  "category": "care",
+  "category": "therapy",
   "requires": { "tier": "casual" },
   "description": "The client lies on the bed while the therapist stands at the side and massages the thighs, then the calves and feet.",
   "people": {

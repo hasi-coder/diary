@@ -2,7 +2,7 @@
   "id": "doctor-abdomen-exam",
   "label": "Examine the patient on the bed",
   "emoji": "\ud83e\ude7a",
-  "category": "care",
+  "category": "doctor",
   "requires": { "tier": "casual" },
   "description": "The patient lies on the bed with knees bent while the doctor presses gently on the abdomen, asking where it hurts.",
   "people": {

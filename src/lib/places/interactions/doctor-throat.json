@@ -2,7 +2,7 @@
  "id": "doctor-throat",
  "label": "Check the throat",
  "emoji": "🔦",
-  "category": "care",
+  "category": "doctor",
   "requires": { "tier": "casual" },
  "description": "A doctor shines a light into the patient's open mouth and looks at the throat.",
  "people": {

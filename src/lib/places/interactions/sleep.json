@@ -2,7 +2,7 @@
   "id": "sleep",
   "label": "Sleep",
   "emoji": "💤",
-  "category": "household",
+  "category": "bedroom",
   "requires": { "tier": "casual" },
   "description": "Lie down on the bed and rest. Stop to get up.",
   "people": {

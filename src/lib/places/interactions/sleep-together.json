@@ -2,7 +2,7 @@
   "id": "sleep-together",
   "label": "Sleep beside each other",
   "emoji": "🌙",
-  "category": "household",
+  "category": "bedroom",
   "requires": { "tier": "affectionate" },
   "description": "Rest side by side on the bed. Stop to get up.",
   "people": {

@@ -2,7 +2,7 @@
   "id": "shower",
   "label": "Take a shower",
   "emoji": "\ud83d\udebf",
-  "category": "household",
+  "category": "bathroom",
   "description": "Taking a shower\u2026",
   "people": {
     "min": 1,

@@ -2,7 +2,7 @@
  "id": "doctor-consultation",
  "label": "Consultation",
  "emoji": "🧑‍⚕️",
-  "category": "care",
+  "category": "doctor",
   "requires": { "tier": "casual" },
  "description": "A doctor explains the diagnosis while the patient listens, asks and nods.",
  "people": {

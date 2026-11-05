@@ -2,7 +2,7 @@
   "id": "wash-hands",
   "label": "Wash hands",
   "emoji": "🫧",
-  "category": "household",
+  "category": "bathroom",
   "requires": { "tier": "casual" },
   "description": "Wash hands at the sink.",
   "people": {
