@@ -27,6 +27,7 @@ try {
         export { interactionAccess } from './src/lib/places/interactionPolicy';
         export { interactionGate, interactionHidden, interactionDressed } from './src/lib/places/interactionPolicy';
         export { categoryTree, categoriesOf } from './src/lib/places/interactions/categories';
+        export { furnitureToUse, usable } from './src/lib/places/furnitureActions';
         export { longestPlantHold } from './src/lib/places/interaction';
         export { lengthOf, interactionWarnings } from './src/lib/places/interaction';
         export { solveTwoBone, KNEEL_DROP, KNEEL_ANKLE } from './src/components/world/ik';
@@ -44,7 +45,7 @@ try {
 } finally {
   await rm(scratch, { recursive: true, force: true });
 }
-const { poseAt, interactionProblems, INTERACTION_POLICY, interactionEnabled, interactionPolicyProblem, setInteractionEnabled, setInteractionMinimumAge, subscribeInteractionPolicy, OUTFITS, outfitProblems, applyOutfit, outfitOf, withSlot, GARMENTS, CLOTHING_LAYERS, CLOTHING_STYLES, clothingProblems, normalizeWorn, garment, CLOTHING_CATALOG, solveTwoBone, KNEEL_DROP, KNEEL_ANKLE, ageRequirement, interactionAccess, categoryTree, categoriesOf, longestPlantHold, setShowLockedActions, interactionGate, interactionHidden, interactionDressed, lengthOf, interactionWarnings, FACE_DEFS, FACE_VIEWS, FALLBACK_VIEW, FACE_SLOTS, World, Body, THREE, GLTFLoader } = animation;
+const { poseAt, interactionProblems, INTERACTION_POLICY, interactionEnabled, interactionPolicyProblem, setInteractionEnabled, setInteractionMinimumAge, subscribeInteractionPolicy, OUTFITS, outfitProblems, applyOutfit, outfitOf, withSlot, GARMENTS, CLOTHING_LAYERS, CLOTHING_STYLES, clothingProblems, normalizeWorn, garment, CLOTHING_CATALOG, solveTwoBone, KNEEL_DROP, KNEEL_ANKLE, ageRequirement, furnitureToUse, interactionAccess, categoryTree, categoriesOf, longestPlantHold, setShowLockedActions, interactionGate, interactionHidden, interactionDressed, lengthOf, interactionWarnings, FACE_DEFS, FACE_VIEWS, FALLBACK_VIEW, FACE_SLOTS, World, Body, THREE, GLTFLoader } = animation;
 const { normalizeClothingFit, withClothingFit } = animation;
 const json = async (path) => JSON.parse(await readFile(join(root, path), "utf8"));
 const interaction = (keys, loop = false) => ({
@@ -470,6 +471,24 @@ await test("the chair and bench clips start at their furniture and play", async 
     assert.ok(Number.isFinite(me.x) && Number.isFinite(other.x));
     world.stopActivity();
   }
+});
+
+await test("Home lists the furniture in the place that can be used, nearest of each kind first", async () => {
+  const { world, me } = household();
+  const folder = "src/lib/places/interactions";
+  const defs = [];
+  for (const file of await readdir(join(root, folder))) if (file.endsWith(".json") && file !== "categories.json" && !file.startsWith("test_")) defs.push(await json(`${folder}/${file}`));
+  const list = furnitureToUse(world.place.items, defs, [me.x, me.y]);
+  const kinds = list.map((i) => i.kind);
+  for (const kind of ["bed", "toilet", "shower", "bath", "sink", "wardrobe", "sofa"]) assert.ok(kinds.includes(kind), `${kind} can be used from Home`);
+  assert.equal(new Set(kinds).size, kinds.length, "one of each kind");
+  // With two of a kind, the nearer one is offered.
+  const floor = structuredClone(world.floor);
+  floor.items.push({ kind: "bed", x: 9, y: 8, w: 2, h: 3 });
+  const two = new World(floor);
+  const near = furnitureToUse(two.place.items, defs, [2.5, 2.5]).find((i) => i.kind === "bed");
+  assert.equal(near.x, 2, "the bed beside you, not the one across the room");
+  assert.deepEqual(furnitureToUse([], defs, [0, 0]), [], "no furniture, nothing listed");
 });
 
 await test("clearance holds two roles apart: it lengthens an anchor, and eases free roles apart without jitter", async () => {

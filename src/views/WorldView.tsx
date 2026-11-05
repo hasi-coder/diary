@@ -27,6 +27,7 @@ import type { Interaction } from "../lib/places/interaction";
 import { ActionWheel, type WheelNode } from "../components/ActionWheel";
 import { INTERACTIONS, categoryTree, enabledInteractions, interactionsFor, type CategoryNode } from "../lib/places/interactions";
 import { interactionAccess } from "../lib/places/interactionPolicy";
+import { FURNITURE_EMOJI, furnitureToUse } from "../lib/places/furnitureActions";
 import { interactionSettingsRevision, subscribeInteractionSettings } from "../lib/interactionSettings";
 import { applyOutfit, OUTFITS, type Outfit } from "../lib/places/outfits";
 import { DressingRoom } from "../components/DressingRoom";
@@ -223,8 +224,19 @@ function Playing(props: { world: World; place: Profile; post: Post | null; loadE
     };
   };
 
+  /** Home: its own groups, plus the furniture actually in this place, each opening to what it offers. */
+  const withHomeFurniture = (groups: WheelNode[]): WheelNode[] => {
+    const furniture = furnitureToUse(world.place.items, enabledInteractions(), [me.x, me.y])
+      .map((item): WheelNode => ({ id: `use-${item.kind}`, label: item.spec.label, emoji: FURNITURE_EMOJI[item.kind] ?? "🪑", hint: `Use the ${item.spec.label.toLowerCase()} here`, children: itemNodes(item) }))
+      .filter((n) => n.children!.length > 0);
+    if (!furniture.length) return groups;
+    const home = groups.find((g) => g.id === "household");
+    if (home) return groups.map((g) => (g === home ? { ...home, hint: `${(home.children?.length ?? 0) + furniture.length} groups and furniture`, children: [...furniture, ...(home.children ?? [])] } : g));
+    return [{ id: "household", label: "Home", emoji: "🏠", hint: "Use the furniture here", children: furniture }, ...groups];
+  };
+
   const selfNodes = (): WheelNode[] => [
-    ...groupNodes(enabledInteractions(), (def) => defNode(def, world.actors.filter((a) => a !== me))),
+    ...withHomeFurniture(groupNodes(enabledInteractions(), (def) => defNode(def, world.actors.filter((a) => a !== me)))),
     { id: "clothes", label: "Clothes", emoji: "👗", hint: "Change what you wear", onSelect: () => setDressing({ id: me.id, room: false }) },
     { id: "settings", label: "Settings", emoji: "⚙️", hint: "Action settings", onSelect: () => navigate({ view: "settings", section: "place-actions" }) },
   ];
