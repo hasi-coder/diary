@@ -2,7 +2,7 @@
 // walks where, doors that open as people pass and close behind them, seats, and
 // cubicles that lock with everyone inside.
 import type { Profile } from "../api";
-import { characterOf, type Character } from "./character";
+import { AGES, characterOf, type Character } from "./character";
 import { lengthOf, poseAt, type FullPose, type HeldItem, type Interaction, type Posture } from "./interaction";
 import { interactionDressed, interactionPolicyProblem } from "./interactionPolicy";
 import { applyOutfit, OUTFITS, type Outfit } from "./outfits";
@@ -50,6 +50,8 @@ export interface Actor {
   pose?: FullPose | null;
   yaw?: number | null;
   hidden?: boolean;
+  /** Metres off the ground an action holds them at; stacks with the pose's bob. */
+  lift?: number;
   held?: HeldItem | null;
   /** Resting on a surface, rotated about the hips rather than the feet. */
   rest?: { height: number; pitch: number } | null;
@@ -685,6 +687,7 @@ export class World {
       actor.yaw = null;
       actor.hidden = false;
       actor.held = null;
+      actor.lift = 0;
       actor.rest = null;
       if (act.placements) {
         actor.path = [];
@@ -709,6 +712,22 @@ export class World {
         else if (act.originalLooks) actor.look = act.originalLooks[i];
       }
     }
+  }
+
+  /** How big a body is next to an adult (1), from the age it is drawn as: sizes anchored distances. */
+  private sizeOf(actor: Actor): number {
+    return AGES[actor.look.age].height / AGES.adult.height;
+  }
+
+  /** The anchored roles' members, each after the one it is anchored to. */
+  private anchorOrder(def: Interaction, members: Activity["members"]): Activity["members"] {
+    const done: Activity["members"] = [];
+    const todo = members.filter((m) => def.anchors?.[m.role]);
+    for (let guard = 0; todo.length && guard < 16; guard++) {
+      const i = todo.findIndex((m) => !todo.some((o) => o !== m && o.role === def.anchors![m.role].role));
+      done.push(...todo.splice(i < 0 ? 0 : i, 1));
+    }
+    return done;
   }
 
   private updateActivity() {
@@ -766,17 +785,36 @@ export class World {
     if (!def.loop && elapsed > lengthOf(def) + stagger * (members.length - 1) + 0.3) return this.stopActivity(true);
     const spots = this.formationAt(act, elapsed);
     const settle = Math.min(1, (this.t - act.since) / 0.5);
+    const placed = new Map<(typeof members)[number], { pos: Vec; face: Vec; pose: FullPose }>();
     for (const m of members) {
       const beat = elapsed - stagger * m.index;
       const pose = poseAt(def, m.role, def.loop ? beat : Math.max(0, beat));
       const { at, facing } = spots[m.index];
       const right = rightOf(facing);
-      const target: Vec = [at[0] + pose.move[0] * right[0] + pose.move[1] * facing[0], at[1] + pose.move[0] * right[1] + pose.move[1] * facing[1]];
+      placed.set(m, { pos: [at[0] + pose.move[0] * right[0] + pose.move[1] * facing[0], at[1] + pose.move[0] * right[1] + pose.move[1] * facing[1]], face: rotate(facing, pose.turn), pose });
+    }
+    // Roles anchored to another role are placed after it, wherever it is this frame.
+    const lifts = new Map<(typeof members)[number], number>();
+    for (const m of this.anchorOrder(def, members)) {
+      const spec = def.anchors![m.role];
+      const base = members.find((o) => o !== m && o.role === spec.role);
+      if (!base) continue;
+      const from = placed.get(base)!, mine = placed.get(m)!;
+      const f = from.face, r = rightOf(f);
+      const distance = spec.distance ?? 0.28 * (this.sizeOf(m.actor) + this.sizeOf(base.actor));
+      const side: Vec = { front: f, behind: [-f[0], -f[1]] as Vec, right: r, left: [-r[0], -r[1]] as Vec, over: [0, 0] as Vec }[spec.at];
+      mine.pos = [from.pos[0] + side[0] * distance, from.pos[1] + side[1] * distance];
+      mine.face = rotate(f, (spec.angle ?? (spec.at === "front" ? 180 : 0)) + mine.pose.turn);
+      lifts.set(m, (spec.lift ?? 0) + (lifts.get(base) ?? 0));
+    }
+    for (const m of members) {
+      const { pos, face, pose } = placed.get(m)!;
       const a = m.actor;
-      a.x = m.start[0] + (target[0] - m.start[0]) * settle;
-      a.y = m.start[1] + (target[1] - m.start[1]) * settle;
-      a.facing = facingOfVec(facing);
-      a.yaw = yawOf(rotate(facing, pose.turn));
+      a.x = m.start[0] + (pos[0] - m.start[0]) * settle;
+      a.y = m.start[1] + (pos[1] - m.start[1]) * settle;
+      a.facing = facingOfVec(face);
+      a.yaw = yawOf(face);
+      a.lift = lifts.get(m) ?? 0;
       a.pose = pose;
       a.held = pose.held || null;
       a.hidden = (this.presentation?.opacity ?? 0) >= 1;

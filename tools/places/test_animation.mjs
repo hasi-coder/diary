@@ -294,6 +294,37 @@ await test("the age gate follows what an action does, not its id", async () => {
   assert.equal(interactionWarnings(await undress()).some((w) => /requires\.wardrobe/.test(w)), false);
 });
 
+await test("a role anchored to another holds its distance through the clip, on a short body", async () => {
+  const { world, me, partner } = household();
+  partner.look = { ...partner.look, age: "child" }; // the short body
+  const def = structuredClone(await action("therapy-session"));
+  const [lead, other] = Object.keys(def.roles);
+  def.anchors = { [other]: { role: lead, at: "front", distance: 0.35, lift: 0.1 } };
+  def.oscillators = { [lead]: [{ channel: "move.1", amplitude: 0.05, period: 2 }, { channel: "move.0", amplitude: 0.05, period: 3 }] };
+  assert.deepEqual(interactionProblems(def), []);
+  assert.equal(world.startActivity(def, [me, partner]), true);
+  advance(world, () => world.activity?.state === "playing");
+  for (let i = 0; i < 20; i++) world.update(0.05); // past the settle
+  let moved = 0, last = [me.x, me.y];
+  for (let i = 0; i < 120; i++) {
+    world.update(0.05);
+    const gap = Math.hypot(me.x - partner.x, me.y - partner.y);
+    assert.ok(Math.abs(gap - 0.35) < 0.02, `gap ${gap.toFixed(3)} at frame ${i}`);
+    assert.equal(partner.lift, 0.1, "lifted off the floor");
+    moved = Math.max(moved, Math.hypot(me.x - last[0], me.y - last[1]));
+  }
+  assert.ok(moved > 0.005, "the anchor role does move (the oscillator)");
+  // Default distance comes from the two bodies' sizes: a child beside an adult stands closer than two adults.
+  const near = (a, b) => { delete def.anchors[other].distance; const w = household(); w.me.look = { ...w.me.look, age: a }; w.partner.look = { ...w.partner.look, age: b }; w.world.startActivity(def, [w.me, w.partner]); advance(w.world, () => w.world.activity?.state === "playing"); for (let i = 0; i < 30; i++) w.world.update(0.05); return Math.hypot(w.me.x - w.partner.x, w.me.y - w.partner.y); };
+  assert.ok(near("child", "child") < near("adult", "adult"));
+  // Lint: self anchors, unknown roles and loops.
+  const bad = (anchors) => interactionProblems({ ...def, anchors }).length > 0;
+  assert.ok(bad({ [lead]: { role: lead, at: "front" } }), "self");
+  assert.ok(bad({ [other]: { role: "ghost", at: "front" } }), "unknown role");
+  assert.ok(bad({ [lead]: { role: other, at: "behind" }, [other]: { role: lead, at: "front" } }), "a loop");
+  assert.ok(bad({ [other]: { role: lead, at: "sideways" } }), "unknown side");
+});
+
 await test("woohoo eligibility is centralized and applies to direct playback", async () => {
   const { world, me, partner } = household();
   const def = await action("woohoo");

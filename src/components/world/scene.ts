@@ -551,7 +551,7 @@ export class Figure {
     const walking = a.path.length > 0 && !pose;
     // Seated people (cheering from a chair) keep sitting and move their upper body.
     const sitting = !!a.seat && !walking;
-    const rise = (sitting ? a.seat!.z - this.legLength + 0.02 : 0) + (pose?.bob ?? 0);
+    const rise = (sitting ? a.seat!.z - this.legLength + 0.02 : 0) + (pose?.bob ?? 0) + (a.lift ?? 0);
     this.group.position.set(a.x, rise, a.y);
     const [fx, fy] = DIRS[a.facing];
     const want = a.yaw ?? Math.atan2(fx, fy);

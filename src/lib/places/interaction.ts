@@ -111,6 +111,15 @@ export interface Oscillator {
  */
 export interface Segments { intro?: number; loop: number; repeat?: number }
 
+/**
+ * Places a role against another role instead of against the furniture or its spot: `distance`
+ * metres to its `front`, `behind`, `left` or `right` (`over` stays on top), `lift` metres above the
+ * ground (stacks with `bob`), looking `angle` degrees from the anchor role (default: back at it from
+ * the front, otherwise the same way). Follows the anchor role through the clip, oscillators included.
+ * `distance` left out is derived from the two bodies' sizes.
+ */
+export interface Anchor { role: string; at: "front" | "behind" | "left" | "right" | "over"; distance?: number; lift?: number; angle?: number }
+
 export interface Interaction {
   id: string;
   label: string;
@@ -155,6 +164,8 @@ export interface Interaction {
    * or calves always needs an adult, declared or not (see `ageRequirement`).
    */
   requires?: { minAge?: number; wardrobe?: ClothingRegion[]; tier?: Tier };
+  /** Roles placed against another role: `{ "client": { "role": "therapist", "at": "front", "distance": 0.5 } }`. */
+  anchors?: Record<string, Anchor>;
   /** Periodic modifiers per role, added on top of the keyframes. */
   oscillators?: Record<string, Oscillator[]>;
   /** An intro / repeating middle / outro split of the keyed beats. */
@@ -263,6 +274,19 @@ export function interactionProblems(value: unknown): string[] {
   if (v.requires?.tier !== undefined && !TIERS.includes(v.requires.tier)) out.push(`${name}: requires.tier must be ${TIERS.join(", ")}.`);
   if (v.wardrobe?.fallback !== undefined && !["dressed", "hide"].includes(v.wardrobe.fallback)) out.push(`${name}: wardrobe.fallback must be dressed or hide.`);
   if (v.requires?.tier === "intimate" && v.wardrobe?.fallback === "dressed") out.push(`${name}: an intimate action can only be hidden for people too young for it, never played dressed.`);
+  const AT = ["front", "behind", "left", "right", "over"];
+  for (const [role, a] of Object.entries(v.anchors ?? {})) {
+    if (!a || !AT.includes(a.at) || !(a.distance === undefined || (Number.isFinite(a.distance) && a.distance >= 0)) || !(a.lift === undefined || Number.isFinite(a.lift)) || !(a.angle === undefined || Number.isFinite(a.angle))) out.push(`${name}: anchor for "${role}" needs a role, an at (${AT.join(", ")}) and numeric distance, lift and angle.`);
+    else if (a.role === role) out.push(`${name}: "${role}" can't be anchored to itself.`);
+    else if (!v.roles?.[a.role] || !v.roles?.[role]) out.push(`${name}: anchor for "${role}" names a role with no keyframes.`);
+  }
+  for (const start of Object.keys(v.anchors ?? {})) {
+    let r = v.anchors![start]?.role;
+    for (let hops = 0; r && hops < 32; hops++) {
+      if (r === start) { out.push(`${name}: anchors form a loop through "${start}".`); break; }
+      r = v.anchors![r]?.role;
+    }
+  }
   const f = v.formation;
   const roles = f?.type === "spots" ? f.spots.map((s) => s.role) : f?.type === "ring" || f?.type === "stay" ? [f.role] : null;
   if (!roles) out.push(`${name}: formation type must be spots, ring or stay.`);
@@ -337,7 +361,7 @@ function oscillate(def: Interaction, role: string, beat: number, pose: Record<st
   }
 }
 
-const TOP_KEYS = ["requires", "id", "label", "emoji", "category", "description", "target", "cutaway", "wardrobe", "outfitAt", "water", "people", "beat", "length", "loop", "stagger", "formation", "roles", "oscillators", "segments"];
+const TOP_KEYS = ["anchors", "requires", "id", "label", "emoji", "category", "description", "target", "cutaway", "wardrobe", "outfitAt", "water", "people", "beat", "length", "loop", "stagger", "formation", "roles", "oscillators", "segments"];
 const KEY_FIELDS = new Set(["beat", "emote", "held", "face", ...Object.keys(NEUTRAL)]);
 
 /** Things that still load but are probably mistakes: unknown keys, wild angles, a placement for a role that isn't there. */
