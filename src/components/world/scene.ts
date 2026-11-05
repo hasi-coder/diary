@@ -290,6 +290,8 @@ const PLANT_POINTS: Record<string, { bone: string; radius: number; sided: boolea
   head: { bone: "head", radius: 0.1, sided: false },
   shoulder: { bone: "upperarm", radius: 0.05, sided: true },
   hand: { bone: "hand", radius: 0.035, sided: true },
+  handL: { bone: "hand_l", radius: 0.035, sided: false },
+  handR: { bone: "hand_r", radius: 0.035, sided: false },
   hip: { bone: "thigh", radius: 0.09, sided: true },
   knee: { bone: "calf", radius: 0.05, sided: true },
   lowerBack: { bone: "spine_01", radius: 0.11, sided: false },

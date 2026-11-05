@@ -21,32 +21,32 @@
     "kinds": ["floor"],
     "posture": "kneel",
     "roles": {
-      "lead": { "posture": "kneel", "anchor": { "role": "partner", "at": "front", "distance": 0.42 } },
+      "lead": { "posture": "kneel", "anchor": { "role": "partner", "at": "front", "distance": 0.6 } },
       "partner": { "posture": "kneel", "side": "center" }
     }
   },
-  "camera": { "focus": "people", "zoom": 1.2, "height": 0.05 },
+  "camera": { "focus": "people", "zoom": 1.2, "height": 0.18 },
   "roles": {
     "lead": [
       { "beat": 0 },
-      { "beat": 3, "armL": [70, 20], "armR": [70, 20], "elbowL": 50, "elbowR": 50, "head": [16, 0, 0], "plant": { "armL": { "on": "role:partner", "point": "hand", "weight": 0.5 }, "armR": { "on": "role:partner", "point": "hand", "weight": 0.5 } } },
-      { "beat": 6, "armL": [82, 18], "armR": [82, 18], "elbowL": 42, "elbowR": 42, "head": [20, 0, 0], "plant": { "armL": { "on": "role:partner", "point": "hand", "weight": 1 }, "armR": { "on": "role:partner", "point": "hand", "weight": 1 } } },
-      { "beat": 9, "armL": [78, 20], "armR": [78, 20], "elbowL": 46, "elbowR": 46, "head": [18, 0, 1], "lean": 8 },
-      { "beat": 12, "armL": [84, 16], "armR": [84, 16], "elbowL": 40, "elbowR": 40, "head": [21, 0, -1], "lean": 11, "emote": "💪" },
-      { "beat": 15, "armL": [88, 14], "armR": [88, 14], "elbowL": 36, "elbowR": 36, "head": [22, 0, 0], "lean": 13 },
-      { "beat": 18, "armL": [92, 12], "armR": [92, 12], "elbowL": 32, "elbowR": 32, "head": [20, 0, 1], "lean": 12 },
-      { "beat": 21, "armL": [96, 10], "armR": [96, 10], "elbowL": 28, "elbowR": 28, "head": [16, 0, 0], "lean": 9 },
-      { "beat": 24, "armL": [80, 14], "armR": [80, 14], "elbowL": 30, "elbowR": 30, "head": [10, 0, 0], "lean": 4 },
+      { "beat": 3, "armL": [70, 20], "armR": [70, 20], "elbowL": 34, "elbowR": 34, "head": [12, 0, 0], "plant": {"armL": {"on": "role:partner", "point": "handR", "weight": 0.5}, "armR": {"on": "role:partner", "point": "handL", "weight": 0.5}} },
+      { "beat": 6, "armL": [82, 18], "armR": [82, 18], "elbowL": 28, "elbowR": 28, "head": [15, 0, 0], "plant": {"armL": {"on": "role:partner", "point": "handR", "weight": 1}, "armR": {"on": "role:partner", "point": "handL", "weight": 1}} },
+      { "beat": 9, "armL": [78, 20], "armR": [78, 20], "elbowL": 32, "elbowR": 32, "head": [14, 0, 1], "lean": 4 },
+      { "beat": 12, "armL": [84, 16], "armR": [84, 16], "elbowL": 26, "elbowR": 26, "head": [16, 0, -1], "lean": 6, "emote": "💪" },
+      { "beat": 15, "armL": [88, 14], "armR": [88, 14], "elbowL": 22, "elbowR": 22, "head": [17, 0, 0], "lean": 7 },
+      { "beat": 18, "armL": [92, 12], "armR": [92, 12], "elbowL": 18, "elbowR": 18, "head": [15, 0, 1], "lean": 6 },
+      { "beat": 21, "armL": [96, 10], "armR": [96, 10], "elbowL": 16, "elbowR": 16, "head": [12, 0, 0], "lean": 4 },
+      { "beat": 24, "armL": [80, 14], "armR": [80, 14], "elbowL": 20, "elbowR": 20, "head": [8, 0, 0], "lean": 4 },
       { "beat": 26, "armL": [20, 12], "armR": [20, 12], "head": [4, 0, 0], "lean": 0 },
       { "beat": 28 }
     ],
     "partner": [
-      { "beat": 0, "armL": [20, 14], "armR": [20, 14], "lean": 22, "head": [24, 0, 0] },
-      { "beat": 3, "armL": [60, 18], "armR": [60, 18], "elbowL": 55, "elbowR": 55, "lean": 18, "head": [20, 0, 0], "plant": { "armL": { "on": "role:lead", "point": "hand", "weight": 0.5 }, "armR": { "on": "role:lead", "point": "hand", "weight": 0.5 } } },
-      { "beat": 6, "armL": [66, 16], "armR": [66, 16], "elbowL": 50, "elbowR": 50, "lean": 14, "head": [18, 0, 0], "plant": { "armL": { "on": "role:lead", "point": "hand", "weight": 1 }, "armR": { "on": "role:lead", "point": "hand", "weight": 1 } } },
-      { "beat": 12, "armL": [64, 16], "armR": [64, 16], "elbowL": 48, "elbowR": 48, "lean": 10, "head": [14, 0, 1] },
-      { "beat": 18, "armL": [62, 16], "armR": [62, 16], "elbowL": 44, "elbowR": 44, "lean": 6, "head": [10, 0, 0] },
-      { "beat": 24, "armL": [40, 14], "armR": [40, 14], "elbowL": 30, "elbowR": 30, "lean": 2, "head": [6, 0, 0], "emote": "😊" },
+      { "beat": 0, "armL": [20, 14], "armR": [20, 14], "lean": 16, "head": [18, 0, 0] },
+      { "beat": 3, "armL": [60, 18], "armR": [60, 18], "elbowL": 40, "elbowR": 40, "lean": 12, "head": [15, 0, 0], "plant": {"armL": {"on": "role:lead", "point": "handR", "weight": 0.5}, "armR": {"on": "role:lead", "point": "handL", "weight": 0.5}} },
+      { "beat": 6, "armL": [66, 16], "armR": [66, 16], "elbowL": 34, "elbowR": 34, "lean": 9, "head": [13, 0, 0], "plant": {"armL": {"on": "role:lead", "point": "handR", "weight": 1}, "armR": {"on": "role:lead", "point": "handL", "weight": 1}} },
+      { "beat": 12, "armL": [64, 16], "armR": [64, 16], "elbowL": 32, "elbowR": 32, "lean": 6, "head": [10, 0, 1] },
+      { "beat": 18, "armL": [62, 16], "armR": [62, 16], "elbowL": 28, "elbowR": 28, "lean": 4, "head": [7, 0, 0] },
+      { "beat": 24, "armL": [40, 14], "armR": [40, 14], "elbowL": 22, "elbowR": 22, "lean": 1, "head": [5, 0, 0], "emote": "😊" },
       { "beat": 28 }
     ]
   }

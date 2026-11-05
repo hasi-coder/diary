@@ -145,7 +145,8 @@ export interface Clearance { min?: number }
 /** What a role's limb is planted on: `role:<id>`, `bed` or `floor`, at a named point of that body. */
 export type Limb = "armL" | "armR" | "legL" | "legR";
 export const LIMBS: Limb[] = ["armL", "armR", "legL", "legR"];
-export const PLANT_POINTS = ["head", "shoulder", "hand", "hip", "lowerBack", "knee", "surface"];
+/** Points on a body a limb can be planted on. `handL` / `handR` name one hand of that body; `hand` is shorthand for whichever is nearest and is the wrong choice whenever both bodies have hands near each other. */
+export const PLANT_POINTS = ["head", "shoulder", "hand", "handL", "handR", "hip", "lowerBack", "knee", "surface"];
 export interface Plant { on: string; point?: string; weight?: number; blend?: number }
 /** A planted limb at an instant: how strongly it is held on its target. */
 export type PlantState = Partial<Record<Limb, { on: string; point: string; weight: number }>>;
@@ -499,6 +500,9 @@ export function interactionWarnings(value: unknown): string[] {
   const held = longestPlantHold(v as Interaction);
   if (held >= 6 && v.content?.contact === undefined && tier === "casual") out.push(`${name}: a limb is held on another body for ${Math.round(held)} beats (sustained contact); declare content.contact and a tier that fits.`);
   if (held >= 6 && (v.content?.contact === "none" || v.content?.contact === "incidental")) out.push(`${name}: content.contact says ${v.content.contact}, but a limb is held on another body for ${Math.round(held)} beats.`);
+  for (const [role, keys] of Object.entries(v.roles ?? {})) for (const key of Array.isArray(keys) ? keys : []) for (const [limb, plant] of Object.entries(key.plant ?? {})) {
+    if (typeof plant?.on === "string" && plant.on.startsWith("role:") && (plant.point ?? "hand") === "hand") out.push(`${name}: role "${role}" at beat ${key.beat}: plant ${limb} on another body uses point "hand" (the nearest hand), which is ambiguous when both bodies' hands are close; name handL or handR.`);
+  }
   if (v.clearance?.min !== undefined && v.clearance.min < 0.05) out.push(`${name}: clearance.min is under 5 cm, which lets bodies intersect.`);
   for (const [role, place] of Object.entries(v.target?.roles ?? {})) if (place?.posture && !["stand", "sit", "lie", "inside", "kneel"].includes(place.posture)) out.push(`${name}: role "${role}" has a posture with no placement rule.`);
   for (const role of Object.keys(v.target?.roles ?? {})) if (!roles.has(role)) out.push(`${name}: target.roles names "${role}", which has no keyframes.`);

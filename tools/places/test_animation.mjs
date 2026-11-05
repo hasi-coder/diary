@@ -502,6 +502,18 @@ await test("plants ramp in, hold, and release without a pop; bad plants are load
   assert.ok(bad({ armL: { on: "wall", point: "surface" } }), "walls aren't supported yet");
   assert.ok(bad({ armL: { on: "role:partner", point: "elbowpit" } }), "unknown point");
   assert.ok(bad({ armL: { on: "role:partner", weight: 2 } }), "weight out of range");
+  // handL / handR name a specific hand; plain "hand" (the nearest) on another body is linted.
+  assert.ok(!bad({ armL: { on: "role:partner", point: "handR" } }) && !bad({ armR: { on: "role:partner", point: "handL" } }), "handL and handR are valid points");
+  const warns = (plant) => interactionWarnings({ ...haircut, roles: { ...haircut.roles, lead: [{ beat: 0, plant }] } }).filter((w) => /nearest hand/.test(w)).length;
+  assert.equal(warns({ armL: { on: "role:partner", point: "hand" } }), 1, "hand on a role is ambiguous");
+  assert.equal(warns({ armL: { on: "role:partner" } }), 1, "and so is leaving the point out");
+  assert.equal(warns({ armL: { on: "role:partner", point: "handR" } }), 0);
+  assert.equal(warns({ armL: { on: "floor" } }), 0, "a surface needs no hand to name");
+  // care-steady crosses its hands: each arm takes the other body's opposite hand.
+  const steady = await action("care-steady");
+  const plants = Object.values(steady.roles).flat().flatMap((k) => Object.entries(k.plant ?? {}));
+  assert.ok(plants.length > 0 && plants.every(([limb, p]) => p.point === (limb === "armL" ? "handR" : "handL")), "crossed hands");
+  assert.equal(steady.target.roles.lead.anchor.distance, 0.6, "a kneeling pair stands apart a little over a forearm");
 });
 
 await test("kneel, floor targets and the content lint", async () => {
