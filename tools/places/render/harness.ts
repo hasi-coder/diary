@@ -34,6 +34,9 @@ try {
   document.getElementById("h")!.appendChild(renderer.domElement);
   const scene = new THREE.Scene(); scene.background = new THREE.Color("#1d232b"); addLights(scene, 10, 8);
   const view = buildPlace(world.place); scene.add(view.group);
+  const debug = q.get("debug") === "1";
+  const overlay = new THREE.Group(); scene.add(overlay);
+  const plantReport: string[] = [];
   const figures = new Map(world.actors.map((a) => { const f = new Figure(a); scene.add(f.group); return [a.id, f] as const; }));
   const camera = new THREE.OrthographicCamera();
   for (let i = 0; i < 4000 && world.activity?.state !== "playing"; i++) world.update(0.05);
@@ -47,11 +50,25 @@ try {
       world.update(0.0001); view.update({ walls: "down", author: null, azimuth: az, dt: 0.05 });
       figures.forEach((f) => f.update(az, world.t, { selected: false, tag: null }));
       const act = world.activity!; const byRole = new Map(act.members.map((m) => [m.role, figures.get(m.actor.id)]));
-      for (const m of act.members) figures.get(m.actor.id)?.applyPlants((r) => byRole.get(r));
+      overlay.clear(); plantReport.length = 0;
+      for (const m of act.members) {
+        for (const r of figures.get(m.actor.id)?.applyPlants((role) => byRole.get(role)) ?? []) {
+          plantReport.push(`${m.role}.${r.limb} -> ${r.on}/${r.point} weight ${r.weight.toFixed(2)}: ${Number.isNaN(r.miss) ? "no target" : (r.miss * 100).toFixed(1) + " cm from the point"}`);
+          if (!r.target || !debug) continue;
+          // A red cross at the target, a magenta line from the hand to it (drawn on top of everything).
+          const mat = (c: number) => new THREE.LineBasicMaterial({ color: c, depthTest: false });
+          const arm = 0.06;
+          for (const axis of [[arm, 0, 0], [0, arm, 0], [0, 0, arm]]) {
+            const g = new THREE.BufferGeometry().setFromPoints([r.target.clone().sub(new THREE.Vector3(...axis)), r.target.clone().add(new THREE.Vector3(...axis))]);
+            const line = new THREE.Line(g, mat(0xff2222)); line.renderOrder = 9999; overlay.add(line);
+          }
+          const link = new THREE.Line(new THREE.BufferGeometry().setFromPoints([r.hand, r.target]), mat(0xff00ff)); link.renderOrder = 9999; overlay.add(link);
+        }
+      }
     }
     const c = [(me.x + other.x) / 2, (me.y + other.y) / 2];
     const gap = Math.hypot(me.x - other.x, me.y - other.y);
-    gaps.push(`beat ${b}: gap ${gap.toFixed(3)} m`);
+    gaps.push(`beat ${b}: gap ${gap.toFixed(3)} m`, ...plantReport.map((p) => "   " + p));
     aimCamera(camera, new THREE.Vector3(c[0], 0.75, c[1]), az, false, Number(q.get("size") ?? 2.0), 640 / 480);
     renderer.render(scene, camera);
     const holder = document.createElement("pre"); holder.className = "shot"; holder.dataset.name = `${q.get("id")}_beat${b}`; holder.textContent = renderer.domElement.toDataURL("image/png"); document.body.appendChild(holder);

@@ -745,10 +745,14 @@ export class Figure {
     return best.addScaledVector(new THREE.Vector3().subVectors(from, best).normalize(), def.radius * this.bodyScale);
   }
 
-  /** Plants this figure's limbs where its action says (call once every figure is posed). Bodies that haven't loaded are skipped. */
-  applyPlants(other: (role: string) => Figure | undefined) {
+  /**
+   * Plants this figure's limbs where its action says (call once every figure is posed). Bodies that haven't
+   * loaded are skipped. Returns what each plant aimed at and how far the hand ended from it, for the debug render.
+   */
+  applyPlants(other: (role: string) => Figure | undefined): { limb: string; on: string; point: string; weight: number; target: THREE.Vector3 | null; hand: THREE.Vector3; miss: number }[] {
     const body = this.skinned, plants = this.actor.plants;
-    if (!body || !plants) return;
+    const report: ReturnType<Figure["applyPlants"]> = [];
+    if (!body || !plants) return report;
     this.group.updateMatrixWorld(true);
     for (const [limb, plant] of Object.entries(plants)) {
       const [u, l, e] = (LIMB_BONES[limb] ?? []).map((n) => body.bone(n));
@@ -758,7 +762,10 @@ export class Figure {
       if (plant.on === "floor" || plant.on === "bed") target = new THREE.Vector3(end.x, plant.on === "bed" ? 0.64 : 0.02, end.z);
       else if (plant.on.startsWith("role:")) target = other(plant.on.slice(5))?.plantPoint(plant.point, end) ?? null;
       if (target) solveTwoBone(u as THREE.Bone, l as THREE.Bone, e, target, plant.weight);
+      const after = e.getWorldPosition(new THREE.Vector3());
+      report.push({ limb, on: plant.on, point: plant.point, weight: plant.weight, target, hand: after, miss: target ? after.distanceTo(target) : NaN });
     }
+    return report;
   }
 
   dispose() {
