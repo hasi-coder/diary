@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 const dir = join(fileURLToPath(new URL(".", import.meta.url)), "../../src/lib/places/interactions");
 const known = JSON.parse(await readFile(join(dir, "categories.json"), "utf8"));
 const defs = [];
-for (const file of (await readdir(dir)).filter((f) => f.endsWith(".json") && f !== "categories.json").sort()) {
+for (const file of (await readdir(dir)).filter((f) => f.endsWith(".json") && f !== "categories.json" && !f.startsWith("test_")).sort()) {
   const def = JSON.parse(await readFile(join(dir, file), "utf8"));
   defs.push({ ...def, file });
 }

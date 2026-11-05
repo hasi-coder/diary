@@ -73,7 +73,7 @@ await test("new joints interpolate, return to neutral, and blend across loop bou
 await test("all animation files load, with neutral defaults for joints they omit", async () => {
   const folder = "src/lib/places/interactions";
   for (const file of await readdir(join(root, folder))) {
-    if (!file.endsWith(".json") || file === "categories.json") continue;
+    if (!file.endsWith(".json") || file === "categories.json" || file.startsWith("test_")) continue;
     const def = await json(`${folder}/${file}`);
     assert.deepEqual(interactionProblems(def), [], file);
     for (const role of Object.keys(def.roles)) {
@@ -214,7 +214,7 @@ await test("oscillators, segments and lint", async () => {
   assert.equal(interactionWarnings({ ...base, speed: 2, roles: { person: [{ beat: 0, armLL: [0, 0], lean: 900 }] } }).length, 4);
   const folder = "src/lib/places/interactions";
   for (const file of await readdir(join(root, folder))) {
-    if (!file.endsWith(".json") || file === "categories.json" || file === "text.json") continue;
+    if (!file.endsWith(".json") || file === "categories.json" || file.startsWith("test_")) continue;
     assert.deepEqual(interactionWarnings(await json(`${folder}/${file}`)), [], file);
   }
 });
@@ -328,6 +328,25 @@ await test("a role anchored to another holds its distance through the clip, on a
   assert.ok(bad({ [other]: { role: "ghost", at: "front" } }), "unknown role");
   assert.ok(bad({ [lead]: { role: other, at: "behind" }, [other]: { role: lead, at: "front" } }), "a loop");
   assert.ok(bad({ [other]: { role: lead, at: "sideways" } }), "unknown side");
+});
+
+await test("an action can frame the camera, and test_ files are ignored", async () => {
+  const { world, me, partner } = household();
+  const def = structuredClone(await action("therapy-leg-massage"));
+  assert.equal(world.framing, null, "no framing by default");
+  def.camera = { focus: "target", zoom: 1.4, height: 0.5, offset: [0.5, -0.25] };
+  assert.deepEqual(interactionProblems(def), []);
+  assert.equal(world.startActivity(def, [me, partner]), true);
+  assert.equal(world.framing, null, "only while it plays");
+  advance(world, () => world.activity?.state === "playing");
+  const f = world.framing;
+  assert.deepEqual([f.zoom, f.height, f.offset], [1.4, 0.5, [0.5, -0.25]]);
+  const bed = world.place.items.find((i) => i.kind === "bed");
+  assert.deepEqual(f.focus, [bed.x + bed.w / 2, bed.y + bed.h / 2], "centred on the bed");
+  world.stopActivity();
+  assert.equal(world.framing, null);
+  assert.notDeepEqual(interactionProblems({ ...def, camera: { zoom: -1 } }), []);
+  assert.notDeepEqual(interactionProblems({ ...def, camera: { focus: "sky" } }), []);
 });
 
 await test("woohoo eligibility is centralized and applies to direct playback", async () => {

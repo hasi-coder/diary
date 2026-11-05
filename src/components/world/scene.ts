@@ -697,6 +697,12 @@ export class Figure {
       }
       this.emoteText = emote;
     }
+    // Overlapping bodies draw in a stable order, nearest the camera last, by quantised depth (no popping
+    // between frames); speech bubbles and name tags always sit above every head.
+    const depth = Math.round((a.x * Math.cos(azimuth) + a.y * Math.sin(azimuth)) * 64);
+    this.head.renderOrder = depth;
+    if (this.tag) this.tag.renderOrder = 5000 + depth;
+    if (this.emote) this.emote.renderOrder = 5000 + depth;
     if (this.emote) this.emote.position.set(this.head.position.x, this.head.position.y + (this.tag ? 0.8 : 0.45) + Math.sin(t * 4) * 0.04, this.head.position.z);
   }
 

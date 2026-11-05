@@ -96,6 +96,9 @@ export const WorldScene = forwardRef<WorldSceneHandle, Props>(function WorldScen
 
     const camera = new THREE.OrthographicCamera();
     const target = new THREE.Vector3(W / 2, 0, H / 2);
+    const framedTarget = target.clone();
+    const framedWant = new THREE.Vector3();
+    let framedZoom = 1;
     let zoom = 1;
     let size = 10;
     let lastTop: boolean | null = null;
@@ -196,8 +199,17 @@ export const WorldScene = forwardRef<WorldSceneHandle, Props>(function WorldScen
         lastTop = p.top;
         lastRotation = p.rotation;
       }
-      camera.zoom = zoom;
-      aimCamera(camera, target, azimuth, p.top, size, aspect);
+      // An action may frame the shot (zoom, height, where to look); the camera eases there and back.
+      const shot = world.framing;
+      const wanted = shot
+        ? framedWant.set(shot.focus ? shot.focus[0] + shot.offset[0] : target.x + shot.offset[0], shot.height ?? target.y, shot.focus ? shot.focus[1] + shot.offset[1] : target.z + shot.offset[1])
+        : framedWant.copy(target);
+      const ease = 1 - Math.exp(-dt * 4);
+      framedZoom += ((shot?.zoom ?? 1) - framedZoom) * ease;
+      if (!shot && Math.abs(framedZoom - 1) < 0.002 && framedTarget.distanceTo(target) < 0.02) framedTarget.copy(target);
+      else framedTarget.lerp(wanted, ease);
+      camera.zoom = zoom * framedZoom;
+      aimCamera(camera, framedTarget, azimuth, p.top, size, aspect);
       const me = world.author;
       view.update({ walls: p.top ? "down" : p.walls, author: me ? world.cellOf(me) : null, azimuth, dt });
       view.labels.visible = p.labels;

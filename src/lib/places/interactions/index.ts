@@ -3,7 +3,8 @@ import { interactionProblems, interactionWarnings, type Interaction } from "../i
 import { interactionEnabled } from "../interactionPolicy";
 import known from "./categories.json";
 
-const files = import.meta.glob(["./*.json", "!./categories.json"], { eager: true, import: "default" }) as Record<string, unknown>;
+// Files named test_<name>.json are scratch animations for testing: never loaded.
+const files = import.meta.glob(["./*.json", "!./categories.json", "!./test_*.json"], { eager: true, import: "default" }) as Record<string, unknown>;
 export const INTERACTIONS: Interaction[] = Object.values(files)
   .filter((v) => {
     const problems = interactionProblems(v);

@@ -714,6 +714,16 @@ export class World {
     }
   }
 
+  /** The camera framing the playing action asks for, with its focus resolved to a floor point. */
+  get framing(): { zoom: number; height: number | null; offset: Vec; focus: Vec | null } | null {
+    const act = this.activity;
+    const cam = act?.state === "playing" ? act.def.camera : undefined;
+    if (!act || !cam) return null;
+    const focus: Vec | null = cam.focus === "target" && act.target ? [act.target.x + act.target.w / 2, act.target.y + act.target.h / 2]
+      : cam.focus === "people" ? [act.members.reduce((n, m) => n + m.actor.x, 0) / act.members.length, act.members.reduce((n, m) => n + m.actor.y, 0) / act.members.length] : null;
+    return { zoom: cam.zoom ?? 1, height: cam.height ?? null, offset: cam.offset ?? [0, 0], focus };
+  }
+
   /** How big a body is next to an adult (1), from the age it is drawn as: sizes anchored distances. */
   private sizeOf(actor: Actor): number {
     return AGES[actor.look.age].height / AGES.adult.height;

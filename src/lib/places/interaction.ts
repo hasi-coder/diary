@@ -120,6 +120,13 @@ export interface Segments { intro?: number; loop: number; repeat?: number }
  */
 export interface Anchor { role: string; at: "front" | "behind" | "left" | "right" | "over"; distance?: number; lift?: number; angle?: number }
 
+/**
+ * Where the camera looks while the action plays; the camera eases there and back. Ignored when left out.
+ * `focus` is what it centres on ("target": the furniture; "people": the middle of the group), `offset` moves
+ * that by [right, forward] metres on the floor, `height` is how high the camera looks (metres), `zoom` multiplies the zoom.
+ */
+export interface Framing { zoom?: number; height?: number; offset?: [number, number]; focus?: "target" | "people" }
+
 export interface Interaction {
   id: string;
   label: string;
@@ -165,6 +172,8 @@ export interface Interaction {
    * or calves always needs an adult, declared or not (see `ageRequirement`).
    */
   requires?: { minAge?: number; wardrobe?: ClothingRegion[]; tier?: Tier };
+  /** Camera framing while it plays, so stacked or far-apart bodies stay in view. */
+  camera?: Framing;
   /** Roles placed against another role: `{ "client": { "role": "therapist", "at": "front", "distance": 0.5 } }`. */
   anchors?: Record<string, Anchor>;
   /** Periodic modifiers per role, added on top of the keyframes. */
@@ -275,6 +284,7 @@ export function interactionProblems(value: unknown): string[] {
   if (v.requires?.tier !== undefined && !TIERS.includes(v.requires.tier)) out.push(`${name}: requires.tier must be ${TIERS.join(", ")}.`);
   if (v.wardrobe?.fallback !== undefined && !["dressed", "hide"].includes(v.wardrobe.fallback)) out.push(`${name}: wardrobe.fallback must be dressed or hide.`);
   if (v.requires?.tier === "intimate" && v.wardrobe?.fallback === "dressed") out.push(`${name}: an intimate action can only be hidden for people too young for it, never played dressed.`);
+  if (v.camera && (typeof v.camera !== "object" || !(v.camera.zoom === undefined || (Number.isFinite(v.camera.zoom) && v.camera.zoom > 0)) || !(v.camera.height === undefined || Number.isFinite(v.camera.height)) || !(v.camera.offset === undefined || (Array.isArray(v.camera.offset) && v.camera.offset.length === 2 && v.camera.offset.every(Number.isFinite))) || !(v.camera.focus === undefined || v.camera.focus === "target" || v.camera.focus === "people"))) out.push(`${name}: camera needs an optional positive zoom, numeric height, an [right, forward] offset and a focus of target or people.`);
   const AT = ["front", "behind", "left", "right", "over"];
   for (const [role, a] of Object.entries(v.anchors ?? {})) {
     if (!a || !AT.includes(a.at) || !(a.distance === undefined || (Number.isFinite(a.distance) && a.distance >= 0)) || !(a.lift === undefined || Number.isFinite(a.lift)) || !(a.angle === undefined || Number.isFinite(a.angle))) out.push(`${name}: anchor for "${role}" needs a role, an at (${AT.join(", ")}) and numeric distance, lift and angle.`);
@@ -362,7 +372,7 @@ function oscillate(def: Interaction, role: string, beat: number, pose: Record<st
   }
 }
 
-const TOP_KEYS = ["anchors", "requires", "id", "label", "emoji", "category", "description", "target", "cutaway", "wardrobe", "outfitAt", "water", "people", "beat", "length", "loop", "stagger", "formation", "roles", "oscillators", "segments"];
+const TOP_KEYS = ["camera", "anchors", "requires", "id", "label", "emoji", "category", "description", "target", "cutaway", "wardrobe", "outfitAt", "water", "people", "beat", "length", "loop", "stagger", "formation", "roles", "oscillators", "segments"];
 const KEY_FIELDS = new Set(["beat", "emote", "held", "face", ...Object.keys(NEUTRAL)]);
 
 /** Things that still load but are probably mistakes: unknown keys, wild angles, a placement for a role that isn't there. */
