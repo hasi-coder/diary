@@ -92,6 +92,8 @@ add a Shower from the Bathroom furniture group to use that action there.
 | `stagger` | Beats between one person and the next (a wave running round a group) |
 | `formation` | Where everyone stands, below |
 | `roles` | Keyframes per role, in beat order |
+| `oscillators` | `{ "role": [{ "channel": "lean", "amplitude": 8, "period": 4, "phase": "auto" }] }`: a repeating wobble added to a channel (`armL.0` picks a tuple value, `move.1` the forward step). `phase` is a fraction of a cycle, or `"auto"` so partners alternate (each role takes the next half-cycle) |
+| `segments` | `{ "intro": 2, "loop": 4, "repeat": 3 }`: the keyed beats split into an intro, a middle that repeats, and the outro; it plays `length + (repeat-1)*loop` beats. Wardrobe and cutaway times are in playing beats |
 | `target` | `{ "kinds": ["sink"], "posture": "stand" }`; posture is `stand`, `sit`, `lie` or `inside` |
 | `cutaway` | `{ "from": 1, "to": 7, "label": "Changing…", "emoji": "👕" }`; a full-screen card, **only for outfit changes** (needs `outfitAt`). Every other action stays on screen |
 | `target.roles` | Per-role placement at the furniture: `{ "therapist": { "posture": "stand", "side": "right", "along": 0.5 }, "client": { "posture": "lie", "side": "right", "across": 0.4 } }`. `side` is the left, right or `center` (the middle line, `across` ignored) of someone lying on it, `across` metres toward that side, `along` metres toward the feet |
@@ -225,6 +227,13 @@ View wiring: `src/views/SettingsView.tsx` includes `InteractionSettingsCard`;
 `PersonMenu`. `src/lib/places/world.ts` checks the policy again when starting and
 updating an activity. `WorldScene.tsx` renders the resulting
 state and have no participant eligibility logic.
+
+### Existing channels worth knowing
+
+- **Animated facing** is the `turn` channel (degrees, interpolated between keys): arrive one way and turn by beat 4.
+- **Lift** is `bob` (metres, stacks with everything else, and holds between keys).
+- **Standing on a surface** works with a role `rest: { height, pitch: 0 }` on furniture.
+- Load-time lint: unknown keys, wild angles and `target.roles` / `oscillators` that name a role with no keyframes are warned about in the console in development (`interactionWarnings`).
 
 ## Adding one
 

@@ -1,5 +1,5 @@
 // The interaction library: every JSON file in this folder is one interaction.
-import { interactionProblems, type Interaction } from "../interaction";
+import { interactionProblems, interactionWarnings, type Interaction } from "../interaction";
 import { interactionEnabled } from "../interactionPolicy";
 import known from "./categories.json";
 
@@ -8,6 +8,7 @@ export const INTERACTIONS: Interaction[] = Object.values(files)
   .filter((v) => {
     const problems = interactionProblems(v);
     if (problems.length) console.warn(problems.join("\n"));
+    else if (import.meta.env?.DEV) { const warnings = interactionWarnings(v); if (warnings.length) console.warn(warnings.join("\n")); }
     return problems.length === 0;
   })
   .map((v) => v as Interaction)

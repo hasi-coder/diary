@@ -95,6 +95,22 @@ export interface RolePlacement {
 }
 
 
+/** A repeating wobble added to one channel: "lean", "armL.0" (a tuple's first value), "move.1". */
+export interface Oscillator {
+  channel: string;
+  amplitude: number;
+  /** Beats per cycle. */
+  period: number;
+  /** Fraction of a cycle (0–1) to start at, or "auto": each role takes the next half-cycle, so partners alternate. */
+  phase?: number | "auto";
+}
+
+/**
+ * Carves the keyed beats into an intro (before `intro`), a middle that repeats `repeat` times
+ * (`loop` beats long) and an outro (the rest). Playing time is `length + (repeat - 1) * loop`.
+ */
+export interface Segments { intro?: number; loop: number; repeat?: number }
+
 export interface Interaction {
   id: string;
   label: string;
@@ -131,6 +147,23 @@ export interface Interaction {
   formation: Formation;
   /** Keyframes per role, in beat order. */
   roles: Record<string, Key[]>;
+  /** Periodic modifiers per role, added on top of the keyframes. */
+  oscillators?: Record<string, Oscillator[]>;
+  /** An intro / repeating middle / outro split of the keyed beats. */
+  segments?: Segments;
+}
+
+/** Beats the action plays for: `length`, plus the extra repeats of a segmented middle. */
+export const lengthOf = (def: Interaction) => def.length + (def.segments ? ((def.segments.repeat ?? 1) - 1) * def.segments.loop : 0);
+
+/** The keyed beat that playing beat `beat` shows, with a segmented middle repeated. */
+function keyedBeat(def: Interaction, beat: number): number {
+  const seg = def.segments;
+  if (!seg || beat <= 0) return beat;
+  const intro = seg.intro ?? 0, repeat = seg.repeat ?? 1;
+  if (beat < intro) return beat;
+  if (beat < intro + seg.loop * repeat) return intro + ((beat - intro) % seg.loop);
+  return beat - seg.loop * (repeat - 1);
 }
 
 const NEUTRAL: Required<Omit<Pose, "emote" | "held" | "face">> = {
@@ -179,6 +212,15 @@ export function interactionProblems(value: unknown): string[] {
   if (v.wardrobe && (!Number.isFinite(v.wardrobe.at) || !Number.isFinite(v.wardrobe.restoreAt) || v.wardrobe.at < 0 || v.wardrobe.restoreAt <= v.wardrobe.at || v.wardrobe.restoreAt > v.length! || (!v.wardrobe.outfitId && !v.wardrobe.remove?.length))) out.push(`${name}: wardrobe needs an outfit id or regions to remove, and an ordered time range inside the animation.`);
   if (v.wardrobe?.remove && !(Array.isArray(v.wardrobe.remove) && v.wardrobe.remove.every((r) => REGIONS.includes(r)))) out.push(`${name}: wardrobe remove must list body regions (${REGIONS.join(", ")}).`);
   if (v.outfitAt !== undefined && (!Number.isFinite(v.outfitAt) || v.outfitAt < 0 || v.outfitAt > v.length!)) out.push(`${name}: outfitAt must be inside the animation.`);
+  if (v.segments && (!(v.segments.loop > 0) || !(v.segments.intro === undefined || v.segments.intro >= 0) || (v.segments.intro ?? 0) + v.segments.loop > v.length! || !(v.segments.repeat === undefined || (Number.isInteger(v.segments.repeat) && v.segments.repeat >= 1)))) out.push(`${name}: segments need a positive loop inside the animation, an optional intro, and a whole repeat count.`);
+  for (const [role, list] of Object.entries(v.oscillators ?? {})) {
+    for (const o of Array.isArray(list) ? list : []) {
+      const [field, index] = String(o?.channel).split(".");
+      const neutral = (NEUTRAL as Record<string, unknown>)[field];
+      const slots = Array.isArray(neutral) ? neutral.length : 1;
+      if (neutral === undefined || (index !== undefined && !(Number(index) >= 0 && Number(index) < slots)) || !Number.isFinite(o.amplitude) || !(o.period > 0) || !(o.phase === undefined || o.phase === "auto" || Number.isFinite(o.phase))) out.push(`${name}: oscillator for "${role}" needs a channel (such as lean or armL.0), a numeric amplitude, a positive period and a phase.`);
+    }
+  }
   const f = v.formation;
   const roles = f?.type === "spots" ? f.spots.map((s) => s.role) : f?.type === "ring" || f?.type === "stay" ? [f.role] : null;
   if (!roles) out.push(`${name}: formation type must be spots, ring or stay.`);
@@ -213,6 +255,8 @@ const mix = (a: number, b: number, t: number) => a + (b - a) * t;
 export function poseAt(def: Interaction, role: string, beat: number): FullPose {
   const keys = def.roles[role] ?? [];
   if (!keys.length) return { ...NEUTRAL, emote: "", held: "", face: "" };
+  const playing = beat;
+  beat = keyedBeat(def, beat);
   const b = def.loop ? ((beat % def.length) + def.length) % def.length : Math.min(Math.max(beat, 0), def.length);
   let i = keys.length - 1;
   while (i > 0 && keys[i].beat > b) i--;
@@ -232,5 +276,45 @@ export function poseAt(def: Interaction, role: string, beat: number): FullPose {
   let held: HeldItem = "";
   let face: FaceView | "" = "";
   for (const k of keys) if (k.beat <= b) { if (k.emote !== undefined) emote = k.emote; if (k.held !== undefined) held = k.held; if (k.face !== undefined) face = k.face; }
+  oscillate(def, role, playing, pose);
   return { ...pose, emote, held, face };
+}
+
+/** Adds the role's oscillators to a pose, in place. */
+function oscillate(def: Interaction, role: string, beat: number, pose: Record<string, unknown>) {
+  const list = def.oscillators?.[role];
+  if (!list?.length) return;
+  const order = Object.keys(def.roles).indexOf(role);
+  for (const o of list) {
+    const [field, index] = o.channel.split(".");
+    const phase = o.phase === "auto" ? (order % 2) / 2 : o.phase ?? 0;
+    const wobble = o.amplitude * Math.sin(2 * Math.PI * (beat / o.period + phase));
+    const value = pose[field];
+    if (Array.isArray(value)) value[Number(index ?? 0)] += wobble;
+    else if (typeof value === "number") pose[field] = value + wobble;
+  }
+}
+
+const TOP_KEYS = ["id", "label", "emoji", "category", "description", "target", "cutaway", "wardrobe", "outfitAt", "water", "people", "beat", "length", "loop", "stagger", "formation", "roles", "oscillators", "segments"];
+const KEY_FIELDS = new Set(["beat", "emote", "held", "face", ...Object.keys(NEUTRAL)]);
+
+/** Things that still load but are probably mistakes: unknown keys, wild angles, a placement for a role that isn't there. */
+export function interactionWarnings(value: unknown): string[] {
+  const v = value as Partial<Interaction> | null;
+  if (!v || typeof v !== "object") return [];
+  const name = v.id ? `"${v.id}"` : "Interaction";
+  const out: string[] = [];
+  for (const key of Object.keys(v)) if (!TOP_KEYS.includes(key)) out.push(`${name}: unknown key "${key}" (ignored).`);
+  const roles = new Set(Object.keys(v.roles ?? {}));
+  for (const [role, keys] of Object.entries(v.roles ?? {})) {
+    for (const key of Array.isArray(keys) ? keys : []) {
+      for (const [field, val] of Object.entries(key)) {
+        if (!KEY_FIELDS.has(field)) out.push(`${name}: role "${role}" at beat ${key.beat}: unknown channel "${field}" (ignored).`);
+        else if ((typeof val === "number" && Math.abs(val) > 360 && field !== "beat") || (Array.isArray(val) && val.some((n) => typeof n === "number" && Math.abs(n) > 360))) out.push(`${name}: role "${role}" at beat ${key.beat}: ${field} is out of range (degrees; metres for bob and move).`);
+      }
+    }
+  }
+  for (const role of Object.keys(v.target?.roles ?? {})) if (!roles.has(role)) out.push(`${name}: target.roles names "${role}", which has no keyframes.`);
+  for (const role of Object.keys(v.oscillators ?? {})) if (!roles.has(role)) out.push(`${name}: oscillators name "${role}", which has no keyframes.`);
+  return out;
 }

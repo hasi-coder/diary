@@ -22,6 +22,7 @@ try {
         export { OUTFITS } from './src/lib/places/outfits';
         export { outfitProblems, applyOutfit } from './src/lib/places/outfits';
         export { outfitOf, withSlot, GARMENTS, CLOTHING_LAYERS, CLOTHING_STYLES, clothingProblems, normalizeWorn, garment } from './src/lib/places/garments';
+        export { lengthOf, interactionWarnings } from './src/lib/places/interaction';
         export { CLOTHING_CATALOG } from './src/lib/places/clothingCatalog';
         export { FACE_DEFS, FACE_VIEWS, FALLBACK_VIEW, FACE_SLOTS } from './src/lib/places/character';
         export { setInteractionMinimumAge } from './src/lib/interactionSettings';
@@ -36,7 +37,7 @@ try {
 } finally {
   await rm(scratch, { recursive: true, force: true });
 }
-const { poseAt, interactionProblems, INTERACTION_POLICY, interactionEnabled, interactionPolicyProblem, setInteractionEnabled, setInteractionMinimumAge, subscribeInteractionPolicy, OUTFITS, outfitProblems, applyOutfit, outfitOf, withSlot, GARMENTS, CLOTHING_LAYERS, CLOTHING_STYLES, clothingProblems, normalizeWorn, garment, CLOTHING_CATALOG, FACE_DEFS, FACE_VIEWS, FALLBACK_VIEW, FACE_SLOTS, World, Body, THREE, GLTFLoader } = animation;
+const { poseAt, interactionProblems, INTERACTION_POLICY, interactionEnabled, interactionPolicyProblem, setInteractionEnabled, setInteractionMinimumAge, subscribeInteractionPolicy, OUTFITS, outfitProblems, applyOutfit, outfitOf, withSlot, GARMENTS, CLOTHING_LAYERS, CLOTHING_STYLES, clothingProblems, normalizeWorn, garment, CLOTHING_CATALOG, lengthOf, interactionWarnings, FACE_DEFS, FACE_VIEWS, FALLBACK_VIEW, FACE_SLOTS, World, Body, THREE, GLTFLoader } = animation;
 const { normalizeClothingFit, withClothingFit } = animation;
 const json = async (path) => JSON.parse(await readFile(join(root, path), "utf8"));
 const interaction = (keys, loop = false) => ({
@@ -188,6 +189,31 @@ await test("a role can sit on a bed's surface while another stands beside it", a
   assert.ok(partner.rest.height > 0.62, "hips rest above the mattress");
   world.stopActivity();
   assert.equal(partner.rest, null);
+});
+
+await test("oscillators, segments and lint", async () => {
+  const base = interaction([{ beat: 0 }, { beat: 8 }], false);
+  // A repeating wobble, with partners half a cycle apart.
+  const wob = { ...base, roles: { a: [{ beat: 0 }, { beat: 8 }], b: [{ beat: 0 }, { beat: 8 }] }, oscillators: { a: [{ channel: "lean", amplitude: 10, period: 4, phase: "auto" }], b: [{ channel: "lean", amplitude: 10, period: 4, phase: "auto" }, { channel: "armL.0", amplitude: 5, period: 2 }] } };
+  assert.equal(Math.round(poseAt(wob, "a", 1).lean), 10, "a quarter cycle in");
+  assert.equal(Math.round(poseAt(wob, "b", 1).lean), -10, "the partner is in opposite phase");
+  assert.equal(Math.round(poseAt(wob, "b", 0.5).armL[0]), 5, "tuple channels by index");
+  assert.notDeepEqual(interactionProblems({ ...wob, oscillators: { a: [{ channel: "nope", amplitude: 1, period: 1 }] } }), []);
+  // An intro, a middle that repeats, and an outro.
+  const seg = { ...base, length: 8, segments: { intro: 2, loop: 4, repeat: 3 }, roles: { person: [{ beat: 0 }, { beat: 2, lean: 10 }, { beat: 4, lean: 30 }, { beat: 6, lean: 10 }, { beat: 8, lean: 0 }] } };
+  assert.equal(lengthOf(seg), 16, "two extra repeats of the 4-beat middle");
+  assert.equal(poseAt(seg, "person", 2).lean, poseAt(seg, "person", 6).lean, "the middle repeats");
+  assert.equal(poseAt(seg, "person", 4).lean, poseAt(seg, "person", 12).lean);
+  assert.equal(poseAt(seg, "person", 16).lean, 0, "the outro ends the clip");
+  assert.deepEqual(interactionProblems(seg), []);
+  assert.notDeepEqual(interactionProblems({ ...seg, segments: { loop: 20 } }), []);
+  // Lint: loads, but flags likely mistakes. Shipped files should be clean.
+  assert.equal(interactionWarnings({ ...base, speed: 2, roles: { person: [{ beat: 0, armLL: [0, 0], lean: 900 }] } }).length, 3);
+  const folder = "src/lib/places/interactions";
+  for (const file of await readdir(join(root, folder))) {
+    if (!file.endsWith(".json") || file === "categories.json" || file === "text.json") continue;
+    assert.deepEqual(interactionWarnings(await json(`${folder}/${file}`)), [], file);
+  }
 });
 
 await test("woohoo eligibility is centralized and applies to direct playback", async () => {

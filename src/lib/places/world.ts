@@ -3,7 +3,7 @@
 // cubicles that lock with everyone inside.
 import type { Profile } from "../api";
 import { characterOf, type Character } from "./character";
-import { poseAt, type FullPose, type HeldItem, type Interaction, type Posture } from "./interaction";
+import { lengthOf, poseAt, type FullPose, type HeldItem, type Interaction, type Posture } from "./interaction";
 import { interactionPolicyProblem } from "./interactionPolicy";
 import { applyOutfit, OUTFITS, type Outfit } from "./outfits";
 import { garment, legacyFields, outfitOf, underwearOf } from "./garments";
@@ -761,7 +761,7 @@ export class World {
       }
       act.wardrobeApplied = active;
     }
-    if (!def.loop && elapsed > def.length + stagger * (members.length - 1) + 0.3) return this.stopActivity(true);
+    if (!def.loop && elapsed > lengthOf(def) + stagger * (members.length - 1) + 0.3) return this.stopActivity(true);
     const spots = this.formationAt(act, elapsed);
     const settle = Math.min(1, (this.t - act.since) / 0.5);
     for (const m of members) {
