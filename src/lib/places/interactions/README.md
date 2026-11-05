@@ -256,5 +256,8 @@ Files named `test_<name>.json` are your scratch animations: the app loads them a
 4. Run the app, open a place, pick **Actions**. A file that doesn't load is named in the
    developer console.
 
+To check a clip by eye with the real world code (plants applied, a fixed debug camera), run
+`tools/places/render/shoot.sh <clip id> <beats> <camera 0-3>` (needs Chrome; frames go to `tmp/renders/`).
+
 Run `node tools/places/test_animation.mjs` to check interpolation, compatibility,
 central availability and the shipped GLB's joint movement without a browser.
