@@ -2,7 +2,7 @@
   "id": "cheer",
   "label": "Cheer",
   "emoji": "🎉",
-  "category": "social",
+  "category": "greeting",
   "requires": { "tier": "casual" },
   "description": "Everyone claps and throws their arms up, a little out of step.",
   "people": {"min": 2, "max": 12},

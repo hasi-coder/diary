@@ -22,11 +22,11 @@
     "posture": "sit",
     "roles": {
       "lead": { "posture": "sit", "side": "center" },
-      "partner": { "posture": "sit", "anchor": { "role": "lead", "at": "left", "distance": 0.4 } }
+      "partner": { "posture": "sit", "anchor": { "role": "lead", "at": "left", "distance": 0.3 } }
     }
   },
-  "clearance": { "min": 0.2 },
-  "camera": { "focus": "people", "zoom": 1.1 },
+  "clearance": { "min": 0.55 },
+  "camera": { "focus": "people", "zoom": 0.95 },
   "roles": {
     "lead": [
       { "beat": 0, "armL": [12, 12], "armR": [12, 12], "legL": 90, "legR": 90, "kneeL": 92, "kneeR": 92 },

@@ -79,7 +79,7 @@ await test("new joints interpolate, return to neutral, and blend across loop bou
 await test("all animation files load, with neutral defaults for joints they omit", async () => {
   const folder = "src/lib/places/interactions";
   for (const file of await readdir(join(root, folder))) {
-    if (!file.endsWith(".json") || file === "categories.json" || file.startsWith("test_")) continue;
+    if (!file.endsWith(".json") || file === "categories.json" || /^test[_-]/.test(file)) continue;
     const def = await json(`${folder}/${file}`);
     assert.deepEqual(interactionProblems(def), [], file);
     for (const role of Object.keys(def.roles)) {
@@ -220,7 +220,7 @@ await test("oscillators, segments and lint", async () => {
   assert.equal(interactionWarnings({ ...base, speed: 2, roles: { person: [{ beat: 0, armLL: [0, 0], lean: 900 }] } }).length, 4);
   const folder = "src/lib/places/interactions";
   for (const file of await readdir(join(root, folder))) {
-    if (!file.endsWith(".json") || file === "categories.json" || file.startsWith("test_")) continue;
+    if (!file.endsWith(".json") || file === "categories.json" || /^test[_-]/.test(file)) continue;
     assert.deepEqual(interactionWarnings(await json(`${folder}/${file}`)), [], file);
   }
 });
@@ -428,7 +428,9 @@ await test("removing a layer is not 'needs an adult': the age rule follows what 
 await test("every shipped action is reachable in the wheel, in rings short enough not to page", async () => {
   const folder = "src/lib/places/interactions";
   const defs = [];
-  for (const file of await readdir(join(root, folder))) if (file.endsWith(".json") && file !== "categories.json" && !file.startsWith("test_")) defs.push(await json(`${folder}/${file}`));
+  for (const file of await readdir(join(root, folder))) if (file.endsWith(".json") && file !== "categories.json" && !/^test[_-]/.test(file)) defs.push(await json(`${folder}/${file}`));
+  // A clip with mirror: true also appears mirrored.
+  for (const d of [...defs]) if (d.mirror) defs.push(mirrorInteraction(d));
   const two = defs.filter((d) => d.people.min <= 2 && d.people.max >= 2);
   // Every action, solo or together, is in the tree the wheel is built from (your own wheel lists them all).
   const everything = categoryTree(defs);
@@ -478,7 +480,7 @@ await test("Home lists the furniture in the place that can be used, nearest of e
   const { world, me } = household();
   const folder = "src/lib/places/interactions";
   const defs = [];
-  for (const file of await readdir(join(root, folder))) if (file.endsWith(".json") && file !== "categories.json" && !file.startsWith("test_")) defs.push(await json(`${folder}/${file}`));
+  for (const file of await readdir(join(root, folder))) if (file.endsWith(".json") && file !== "categories.json" && !/^test[_-]/.test(file)) defs.push(await json(`${folder}/${file}`));
   const list = furnitureToUse(world.place.items, defs, [me.x, me.y]);
   const kinds = list.map((i) => i.kind);
   for (const kind of ["bed", "toilet", "shower", "bath", "sink", "wardrobe", "sofa"]) assert.ok(kinds.includes(kind), `${kind} can be used from Home`);
@@ -526,6 +528,36 @@ await test("a mirrored clip is exactly a hand-mirrored one", () => {
   assert.equal(JSON.stringify(twice.formation), JSON.stringify(clip.formation));
   assert.equal(JSON.stringify(twice.target), JSON.stringify(clip.target));
   assert.equal(interactionProblems({ ...clip, mirror: "yes" }).some((p) => /mirror must be/.test(p)), true);
+});
+
+await test("care-bench: clearance, not the anchor, sets the gap", async () => {
+  const floor = { name: "seat", width: 10, depth: 8, entrance: [0, 0], rooms: [{ name: "R", rect: [0, 0, 10, 8] }], doors: [], items: [{ kind: "bench", x: 4, y: 3, w: 2, facing: "S" }] };
+  const world = new World(floor);
+  const me = world.addAuthor({ id: "me", name: "Me", birthday: "1985-01-01", terms: "neutral" });
+  const other = world.add({ id: "p", name: "P", birthday: "1986-01-01", terms: "neutral" }, "guest", { cell: [1, 0] });
+  const def = await action("care-bench");
+  assert.ok(def.target.roles.partner.anchor.distance < def.clearance.min, "the anchor is tighter than the clearance, so clearance must act");
+  assert.equal(world.startActivity(def, [me, other]), true);
+  advance(world, () => world.activity?.state === "playing");
+  for (let i = 0; i < 20; i++) world.update(0.05);
+  for (let beat = 0; beat < 22; beat += 2) {
+    while ((world.t - world.activity.since) / def.beat < beat + 3) world.update(0.05);
+    const gap = Math.hypot(me.x - other.x, me.y - other.y);
+    assert.ok(Math.abs(gap - 0.55) < 0.005, `beat ${beat + 3}: gap ${gap.toFixed(3)} (0.30 would mean the clearance is inert)`);
+  }
+});
+
+await test("another person can be sent to use furniture on their own", async () => {
+  const { world, me, partner } = household();
+  const toilet = await action("use-toilet");
+  assert.equal(interactionPolicyProblem(toilet, [partner]), null);
+  assert.equal(world.activityProblem(toilet, [partner]), null, "nothing stops it for them");
+  assert.equal(world.startActivity(toilet, [partner]), true, "the other person is sent, not the author");
+  advance(world, () => world.activity?.state === "playing");
+  assert.deepEqual(world.activity.members.map((m) => m.actor), [partner], "only they are in it");
+  assert.ok(partner.seat, "they sit on the toilet");
+  assert.equal(me.pose ?? null, null, "the author carries on as they were");
+  world.stopActivity();
 });
 
 await test("clearance holds two roles apart: it lengthens an anchor, and eases free roles apart without jitter", async () => {

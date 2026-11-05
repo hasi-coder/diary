@@ -5,6 +5,12 @@
     "emoji": "👋"
   },
   {
+    "id": "greeting",
+    "label": "Greetings",
+    "emoji": "🙋",
+    "parent": "social"
+  },
+  {
     "id": "romantic",
     "label": "Romantic",
     "emoji": "💞"

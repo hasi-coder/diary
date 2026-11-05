@@ -12,6 +12,7 @@
  "beat": 0.8,
  "length": 10,
  "loop": false,
+ "mirror": true,
  "formation": {
   "type": "spots",
   "spots": [
