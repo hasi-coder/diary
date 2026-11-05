@@ -16,6 +16,8 @@ build/
 .idea/
 
 tmp/
+# Face reference images (made from a real photo): kept locally in tmp/places/faces
+assets/places/faces/
 
 # Environment
 .env

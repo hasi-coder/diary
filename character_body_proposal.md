@@ -17,7 +17,7 @@ Status: phase 0 done, phase 1 in progress · 2026-11-04
 - Outfit templates: one JSON file each in `src/lib/places/outfits/` (Casual, Weekend, Skirt day, two school uniforms, At home), picked from the Character card.
 - MCP `set_person_character`: changes only the fields given (age, figure, build, skin, hair, body sliders, glasses, beard), dresses from an `outfit` template or a `wearing` list (known garments, one per slot, top and bottom required), or `reset`s. Like `set_person_faces`, it returns nothing else about the journal. A test keeps its garment and outfit lists in step with `garments.ts` and the outfit files.
 - Arms hang wider on heavier and more muscular bodies so they clear the hips.
-- Demo seed: the owner (Alex Morgan) wears the four illustrated face views in `assets/places/faces/photo-reference/`, with a matching look (masculine, Monk #a07e56, curly hair).
+- Demo seed: the owner (Alex Morgan) wears the illustrated face views kept locally in `tmp/places/faces/photo-reference/` (git-ignored; made from a real photo, so not in the repo; `MY_DIARY_FACES` points the seed elsewhere), with a matching look (masculine, Monk #a07e56, curly hair).
 
 - Face views at 45°: the camera sits on a diagonal and people face eight ways, so turns come in 45° steps, and a person one step off the camera used to show a 90° profile. Two optional three-quarter views (`frontLeft`, `frontRight`) now cover 22.5–67.5°; until they're uploaded the front image stands in. They're in `Profile.faces`, the photo slots, the Character card, `set_person_faces` and the generate-face-views skill.
 

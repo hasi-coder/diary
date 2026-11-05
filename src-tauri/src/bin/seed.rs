@@ -492,15 +492,27 @@ fn places(ws: &mut Workspace, me_id: &str, sarah: &Profile, dev: &Profile, robin
     for (id, look) in looks {
         ws.set_profile_character(id, Some(look))?;
     }
-    // The owner's head: four illustrated views made from a photo with the
-    // generate-face-views skill (assets/places/faces/photo-reference).
-    for (slot, name, bytes) in [
-        (PhotoSlot::FaceFront, "front.png", &include_bytes!("../../../assets/places/faces/photo-reference/front.png")[..]),
-        (PhotoSlot::FaceLeft, "left.png", &include_bytes!("../../../assets/places/faces/photo-reference/left.png")[..]),
-        (PhotoSlot::FaceRight, "right.png", &include_bytes!("../../../assets/places/faces/photo-reference/right.png")[..]),
-        (PhotoSlot::FaceBack, "back.png", &include_bytes!("../../../assets/places/faces/photo-reference/back.png")[..]),
+    // The owner's head views, made from a photo with the generate-face-views skill. They are not
+    // in the repository: put the PNGs (front.png, left.png, …) in tmp/places/faces/photo-reference,
+    // or point MY_DIARY_FACES at another folder. Without them the owner keeps a drawn face.
+    let faces = std::env::var_os("MY_DIARY_FACES")
+        .map(std::path::PathBuf::from)
+        .unwrap_or_else(|| std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../tmp/places/faces/photo-reference"));
+    for (slot, name) in [
+        (PhotoSlot::FaceFront, "front.png"),
+        (PhotoSlot::FaceFrontLeft, "frontLeft.png"),
+        (PhotoSlot::FaceFrontRight, "frontRight.png"),
+        (PhotoSlot::FaceLeft, "left.png"),
+        (PhotoSlot::FaceRight, "right.png"),
+        (PhotoSlot::FaceBack, "back.png"),
+        (PhotoSlot::FaceUp, "up.png"),
+        (PhotoSlot::FaceSleeping, "sleeping.png"),
+        (PhotoSlot::FaceSleepingLeft, "sleepingLeft.png"),
+        (PhotoSlot::FaceSleepingRight, "sleepingRight.png"),
+        (PhotoSlot::FaceDown, "down.png"),
     ] {
-        let id = ws.stage_media(name, bytes.to_vec())?.id;
+        let Ok(bytes) = std::fs::read(faces.join(name)) else { continue };
+        let id = ws.stage_media(name, bytes)?.id;
         ws.set_profile_photo(me_id, slot, Some(id))?;
     }
 
