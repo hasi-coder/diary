@@ -51,6 +51,16 @@ export function interactionGate(def: Gated, people: InteractionPerson[], now = n
   return { minimum, age, met, dressed, hidden: !met && !dressed };
 }
 
+/**
+ * How an action shows for a group: "ok", "hidden" (left off menus), or "locked" (listed dimmed with a lock, because
+ * the Settings switch is on). A locked action still refuses to start: `interactionPolicyProblem` says why.
+ */
+export function interactionAccess(def: Gated, people: InteractionPerson[]): { state: "ok" | "locked" | "hidden"; reason?: string } {
+  const gate = interactionGate(def, people);
+  if (!gate.hidden) return { state: "ok" };
+  return { state: INTERACTION_SETTINGS.showLocked ? "locked" : "hidden", reason: `Needs everyone to be ${gate.minimum}+` };
+}
+
 /** True when this group plays the action clothed because they don't meet its age requirement. */
 export const interactionDressed = (def: Gated, people: InteractionPerson[]) => interactionGate(def, people).dressed;
 

@@ -25,7 +25,20 @@ export function ActionWheel(props: { at: { x: number; y: number }; title: string
   const [path, setPath] = useState<WheelNode[]>([]);
   const [page, setPage] = useState(0);
   const [hover, setHover] = useState<WheelNode | null>(null);
-  const level = path.length ? path[path.length - 1].children! : props.nodes;
+  const [query, setQuery] = useState("");
+  // Typing searches every action in every group, so a long list is never only reachable by paging.
+  const found = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return null;
+    const out: WheelNode[] = [];
+    const walk = (nodes: WheelNode[], trail: string) => nodes.forEach((n) => {
+      if (n.children?.length) walk(n.children, trail ? `${trail} › ${n.label}` : n.label);
+      else if (`${n.label} ${n.hint ?? ""} ${trail}`.toLowerCase().includes(q)) out.push({ ...n, hint: [trail, n.hint].filter(Boolean).join(" · ") });
+    });
+    walk(props.nodes, "");
+    return out;
+  }, [query, props.nodes]);
+  const level = found ?? (path.length ? path[path.length - 1].children! : props.nodes);
   // Long rings keep a button for the next page instead of crowding.
   const paged = level.length > PER_RING;
   const perPage = paged ? PER_RING - 1 : PER_RING;
@@ -90,7 +103,7 @@ export function ActionWheel(props: { at: { x: number; y: number }; title: string
               <div className="mt-0.5 line-clamp-2 text-[11px] font-bold leading-tight">{hover.label}</div>
               <div className="line-clamp-2 text-[9px] leading-tight text-white/60">{hover.disabled ?? hover.hint ?? ""}</div>
             </>
-          ) : path.length ? (
+          ) : !found && path.length ? (
             <button onClick={() => (setPath(path.slice(0, -1)), setPage(0))} className="flex flex-col items-center gap-1 text-xs font-semibold hover:text-brand-300">
               <CaretLeftIcon size={18} weight="bold" />
               {path[path.length - 1].label}
@@ -103,6 +116,14 @@ export function ActionWheel(props: { at: { x: number; y: number }; title: string
             </>
           )}
         </div>
+        <input
+          value={query}
+          onChange={(e) => (setQuery(e.target.value), setPage(0))}
+          placeholder="Search actions…"
+          aria-label="Search actions"
+          className="absolute -top-9 left-1/2 w-56 -translate-x-1/2 rounded-full border border-white/20 bg-slate-900/90 px-3 py-1 text-xs text-white placeholder:text-white/50"
+        />
+        {found && !found.length && <div className="absolute left-1/2 top-1/2 mt-16 -translate-x-1/2 text-xs font-semibold text-white">Nothing matches</div>}
         <button onClick={props.onClose} aria-label="Close menu" className="absolute right-2 top-2 rounded-full bg-slate-900/80 p-1 text-white/70 hover:text-white">
           <XIcon size={14} />
         </button>

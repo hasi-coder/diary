@@ -24,6 +24,7 @@ try {
         export { outfitOf, withSlot, GARMENTS, CLOTHING_LAYERS, CLOTHING_STYLES, clothingProblems, normalizeWorn, garment } from './src/lib/places/garments';
         export { ageRequirement } from './src/lib/places/interaction';
         export { setShowLockedActions } from './src/lib/interactionSettings';
+        export { interactionAccess } from './src/lib/places/interactionPolicy';
         export { interactionGate, interactionHidden, interactionDressed } from './src/lib/places/interactionPolicy';
         export { categoryTree, categoriesOf } from './src/lib/places/interactions/categories';
         export { longestPlantHold } from './src/lib/places/interaction';
@@ -43,7 +44,7 @@ try {
 } finally {
   await rm(scratch, { recursive: true, force: true });
 }
-const { poseAt, interactionProblems, INTERACTION_POLICY, interactionEnabled, interactionPolicyProblem, setInteractionEnabled, setInteractionMinimumAge, subscribeInteractionPolicy, OUTFITS, outfitProblems, applyOutfit, outfitOf, withSlot, GARMENTS, CLOTHING_LAYERS, CLOTHING_STYLES, clothingProblems, normalizeWorn, garment, CLOTHING_CATALOG, solveTwoBone, KNEEL_DROP, KNEEL_ANKLE, ageRequirement, categoryTree, categoriesOf, longestPlantHold, setShowLockedActions, interactionGate, interactionHidden, interactionDressed, lengthOf, interactionWarnings, FACE_DEFS, FACE_VIEWS, FALLBACK_VIEW, FACE_SLOTS, World, Body, THREE, GLTFLoader } = animation;
+const { poseAt, interactionProblems, INTERACTION_POLICY, interactionEnabled, interactionPolicyProblem, setInteractionEnabled, setInteractionMinimumAge, subscribeInteractionPolicy, OUTFITS, outfitProblems, applyOutfit, outfitOf, withSlot, GARMENTS, CLOTHING_LAYERS, CLOTHING_STYLES, clothingProblems, normalizeWorn, garment, CLOTHING_CATALOG, solveTwoBone, KNEEL_DROP, KNEEL_ANKLE, ageRequirement, interactionAccess, categoryTree, categoriesOf, longestPlantHold, setShowLockedActions, interactionGate, interactionHidden, interactionDressed, lengthOf, interactionWarnings, FACE_DEFS, FACE_VIEWS, FALLBACK_VIEW, FACE_SLOTS, World, Body, THREE, GLTFLoader } = animation;
 const { normalizeClothingFit, withClothingFit } = animation;
 const json = async (path) => JSON.parse(await readFile(join(root, path), "utf8"));
 const interaction = (keys, loop = false) => ({
@@ -287,6 +288,15 @@ await test("the age gate follows what an action does, not its id", async () => {
     assert.equal(interactionHidden(clothed, [me, partner]), false, "listed, with a lock");
     assert.match(interactionPolicyProblem(clothed, [me, partner]), /18\+/, "still blocked");
     assert.equal(world.startActivity(clothed, [me, partner]), false, "and still cannot play");
+    setShowLockedActions(false);
+    // The wheel's states: hidden by default, locked (listed, dimmed, still refused) with the switch on, ok for adults.
+    assert.deepEqual([interactionAccess(clothed, [me, partner]).state, interactionAccess(clothed, [me, me]).state], ["hidden", "ok"]);
+    setShowLockedActions(true);
+    assert.equal(interactionAccess(clothed, [me, partner]).state, "locked");
+    assert.match(interactionAccess(clothed, [me, partner]).reason, /18\+/);
+    assert.equal(interactionPolicyProblem(clothed, [me, partner]) !== null, true, "locked means it still refuses");
+    const bathe = await action("bathe");
+    assert.equal(interactionAccess(bathe, [partner]).state, "ok", "a bath is not locked for a child: it plays dressed");
     setShowLockedActions(false); }
   // No declared tier: an undressing clip is hidden from children, never quietly played dressed.
   { const { me, partner } = household(); child(partner);
@@ -443,6 +453,23 @@ await test("every shipped action is reachable in the wheel, in rings short enoug
   const novel = categoryTree([{ ...defs[0], id: "x", category: "sports" }]);
   assert.deepEqual([novel[0].id, novel[0].label], ["sports", "Sports"]);
   assert.ok(categoriesOf(defs).length >= tree.length);
+});
+
+await test("the chair and bench clips start at their furniture and play", async () => {
+  for (const [id, item] of [["care-haircut", { kind: "chair", x: 4, y: 3, facing: "S" }], ["care-bench", { kind: "bench", x: 4, y: 3, w: 2, facing: "S" }]]) {
+    const floor = { name: "seat", width: 10, depth: 8, entrance: [0, 0], rooms: [{ name: "R", rect: [0, 0, 10, 8] }], doors: [], items: [item] };
+    const world = new World(floor);
+    const me = world.addAuthor({ id: "me", name: "Me", birthday: "1985-01-01", terms: "neutral" });
+    const other = world.add({ id: "p", name: "P", birthday: "1986-01-01", terms: "neutral" }, "guest", { cell: [1, 0] });
+    const toasts = [];
+    world.onToast = (m) => toasts.push(m);
+    const def = await action(id);
+    assert.equal(world.startActivity(def, [me, other]), true, `${id} starts: ${toasts.join(" / ")}`);
+    advance(world, () => world.activity?.state === "playing");
+    for (let i = 0; i < 80; i++) world.update(0.05);
+    assert.ok(Number.isFinite(me.x) && Number.isFinite(other.x));
+    world.stopActivity();
+  }
 });
 
 await test("clearance holds two roles apart: it lengthens an anchor, and eases free roles apart without jitter", async () => {

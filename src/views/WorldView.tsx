@@ -26,7 +26,7 @@ import { useJournal } from "../lib/journal";
 import type { Interaction } from "../lib/places/interaction";
 import { ActionWheel, type WheelNode } from "../components/ActionWheel";
 import { INTERACTIONS, categoryTree, enabledInteractions, interactionsFor, type CategoryNode } from "../lib/places/interactions";
-import { interactionGate, interactionHidden } from "../lib/places/interactionPolicy";
+import { interactionAccess } from "../lib/places/interactionPolicy";
 import { interactionSettingsRevision, subscribeInteractionSettings } from "../lib/interactionSettings";
 import { applyOutfit, OUTFITS, type Outfit } from "../lib/places/outfits";
 import { DressingRoom } from "../components/DressingRoom";
@@ -195,12 +195,12 @@ function Playing(props: { world: World; place: Profile; post: Post | null; loadE
   };
 
   /** Actions the group's ages rule out are left off the wheel, or shown with a lock when Settings says so. */
-  const ageLocked = (def: Interaction, people: Actor[]) => (interactionGate(def, people).hidden ? `Needs everyone to be ${interactionGate(def, people).minimum}+` : undefined);
+  const ageLocked = (def: Interaction, people: Actor[]) => interactionAccess(def, people).reason;
 
   /** One action as a wheel node: chosen straight away, or after picking an outfit or who to do it with. */
   const defNode = (def: Interaction, others: Actor[], target?: PlacedItem): WheelNode | null => {
     const together = def.people.max > 1;
-    const hidden = together && others.length ? others.every((a) => interactionHidden(def, [me, a])) : interactionHidden(def, [me]);
+    const hidden = together && others.length ? others.every((a) => interactionAccess(def, [me, a]).state === "hidden") : interactionAccess(def, [me]).state === "hidden";
     if (hidden) return null;
     const base = { id: def.id, label: def.label, emoji: def.emoji ?? "✨", hint: def.description };
     const needed = def.people.min - 1;
@@ -243,7 +243,7 @@ function Playing(props: { world: World; place: Profile; post: Post | null; loadE
 
   const personNodes = (who: Actor): WheelNode[] => [
     ...groupNodes(interactionsFor(2), (def) => {
-      if (interactionHidden(def, [me, who])) return null;
+      if (interactionAccess(def, [me, who]).state === "hidden") return null;
       const locked = ageLocked(def, [me, who]);
       const problem = locked ? `🔒 ${locked}` : world.activityProblem(def, [me, who]);
       return { id: def.id, label: def.label, emoji: def.emoji ?? "✨", hint: def.description, disabled: problem ?? undefined, onSelect: () => start(def, [who]) };
