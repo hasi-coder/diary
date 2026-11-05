@@ -1,0 +1,45 @@
+{
+  "id": "care-bench",
+  "label": "On a bench",
+  "emoji": "🪑",
+  "category": "casual",
+  "description": "Two on a bench, one talking, one listening.",
+  "requires": { "tier": "casual" },
+  "people": { "min": 2, "max": 2 },
+  "beat": 0.85,
+  "length": 24,
+  "loop": false,
+  "formation": {
+    "type": "spots",
+    "spots": [
+      { "role": "lead", "at": [0, 0], "facing": 0 },
+      { "role": "partner", "at": [0, 0.4], "facing": 0 }
+    ]
+  },
+  "target": {
+    "kinds": ["bench"],
+    "posture": "sit",
+    "roles": {
+      "lead": { "posture": "sit", "side": "center" },
+      "partner": { "posture": "sit", "anchor": { "role": "lead", "at": "left", "distance": 0.4 } }
+    }
+  },
+  "clearance": { "min": 0.2 },
+  "camera": { "focus": "people", "zoom": 1.1 },
+  "roles": {
+    "lead": [
+      { "beat": 0, "armL": [12, 12], "armR": [12, 12], "legL": 90, "legR": 90, "kneeL": 92, "kneeR": 92 },
+      { "beat": 6, "head": [6, 18, 2], "armL": [40, 20], "elbowL": 55, "emote": "💬" },
+      { "beat": 12, "head": [4, 12, -1], "armL": [46, 24], "elbowL": 62 },
+      { "beat": 18, "head": [7, 20, 3], "armL": [38, 18], "elbowL": 50 },
+      { "beat": 24 }
+    ],
+    "partner": [
+      { "beat": 0, "armL": [10, 12], "armR": [10, 12], "legL": 90, "legR": 90, "kneeL": 92, "kneeR": 92 },
+      { "beat": 6, "head": [8, -16, -2] },
+      { "beat": 12, "head": [10, -10, 1], "lean": 4 },
+      { "beat": 18, "head": [6, -18, -3], "emote": "🙂" },
+      { "beat": 24 }
+    ]
+  }
+}

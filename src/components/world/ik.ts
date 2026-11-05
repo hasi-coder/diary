@@ -1,0 +1,74 @@
+// Two-bone IK for planting an arm or leg on a point, on the MakeHuman rig. Pure three.js on the
+// bones it is given, so it can be tested without a renderer.
+import * as THREE from "three";
+
+/**
+ * Kneeling: thighs upright, shins flat. The hips drop by this share of the body's own leg length
+ * (calibrated on the shipped rig so the knees and shins rest on the floor), and the feet point back in line
+ * with the shins (KNEEL_ANKLE, radians toes-up; negative is toes down).
+ */
+export const KNEEL_DROP = 0.487;
+export const KNEEL_ANKLE = -1.2;
+
+const tmp = {
+  p0: new THREE.Vector3(), p1: new THREE.Vector3(), p2: new THREE.Vector3(),
+  q: new THREE.Quaternion(), pq: new THREE.Quaternion(), wq: new THREE.Quaternion(),
+};
+
+/** Turns `bone` so that the direction from it to `child` (world space) becomes `toward`. */
+function aim(bone: THREE.Bone, child: THREE.Object3D, toward: THREE.Vector3) {
+  bone.updateWorldMatrix(true, true);
+  const from = new THREE.Vector3().subVectors(child.getWorldPosition(tmp.p2), bone.getWorldPosition(tmp.p0)).normalize();
+  const delta = tmp.q.setFromUnitVectors(from, toward.clone().normalize());
+  bone.getWorldQuaternion(tmp.wq);
+  bone.parent!.getWorldQuaternion(tmp.pq);
+  bone.quaternion.copy(tmp.pq.invert().multiply(delta.multiply(tmp.wq)));
+  bone.updateWorldMatrix(false, true);
+}
+
+export interface PlantResult {
+  /** Distance from the end bone to the target afterwards, metres (0 when reached). */
+  miss: number;
+  /** The target was beyond reach, so the limb stretched toward it instead. */
+  clamped: boolean;
+}
+
+/**
+ * Bends `upper` and `lower` so `end` reaches `target` (world space), keeping the elbow or knee on
+ * the side it already bends to. Out of reach, the limb straightens toward the target (never snaps).
+ * `weight` blends from the pose the bones are in (0) to the solved pose (1).
+ */
+export function solveTwoBone(upper: THREE.Bone, lower: THREE.Bone, end: THREE.Object3D, target: THREE.Vector3, weight: number): PlantResult {
+  const w = Math.max(0, Math.min(1, weight));
+  const miss0 = end.getWorldPosition(new THREE.Vector3()).distanceTo(target);
+  if (w === 0) return { miss: miss0, clamped: false };
+  upper.updateWorldMatrix(true, true);
+  const p0 = upper.getWorldPosition(new THREE.Vector3());
+  const p1 = lower.getWorldPosition(new THREE.Vector3());
+  const p2 = end.getWorldPosition(new THREE.Vector3());
+  const l1 = p0.distanceTo(p1), l2 = p1.distanceTo(p2);
+  const to = new THREE.Vector3().subVectors(target, p0);
+  const reach = to.length();
+  const clamped = reach > l1 + l2 - 1e-4;
+  const d = Math.max(Math.abs(l1 - l2) + 1e-4, Math.min(reach, l1 + l2 - 1e-4));
+  const u = to.normalize();
+  // The elbow stays on the side it is on: the part of the current upper-limb direction across the aim.
+  const bend = new THREE.Vector3().subVectors(p1, p0);
+  const pole = bend.sub(u.clone().multiplyScalar(bend.dot(u)));
+  if (pole.lengthSq() < 1e-8) pole.set(0, 0, 1).sub(u.clone().multiplyScalar(u.z));
+  pole.normalize();
+  const a = (l1 * l1 - l2 * l2 + d * d) / (2 * d);
+  const h = Math.sqrt(Math.max(l1 * l1 - a * a, 0));
+  const elbow = p0.clone().addScaledVector(u, a).addScaledVector(pole, h);
+  const hand = p0.clone().addScaledVector(u, d);
+  const startUpper = upper.quaternion.clone(), startLower = lower.quaternion.clone();
+  aim(upper, lower, elbow.clone().sub(p0));
+  aim(lower, end, hand.clone().sub(lower.getWorldPosition(tmp.p1)));
+  if (w < 1) {
+    const solvedUpper = upper.quaternion.clone(), solvedLower = lower.quaternion.clone();
+    upper.quaternion.slerpQuaternions(startUpper, solvedUpper, w);
+    lower.quaternion.slerpQuaternions(startLower, solvedLower, w);
+    upper.updateWorldMatrix(false, true);
+  }
+  return { miss: end.getWorldPosition(new THREE.Vector3()).distanceTo(target), clamped };
+}

@@ -1,0 +1,59 @@
+{
+  "id": "care-haircut",
+  "label": "Haircut",
+  "emoji": "✂️",
+  "category": "care",
+  "description": "Cape on, chair back, scissors out. Hold still.",
+  "requires": { "tier": "casual" },
+  "people": { "min": 2, "max": 2 },
+  "beat": 0.8,
+  "length": 40,
+  "loop": false,
+  "formation": {
+    "type": "spots",
+    "spots": [
+      { "role": "lead", "at": [0, 0], "facing": 0 },
+      { "role": "partner", "at": [0, 0.4], "facing": 180 }
+    ]
+  },
+  "target": {
+    "kinds": ["chair"],
+    "posture": "sit",
+    "roles": {
+      "lead": { "posture": "stand", "anchor": { "role": "partner", "at": "behind", "distance": 0.34 } },
+      "partner": { "posture": "sit", "side": "center" }
+    }
+  },
+  "wardrobe": { "at": 4, "restoreAt": 36, "roles": { "partner": { "at": 4, "restoreAt": 36, "remove": ["outer"] } } },
+  "camera": { "focus": "people", "zoom": 1.15, "height": 0.12 },
+  "roles": {
+    "lead": [
+      { "beat": 0 },
+      { "beat": 3, "armL": [95, 25], "armR": [95, 25], "elbowL": 55, "elbowR": 55, "head": [14, 0, 0], "plant": { "armL": { "on": "role:partner", "point": "shoulder", "weight": 0.4 } } },
+      { "beat": 5, "armL": [120, 22], "armR": [120, 22], "elbowL": 60, "elbowR": 60, "head": [18, 0, 0], "plant": { "armL": { "on": "role:partner", "point": "head", "weight": 1 }, "armR": { "on": "role:partner", "point": "head", "weight": 1 } } },
+      { "beat": 8, "armL": [118, 26], "armR": [122, 18], "elbowL": 58, "elbowR": 62, "head": [20, 0, 2] },
+      { "beat": 11, "armL": [124, 20], "armR": [116, 26], "elbowL": 62, "elbowR": 56, "head": [21, 0, -2] },
+      { "beat": 14, "armL": [118, 24], "armR": [120, 22], "elbowL": 58, "elbowR": 60, "head": [19, 0, 1], "emote": "✂️" },
+      { "beat": 17, "armL": [122, 18], "armR": [118, 24], "elbowL": 60, "elbowR": 58, "head": [20, 0, -1] },
+      { "beat": 20, "armL": [116, 26], "armR": [124, 20], "elbowL": 56, "elbowR": 62, "head": [22, 0, 2] },
+      { "beat": 23, "armL": [120, 22], "armR": [120, 22], "elbowL": 60, "elbowR": 60, "head": [19, 0, 0] },
+      { "beat": 26, "armL": [112, 28], "armR": [112, 28], "elbowL": 50, "elbowR": 50, "head": [16, 0, 3], "plant": { "armL": { "on": "role:partner", "point": "head", "weight": 0.6 }, "armR": { "on": "role:partner", "point": "head", "weight": 0.6 } } },
+      { "beat": 29, "armL": [108, 30], "armR": [108, 30], "elbowL": 46, "elbowR": 46, "head": [14, 0, -3] },
+      { "beat": 32, "armL": [116, 24], "armR": [116, 24], "elbowL": 56, "elbowR": 56, "head": [18, 0, 0] },
+      { "beat": 35, "armL": [100, 26], "armR": [100, 26], "elbowL": 50, "elbowR": 50, "head": [12, 0, 0], "plant": { "armL": { "on": "role:partner", "point": "shoulder", "weight": 0.3 } } },
+      { "beat": 38, "armL": [20, 12], "armR": [20, 12], "elbowL": 10, "elbowR": 10, "head": [4, 0, 0] },
+      { "beat": 40 }
+    ],
+    "partner": [
+      { "beat": 0, "armL": [10, 12], "armR": [10, 12], "legL": 90, "legR": 90, "kneeL": 95, "kneeR": 95 },
+      { "beat": 4, "head": [4, 0, 0] },
+      { "beat": 8, "head": [6, 0, -2], "legL": 92, "legR": 88, "kneeL": 97, "kneeR": 93 },
+      { "beat": 14, "head": [5, 0, 1], "legL": 88, "legR": 92, "kneeL": 93, "kneeR": 97 },
+      { "beat": 20, "head": [7, 0, 2] },
+      { "beat": 26, "head": [4, 0, -1] },
+      { "beat": 32, "head": [6, 0, 0] },
+      { "beat": 36, "head": [2, 0, 0] },
+      { "beat": 40 }
+    ]
+  }
+}

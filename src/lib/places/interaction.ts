@@ -1,4 +1,4 @@
-import type { ClothingRegion } from "./clothingTypes";
+import type { ClothingLayer, ClothingRegion } from "./clothingTypes";
 import { FACE_VIEWS, type FaceView } from "./character";
 
 // Things people do together in the Places world (dance, hug, high-five, …),
@@ -49,6 +49,8 @@ export interface Pose {
   held?: HeldItem;
   /** Which head image to show from this key on (a FaceView such as "sleeping"); "" goes back to choosing by the camera and the way the head lies. */
   face?: FaceView | "";
+  /** Plant limbs on something from this key on, keyed by limb; weight 0 releases it. Holds until changed. */
+  plant?: Partial<Record<Limb, Plant>>;
 }
 
 export type HeldItem = "toothbrush" | "baby" | "";
@@ -74,7 +76,7 @@ export type Formation =
   /** Everyone where they are, turned toward the middle of the group. */
   | { type: "stay"; role: string };
 
-export type Posture = "stand" | "sit" | "lie" | "inside";
+export type Posture = "stand" | "sit" | "lie" | "inside" | "kneel";
 
 /** How a body rests on furniture: hip height in metres and tilt in degrees (-90 = lying face up, 0 = sitting upright). */
 export interface Rest { height: number; pitch: number }
@@ -84,6 +86,8 @@ export interface RolePlacement {
   posture: Posture;
   /** Overrides the action's `rest` for this role. */
   rest?: Rest;
+  /** Place this role against another role instead (same as a top-level `anchors` entry). */
+  anchor?: Anchor;
   /** Which side of the furniture, from the point of view of a person lying on it. */
   side?: "left" | "right" | "center";
   /** Metres from the middle toward that side (ignored for "center", the middle line). A standing role defaults to just outside the furniture; a lying role to the middle. */
@@ -127,6 +131,28 @@ export interface Anchor { role: string; at: "front" | "behind" | "left" | "right
  */
 export interface Framing { zoom?: number; height?: number; offset?: [number, number]; focus?: "target" | "people" }
 
+/** A change of clothes: a preset, and/or garments covering these regions or in these layers taken off. */
+export interface WardrobeStep { at: number; restoreAt: number; outfitId?: string; remove?: (ClothingRegion | ClothingLayer)[]; preferUnderlayers?: boolean }
+/**
+ * Everyone's clothes change at `at` and come back at `restoreAt`. `roles` gives one role its own step,
+ * merged over the global one (so one role can change while the other keeps their clothes).
+ */
+export interface Wardrobe extends WardrobeStep { fallback?: "dressed" | "hide"; roles?: Record<string, Partial<WardrobeStep>> }
+
+/** Which two roles must stay apart, in metres (default: the two bodies' sizes), pushed apart softly. */
+export interface Clearance { min?: number }
+
+/** What a role's limb is planted on: `role:<id>`, `bed` or `floor`, at a named point of that body. */
+export type Limb = "armL" | "armR" | "legL" | "legR";
+export const LIMBS: Limb[] = ["armL", "armR", "legL", "legR"];
+export const PLANT_POINTS = ["head", "shoulder", "hand", "hip", "lowerBack", "knee", "surface"];
+export interface Plant { on: string; point?: string; weight?: number; blend?: number }
+/** A planted limb at an instant: how strongly it is held on its target. */
+export type PlantState = Partial<Record<Limb, { on: string; point: string; weight: number }>>;
+
+/** How an action reads, for a lint that checks the declared tier against what it does. */
+export interface Content { motion?: "static" | "cyclic" | "repetitive"; contact?: "none" | "incidental" | "sustained"; witness?: "fine" | "private" }
+
 export interface Interaction {
   id: string;
   label: string;
@@ -150,7 +176,7 @@ export interface Interaction {
    * when the action declares a `minAge`, is intimate or declares no tier at all; "dressed" only for an
    * action that states it is casual or affectionate.
    */
-  wardrobe?: { at: number; restoreAt: number; outfitId?: string; remove?: ClothingRegion[]; preferUnderlayers?: boolean; fallback?: "dressed" | "hide" };
+  wardrobe?: Wardrobe;
   /** Change to the outfit selected when starting, at this beat. */
   outfitAt?: number;
   water?: boolean;
@@ -172,6 +198,10 @@ export interface Interaction {
    * or calves always needs an adult, declared or not (see `ageRequirement`).
    */
   requires?: { minAge?: number; wardrobe?: ClothingRegion[]; tier?: Tier };
+  /** Declare how it reads; lint warns when that disagrees with the tier. */
+  content?: Content;
+  /** Keeps roles at least this far apart (pushes the unanchored role, or lengthens an anchor). */
+  clearance?: Clearance;
   /** Camera framing while it plays, so stacked or far-apart bodies stay in view. */
   camera?: Framing;
   /** Roles placed against another role: `{ "client": { "role": "therapist", "at": "front", "distance": 0.5 } }`. */
@@ -201,7 +231,8 @@ export const viewAge = (def: Requiring) => Math.max(def.requires?.minAge ?? 0, T
  * hips, thighs or calves (by `wardrobe.remove` or `requires.wardrobe`), whatever its tier.
  */
 export function ageRequirement(def: Requiring): number {
-  const regions = [...(def.wardrobe?.remove ?? []), ...(def.requires?.wardrobe ?? [])];
+  const steps = [def.wardrobe, ...Object.values(def.wardrobe?.roles ?? {})];
+  const regions = [...steps.flatMap((step) => step?.remove ?? []), ...(def.requires?.wardrobe ?? [])] as ClothingRegion[];
   return Math.max(viewAge(def), regions.some((r) => ADULT_REGIONS.includes(r)) ? ADULT_AGE : 0);
 }
 
@@ -211,6 +242,13 @@ export const wardrobeFallback = (def: Requiring): "dressed" | "hide" =>
 
 /** Whether the action may play clothed for people too young for its undressing. Never for an intimate one. */
 export const mayPlayDressed = (def: Requiring) => !!def.wardrobe && def.requires?.tier !== "intimate" && wardrobeFallback(def) === "dressed";
+
+/** Every role anchor an action declares: the top-level `anchors` and any `anchor` on a role's placement. */
+export function anchorsOf(def: Pick<Interaction, "anchors" | "target">): Record<string, Anchor> {
+  const out: Record<string, Anchor> = { ...(def.anchors ?? {}) };
+  for (const [role, place] of Object.entries(def.target?.roles ?? {})) if (place?.anchor) out[role] = place.anchor;
+  return out;
+}
 
 /** Beats the action plays for: `length`, plus the extra repeats of a segmented middle. */
 export const lengthOf = (def: Interaction) => def.length + (def.segments ? ((def.segments.repeat ?? 1) - 1) * def.segments.loop : 0);
@@ -225,7 +263,7 @@ function keyedBeat(def: Interaction, beat: number): number {
   return beat - seg.loop * (repeat - 1);
 }
 
-const NEUTRAL: Required<Omit<Pose, "emote" | "held" | "face">> = {
+const NEUTRAL: Required<Omit<Pose, "emote" | "held" | "face" | "plant">> = {
   armL: [0, 8],
   armR: [0, 8],
   elbowL: 0,
@@ -249,7 +287,7 @@ const NEUTRAL: Required<Omit<Pose, "emote" | "held" | "face">> = {
   bob: 0,
   move: [0, 0],
 };
-export type FullPose = Required<Omit<Pose, "emote" | "held" | "face">> & { emote: string; held: HeldItem; face: FaceView | "" };
+export type FullPose = Required<Omit<Pose, "emote" | "held" | "face" | "plant">> & { emote: string; held: HeldItem; face: FaceView | ""; plant: PlantState };
 
 /** Problems that stop an interaction from loading; [] when it's usable. */
 export function interactionProblems(value: unknown): string[] {
@@ -261,15 +299,28 @@ export function interactionProblems(value: unknown): string[] {
   if (v.category !== undefined && (typeof v.category !== "string" || !v.category.trim())) out.push(`${name}: category must be a word.`);
   if (!(v.beat! > 0) || !(v.length! > 0)) out.push(`${name}: beat and length must be positive.`);
   if (!(v.people?.min! >= 1) || !(v.people?.max! >= v.people?.min!)) out.push(`${name}: people needs min ≥ 1 and max ≥ min.`);
-  const postures = ["stand", "sit", "lie", "inside"];
+  const postures = ["stand", "sit", "lie", "inside", "kneel"];
   if (v.target && (!Array.isArray(v.target.kinds) || !v.target.kinds.length || v.target.kinds.some((kind) => typeof kind !== "string") || !postures.includes(v.target.posture))) out.push(`${name}: target needs furniture kinds and a stand, sit, lie or inside posture.`);
   for (const [role, place] of Object.entries(v.target?.roles ?? {})) {
     if (!postures.includes(place?.posture) || (place.side !== undefined && !["left", "right", "center"].includes(place.side)) || ([place.along, place.across, place.facing].some((n) => n !== undefined && !Number.isFinite(n)))) out.push(`${name}: target role "${role}" needs a posture, an optional left or right side and numeric across, along and facing.`);
   }
   if (v.cutaway && (!Number.isFinite(v.cutaway.from) || !Number.isFinite(v.cutaway.to) || v.cutaway.from < 0 || v.cutaway.to <= v.cutaway.from || v.cutaway.to > v.length! || typeof v.cutaway.label !== "string")) out.push(`${name}: cutaway needs a label and a time range inside the animation.`);
   if (v.cutaway && v.outfitAt === undefined) out.push(`${name}: a cutaway is only for actions that change outfit (set outfitAt).`);
-  if (v.wardrobe && (!Number.isFinite(v.wardrobe.at) || !Number.isFinite(v.wardrobe.restoreAt) || v.wardrobe.at < 0 || v.wardrobe.restoreAt <= v.wardrobe.at || v.wardrobe.restoreAt > v.length! || (!v.wardrobe.outfitId && !v.wardrobe.remove?.length))) out.push(`${name}: wardrobe needs an outfit id or regions to remove, and an ordered time range inside the animation.`);
-  if (v.wardrobe?.remove && !(Array.isArray(v.wardrobe.remove) && v.wardrobe.remove.every((r) => REGIONS.includes(r)))) out.push(`${name}: wardrobe remove must list body regions (${REGIONS.join(", ")}).`);
+  if (v.wardrobe) {
+    const w = v.wardrobe;
+    const okRemove = (r: unknown) => r === undefined || (Array.isArray(r) && r.every((x) => REGIONS.includes(x) || LAYERS.includes(x)));
+    const stepProblem = (label: string, step: Partial<WardrobeStep>, strict: boolean) => {
+      if ((strict && (!Number.isFinite(step.at) || !Number.isFinite(step.restoreAt))) || (step.at !== undefined && (!Number.isFinite(step.at) || step.at < 0)) || (step.restoreAt !== undefined && (!Number.isFinite(step.restoreAt) || step.restoreAt > v.length!)) || (step.at !== undefined && step.restoreAt !== undefined && step.restoreAt <= step.at)) out.push(`${name}: ${label} needs an ordered time range (at before restoreAt) inside the animation.`);
+      if (!okRemove(step.remove)) out.push(`${name}: ${label} remove must list body regions (${REGIONS.join(", ")}) or layers (${LAYERS.join(", ")}).`);
+    };
+    stepProblem("wardrobe", w, true);
+    if (!w.outfitId && !w.remove?.length && !Object.keys(w.roles ?? {}).length) out.push(`${name}: wardrobe needs an outfit id, regions or layers to remove, or a step for a role.`);
+    for (const [role, step] of Object.entries(w.roles ?? {})) {
+      stepProblem(`wardrobe for "${role}"`, step ?? {}, false);
+      const at = step?.at ?? w.at, restoreAt = step?.restoreAt ?? w.restoreAt;
+      if (!(restoreAt > at)) out.push(`${name}: wardrobe for "${role}" restores (${restoreAt}) before it starts (${at}).`);
+    }
+  }
   if (v.outfitAt !== undefined && (!Number.isFinite(v.outfitAt) || v.outfitAt < 0 || v.outfitAt > v.length!)) out.push(`${name}: outfitAt must be inside the animation.`);
   if (v.segments && (!(v.segments.loop > 0) || !(v.segments.intro === undefined || v.segments.intro >= 0) || (v.segments.intro ?? 0) + v.segments.loop > v.length! || !(v.segments.repeat === undefined || (Number.isInteger(v.segments.repeat) && v.segments.repeat >= 1)))) out.push(`${name}: segments need a positive loop inside the animation, an optional intro, and a whole repeat count.`);
   for (const [role, list] of Object.entries(v.oscillators ?? {})) {
@@ -285,17 +336,30 @@ export function interactionProblems(value: unknown): string[] {
   if (v.wardrobe?.fallback !== undefined && !["dressed", "hide"].includes(v.wardrobe.fallback)) out.push(`${name}: wardrobe.fallback must be dressed or hide.`);
   if (v.requires?.tier === "intimate" && v.wardrobe?.fallback === "dressed") out.push(`${name}: an intimate action can only be hidden for people too young for it, never played dressed.`);
   if (v.camera && (typeof v.camera !== "object" || !(v.camera.zoom === undefined || (Number.isFinite(v.camera.zoom) && v.camera.zoom > 0)) || !(v.camera.height === undefined || Number.isFinite(v.camera.height)) || !(v.camera.offset === undefined || (Array.isArray(v.camera.offset) && v.camera.offset.length === 2 && v.camera.offset.every(Number.isFinite))) || !(v.camera.focus === undefined || v.camera.focus === "target" || v.camera.focus === "people"))) out.push(`${name}: camera needs an optional positive zoom, numeric height, an [right, forward] offset and a focus of target or people.`);
+  for (const [role, keys] of Object.entries(v.roles ?? {})) {
+    for (const key of Array.isArray(keys) ? keys : []) for (const [limb, plant] of Object.entries(key.plant ?? {})) {
+      const to = typeof plant?.on === "string" ? plant.on : "";
+      const okOn = to === "bed" || to === "floor" || (to.startsWith("role:") && !!v.roles?.[to.slice(5)] && to.slice(5) !== role);
+      if (!LIMBS.includes(limb as Limb) || !okOn || (plant.point !== undefined && !PLANT_POINTS.includes(plant.point)) || !(plant.weight === undefined || (Number.isFinite(plant.weight) && plant.weight >= 0 && plant.weight <= 1)) || !(plant.blend === undefined || (Number.isFinite(plant.blend) && plant.blend >= 0))) out.push(`${name}: role "${role}" at beat ${key.beat}: plant ${limb} needs a limb (${LIMBS.join(", ")}), an on of role:<another role>, bed or floor, a point (${PLANT_POINTS.join(", ")}), weight 0–1 and blend in beats.`);
+    }
+  }
+  if (v.clearance && !(v.clearance.min === undefined || (Number.isFinite(v.clearance.min) && v.clearance.min >= 0))) out.push(`${name}: clearance.min must be a distance in metres.`);
+  if (v.content) {
+    const c = v.content;
+    if (!(c.motion === undefined || ["static", "cyclic", "repetitive"].includes(c.motion)) || !(c.contact === undefined || ["none", "incidental", "sustained"].includes(c.contact)) || !(c.witness === undefined || ["fine", "private"].includes(c.witness))) out.push(`${name}: content needs motion (static, cyclic, repetitive), contact (none, incidental, sustained) and witness (fine, private).`);
+  }
   const AT = ["front", "behind", "left", "right", "over"];
-  for (const [role, a] of Object.entries(v.anchors ?? {})) {
+  const allAnchors = anchorsOf(v as Interaction);
+  for (const [role, a] of Object.entries(allAnchors)) {
     if (!a || !AT.includes(a.at) || !(a.distance === undefined || (Number.isFinite(a.distance) && a.distance >= 0)) || !(a.lift === undefined || Number.isFinite(a.lift)) || !(a.angle === undefined || Number.isFinite(a.angle))) out.push(`${name}: anchor for "${role}" needs a role, an at (${AT.join(", ")}) and numeric distance, lift and angle.`);
     else if (a.role === role) out.push(`${name}: "${role}" can't be anchored to itself.`);
     else if (!v.roles?.[a.role] || !v.roles?.[role]) out.push(`${name}: anchor for "${role}" names a role with no keyframes.`);
   }
-  for (const start of Object.keys(v.anchors ?? {})) {
-    let r = v.anchors![start]?.role;
+  for (const start of Object.keys(allAnchors)) {
+    let r = allAnchors[start]?.role;
     for (let hops = 0; r && hops < 32; hops++) {
       if (r === start) { out.push(`${name}: anchors form a loop through "${start}".`); break; }
-      r = v.anchors![r]?.role;
+      r = allAnchors[r]?.role;
     }
   }
   const f = v.formation;
@@ -323,6 +387,7 @@ export function interactionProblems(value: unknown): string[] {
   return out;
 }
 
+const LAYERS: string[] = ["underwear", "base", "mid", "outer", "footwear", "accessories"];
 const REGIONS: string[] = ["torso", "upperArms", "forearms", "hips", "thighs", "calves", "feet", "neck", "wrists"];
 
 const smooth = (t: number) => t * t * (3 - 2 * t);
@@ -331,9 +396,10 @@ const mix = (a: number, b: number, t: number) => a + (b - a) * t;
 /** A role's pose at a beat, blending between keyframes. Missing joints are neutral. */
 export function poseAt(def: Interaction, role: string, beat: number): FullPose {
   const keys = def.roles[role] ?? [];
-  if (!keys.length) return { ...NEUTRAL, emote: "", held: "", face: "" };
+  if (!keys.length) return { ...NEUTRAL, emote: "", held: "", face: "", plant: {} };
   const playing = beat;
   beat = keyedBeat(def, beat);
+  const beat0 = beat;
   const b = def.loop ? ((beat % def.length) + def.length) % def.length : Math.min(Math.max(beat, 0), def.length);
   let i = keys.length - 1;
   while (i > 0 && keys[i].beat > b) i--;
@@ -348,13 +414,41 @@ export function poseAt(def: Interaction, role: string, beat: number): FullPose {
     const x = a[field] ?? NEUTRAL[field];
     const y = next[field] ?? NEUTRAL[field];
     return [field, Array.isArray(x) ? x.map((n, i) => mix(n, (y as number[])[i], t)) : mix(x, y as number, t)];
-  })) as Required<Omit<Pose, "emote" | "held" | "face">>;
+  })) as Required<Omit<Pose, "emote" | "held" | "face" | "plant">>;
   let emote = "";
   let held: HeldItem = "";
   let face: FaceView | "" = "";
   for (const k of keys) if (k.beat <= b) { if (k.emote !== undefined) emote = k.emote; if (k.held !== undefined) held = k.held; if (k.face !== undefined) face = k.face; }
   oscillate(def, role, playing, pose);
-  return { ...pose, emote, held, face };
+  return { ...pose, emote, held, face, plant: plantsAt(keys, beat0, def) };
+}
+
+/**
+ * Each limb's plant at a beat. A plant starts at its key and ramps in over its `blend` beats (default 1,
+ * from the weight before it), then holds until a later key changes it. Weight 0 releases it.
+ */
+function plantsAt(keys: Key[], beat: number, def: Interaction): PlantState {
+  void def;
+  const out: PlantState = {};
+  for (const limb of LIMBS) {
+    type Entry = { beat: number; on: string; point?: string; weight?: number; blend?: number };
+    const entries: Entry[] = keys.filter((k) => k.plant?.[limb]).map((k) => ({ beat: k.beat, ...k.plant![limb]! }));
+    const ramp = (e: Entry, from: number, at: number) => {
+      const target = Math.max(0, Math.min(1, e.weight ?? 1));
+      const blend = e.blend ?? 1;
+      return from + (target - from) * smooth(blend > 0 ? Math.min(1, Math.max(0, (at - e.beat) / blend)) : 1);
+    };
+    let start = 0, current: Entry | null = null;
+    for (const e of entries) {
+      if (e.beat > beat) break;
+      if (current) start = ramp(current, start, e.beat);
+      current = e;
+    }
+    if (!current) continue;
+    const weight = ramp(current, start, beat);
+    if (weight > 0) out[limb] = { on: current.on, point: current.point ?? "hand", weight };
+  }
+  return out;
 }
 
 /** Adds the role's oscillators to a pose, in place. */
@@ -372,8 +466,8 @@ function oscillate(def: Interaction, role: string, beat: number, pose: Record<st
   }
 }
 
-const TOP_KEYS = ["camera", "anchors", "requires", "id", "label", "emoji", "category", "description", "target", "cutaway", "wardrobe", "outfitAt", "water", "people", "beat", "length", "loop", "stagger", "formation", "roles", "oscillators", "segments"];
-const KEY_FIELDS = new Set(["beat", "emote", "held", "face", ...Object.keys(NEUTRAL)]);
+const TOP_KEYS = ["content", "clearance", "camera", "anchors", "requires", "id", "label", "emoji", "category", "description", "target", "cutaway", "wardrobe", "outfitAt", "water", "people", "beat", "length", "loop", "stagger", "formation", "roles", "oscillators", "segments"];
+const KEY_FIELDS = new Set(["beat", "emote", "held", "face", "plant", ...Object.keys(NEUTRAL)]);
 
 /** Things that still load but are probably mistakes: unknown keys, wild angles, a placement for a role that isn't there. */
 export function interactionWarnings(value: unknown): string[] {
@@ -392,10 +486,17 @@ export function interactionWarnings(value: unknown): string[] {
     }
   }
   if (v.requires?.tier === undefined && v.requires?.minAge === undefined) out.push(`${name}: declare requires.tier (casual, affectionate or intimate) or requires.minAge.`);
-  if ((v.wardrobe?.remove?.length || v.requires?.wardrobe?.length) && v.wardrobe?.fallback === undefined && v.requires?.minAge === undefined && v.requires?.tier !== "intimate") out.push(`${name}: it undresses; declare wardrobe.fallback ("dressed" or "hide") or requires.minAge.`);
-  const undressed = (v.wardrobe?.remove ?? []).filter((r) => ADULT_REGIONS.includes(r));
+  const undressed = ([v.wardrobe, ...Object.values(v.wardrobe?.roles ?? {})].flatMap((step) => step?.remove ?? []) as ClothingRegion[]).filter((r) => ADULT_REGIONS.includes(r));
+  const removes = [v.wardrobe, ...Object.values(v.wardrobe?.roles ?? {})].flatMap((step) => step?.remove ?? []) as string[];
+  const lower = undressed.length > 0 || removes.some((r) => r === "underwear" || r === "base") || !!v.requires?.wardrobe?.length;
+  if (lower && v.wardrobe?.fallback === undefined && v.requires?.minAge === undefined && v.requires?.tier !== "intimate") out.push(`${name}: it undresses; declare wardrobe.fallback ("dressed" or "hide") or requires.minAge.`);
   const declared = v.requires?.wardrobe ?? [];
   if (undressed.some((r) => !declared.includes(r))) out.push(`${name}: it undresses ${undressed.join(", ")}; declare that in requires.wardrobe (it is adult-only either way).`);
+  const tier = v.requires?.tier ?? (v.requires?.minAge !== undefined ? "minAge" : "none");
+  if (tier === "casual" && v.content?.motion === "repetitive") out.push(`${name}: repetitive motion doesn't read as casual; raise the tier.`);
+  if (tier === "casual" && v.content?.contact === "sustained") out.push(`${name}: sustained contact doesn't read as casual; raise the tier.`);
+  if (v.clearance?.min !== undefined && v.clearance.min < 0.05) out.push(`${name}: clearance.min is under 5 cm, which lets bodies intersect.`);
+  for (const [role, place] of Object.entries(v.target?.roles ?? {})) if (place?.posture && !["stand", "sit", "lie", "inside", "kneel"].includes(place.posture)) out.push(`${name}: role "${role}" has a posture with no placement rule.`);
   for (const role of Object.keys(v.target?.roles ?? {})) if (!roles.has(role)) out.push(`${name}: target.roles names "${role}", which has no keyframes.`);
   for (const role of Object.keys(v.oscillators ?? {})) if (!roles.has(role)) out.push(`${name}: oscillators name "${role}", which has no keyframes.`);
   return out;

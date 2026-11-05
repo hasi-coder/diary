@@ -3,8 +3,8 @@
 // cubicles that lock with everyone inside.
 import type { Profile } from "../api";
 import { AGES, characterOf, type Character } from "./character";
-import { lengthOf, poseAt, type FullPose, type HeldItem, type Interaction, type Posture } from "./interaction";
-import { interactionDressed, interactionPolicyProblem } from "./interactionPolicy";
+import { ADULT_AGE, ADULT_REGIONS, anchorsOf, lengthOf, poseAt, type FullPose, type HeldItem, type Interaction, type Posture } from "./interaction";
+import { interactionDressed, interactionGate, interactionPolicyProblem } from "./interactionPolicy";
 import { applyOutfit, OUTFITS, type Outfit } from "./outfits";
 import { garment, legacyFields, outfitOf, underwearOf } from "./garments";
 import {
@@ -50,6 +50,10 @@ export interface Actor {
   pose?: FullPose | null;
   yaw?: number | null;
   hidden?: boolean;
+  /** Kneeling: hips lowered to a kneeling height derived from their own leg length, shins on the floor. */
+  kneel?: boolean;
+  /** Limbs planted on something this frame (the renderer solves them with IK once everyone is posed). */
+  plants?: import("./interaction").PlantState;
   /** Metres off the ground an action holds them at; stacks with the pose's bob. */
   lift?: number;
   held?: HeldItem | null;
@@ -87,11 +91,17 @@ export interface Activity {
   originalLooks?: Character[];
   outfitApplied?: boolean;
   wardrobeApplied?: boolean;
+  /** Members whose clothes the wardrobe has changed. */
+  changed?: Set<Actor>;
+  /** Damped clearance push per pair, in metres. */
+  push?: Map<string, number>;
   /** Played clothed: someone is under the age its undressing needs. */
   dressed?: boolean;
 }
 
 type Vec = [number, number];
+/** An action's `target` names furniture unless it is just "floor" (open floor, with postures and anchors). */
+const usesFurniture = (def: Interaction) => !!def.target && !def.target.kinds.every((kind) => kind === "floor");
 /** Turns a plan vector clockwise (as seen on the plan, y down) by `deg`. */
 const rotate = ([x, y]: Vec, deg: number): Vec => {
   const r = (deg * Math.PI) / 180;
@@ -355,7 +365,7 @@ export class World {
       d.open = false;
     }
 
-    if (this.activity) this.updateActivity();
+    if (this.activity) this.updateActivity(dt);
 
     // Followers look around twice a second.
     if (Math.floor(this.t * 2) !== Math.floor(before * 2)) for (const a of this.actors) if (a.following) this.follow(a);
@@ -476,7 +486,7 @@ export class World {
     if (policy) return policy;
     if (people.length < def.people.min || people.length > def.people.max) return `Choose ${def.people.min === def.people.max ? def.people.min : `${def.people.min}–${def.people.max}`} people, including you.`;
     if (new Set(people).size !== people.length || people.some((person) => !this.actors.includes(person))) return "Choose people who are here.";
-    if (def.target && !(target ? this.place.items.includes(target) && def.target.kinds.includes(target.kind) : this.place.items.some((item) => def.target!.kinds.includes(item.kind)))) {
+    if (usesFurniture(def) && def.target && !(target ? this.place.items.includes(target) && def.target.kinds.includes(target.kind) : this.place.items.some((item) => def.target!.kinds.includes(item.kind)))) {
       return `Needs ${def.target.kinds.map((kind) => kind === "bath" ? "a bath" : `a ${kind}`).join(" or ")} in this place.`;
     }
     return null;
@@ -602,8 +612,8 @@ export class World {
     if (problem) { this.onToast?.(problem); return false; }
     if (def.outfitAt !== undefined && !options.outfit) { this.onToast?.("Choose an outfit first."); return false; }
     if (def.wardrobe?.outfitId && !OUTFITS.some((outfit) => outfit.id === def.wardrobe!.outfitId)) { this.onToast?.("This scene's outfit is unavailable."); return false; }
-    const furniture = def.target ? this.furniturePlan(def, people, options.target) : null;
-    if (def.target && !furniture) { this.onToast?.("No reachable space at that furniture. Try clearing the approach."); return false; }
+    const furniture = usesFurniture(def) ? this.furniturePlan(def, people, options.target) : null;
+    if (usesFurniture(def) && !furniture) { this.onToast?.("No reachable space at that furniture. Try clearing the approach."); return false; }
     this.stopActivity();
     const lead = people[0];
     const [lx, ly] = this.cellOf(lead);
@@ -614,11 +624,12 @@ export class World {
       start: [actor.x, actor.y] as Vec,
     }));
     const act: Activity = { def, members, anchor: [lead.x, lead.y], forward: [0, -1], state: "gathering", since: this.t, dressed: interactionDressed(def, people) };
+    // Clothes to put back when it ends, on furniture or open floor.
+    if (options.outfit || def.wardrobe) act.originalLooks = people.map((a) => a.look);
     if (furniture) {
       act.target = furniture.target;
       act.placements = furniture.placements;
       act.outfit = options.outfit;
-      if (options.outfit || def.wardrobe) act.originalLooks = people.map((a) => a.look);
       for (const [i, { actor }] of members.entries()) {
         const { exit, seat } = furniture.placements[i];
         if (!this.goTo(actor, Math.floor(exit[0]), Math.floor(exit[1]), seat)) {
@@ -688,6 +699,8 @@ export class World {
       actor.hidden = false;
       actor.held = null;
       actor.lift = 0;
+      actor.kneel = false;
+      actor.plants = undefined;
       actor.rest = null;
       if (act.placements) {
         actor.path = [];
@@ -730,17 +743,17 @@ export class World {
   }
 
   /** The anchored roles' members, each after the one it is anchored to. */
-  private anchorOrder(def: Interaction, members: Activity["members"]): Activity["members"] {
+  private anchorOrder(anchors: Record<string, { role: string }>, members: Activity["members"]): Activity["members"] {
     const done: Activity["members"] = [];
-    const todo = members.filter((m) => def.anchors?.[m.role]);
+    const todo = members.filter((m) => anchors[m.role]);
     for (let guard = 0; todo.length && guard < 16; guard++) {
-      const i = todo.findIndex((m) => !todo.some((o) => o !== m && o.role === def.anchors![m.role].role));
+      const i = todo.findIndex((m) => !todo.some((o) => o !== m && o.role === anchors[m.role].role));
       done.push(...todo.splice(i < 0 ? 0 : i, 1));
     }
     return done;
   }
 
-  private updateActivity() {
+  private updateActivity(dt: number) {
     const act = this.activity!;
     const { def, members } = act;
     if (interactionPolicyProblem(def, members.map((m) => m.actor))) return this.stopActivity();
@@ -770,27 +783,41 @@ export class World {
       act.outfitApplied = true;
     }
     if (def.wardrobe && act.originalLooks && !act.dressed) {
-      const active = elapsed >= def.wardrobe.at && elapsed < def.wardrobe.restoreAt;
-      if (active && !act.wardrobeApplied) {
-        const outfit = def.wardrobe.outfitId ? OUTFITS.find((outfit) => outfit.id === def.wardrobe!.outfitId)! : null;
-        for (const [i, { actor }] of members.entries()) {
+      // Each role changes on its own step: the global one, with its own entry merged over it.
+      const { roles: perRole, ...global } = def.wardrobe;
+      const adults = interactionGate(def, members.map((m) => m.actor)).age >= ADULT_AGE;
+      const changed = (act.changed ??= new Set());
+      for (const [i, { actor, role }] of members.entries()) {
+        const step = { ...global, ...(perRole?.[role] ?? {}) };
+        if (!step.outfitId && !step.remove?.length) continue;
+        const active = elapsed >= step.at && elapsed < step.restoreAt;
+        if (active && !changed.has(actor)) {
           const previous = act.originalLooks[i];
           let look = previous;
+          const outfit = step.outfitId ? OUTFITS.find((outfit) => outfit.id === step.outfitId) : null;
           if (outfit) {
-            const wearing = def.wardrobe.preferUnderlayers ? underwearOf(previous, outfit.wearing) : outfit.wearing;
+            const wearing = step.preferUnderlayers ? underwearOf(previous, outfit.wearing) : outfit.wearing;
             look = { ...previous, ...applyOutfit({ ...outfit, wearing }) };
           }
-          if (def.wardrobe.remove) {
-            const regions = def.wardrobe.remove;
-            const wearing = outfitOf(look).filter((w) => !garment(w.garment)?.covers.some((region) => regions.includes(region)));
+          if (step.remove?.length) {
+            const taken = step.remove as string[];
+            const wearing = outfitOf(look).filter((w) => {
+              const g = garment(w.garment);
+              if (!g) return true;
+              const off = g.covers.some((region) => taken.includes(region)) || taken.includes(g.layer);
+              // Whatever the clip asks, lower-body clothes only come off for a group of adults.
+              return !off || (!adults && g.covers.some((region) => ADULT_REGIONS.includes(region)));
+            });
             look = { ...look, wearing, ...legacyFields(wearing) };
           }
           actor.look = look;
+          changed.add(actor);
+        } else if (!active && changed.has(actor)) {
+          actor.look = act.originalLooks[i];
+          changed.delete(actor);
         }
-      } else if (!active && act.wardrobeApplied) {
-        for (const [i, { actor }] of members.entries()) actor.look = act.originalLooks[i];
       }
-      act.wardrobeApplied = active;
+      act.wardrobeApplied = changed.size > 0;
     }
     if (!def.loop && elapsed > lengthOf(def) + stagger * (members.length - 1) + 0.3) return this.stopActivity(true);
     const spots = this.formationAt(act, elapsed);
@@ -803,19 +830,39 @@ export class World {
       const right = rightOf(facing);
       placed.set(m, { pos: [at[0] + pose.move[0] * right[0] + pose.move[1] * facing[0], at[1] + pose.move[0] * right[1] + pose.move[1] * facing[1]], face: rotate(facing, pose.turn), pose });
     }
-    // Roles anchored to another role are placed after it, wherever it is this frame.
+    // Roles anchored to another role are placed after it, wherever it is this frame. A clearance
+    // that is wider than the anchor's own distance lengthens the anchor instead of moving the anchor role.
+    const anchors = anchorsOf(def);
+    const clearance = def.clearance ? (members.length > 1 ? def.clearance.min ?? 0.13 * (this.sizeOf(members[0].actor) + this.sizeOf(members[1].actor)) : 0) : 0;
     const lifts = new Map<(typeof members)[number], number>();
-    for (const m of this.anchorOrder(def, members)) {
-      const spec = def.anchors![m.role];
+    for (const m of this.anchorOrder(anchors, members)) {
+      const spec = anchors[m.role];
       const base = members.find((o) => o !== m && o.role === spec.role);
       if (!base) continue;
       const from = placed.get(base)!, mine = placed.get(m)!;
       const f = from.face, r = rightOf(f);
-      const distance = spec.distance ?? 0.28 * (this.sizeOf(m.actor) + this.sizeOf(base.actor));
+      const natural = spec.distance ?? 0.28 * (this.sizeOf(m.actor) + this.sizeOf(base.actor));
+      const distance = spec.at === "over" ? natural : Math.max(natural, clearance);
       const side: Vec = { front: f, behind: [-f[0], -f[1]] as Vec, right: r, left: [-r[0], -r[1]] as Vec, over: [0, 0] as Vec }[spec.at];
       mine.pos = [from.pos[0] + side[0] * distance, from.pos[1] + side[1] * distance];
       mine.face = rotate(f, (spec.angle ?? (spec.at === "front" ? 180 : 0)) + mine.pose.turn);
       lifts.set(m, (spec.lift ?? 0) + (lifts.get(base) ?? 0));
+    }
+    // Two free roles closer than the clearance are eased apart (damped, so nothing jitters).
+    if (clearance > 0) {
+      const free = members.filter((m) => !anchors[m.role]);
+      for (let i = 0; i < free.length; i++) for (let j = i + 1; j < free.length; j++) {
+        const a = placed.get(free[i])!, b = placed.get(free[j])!;
+        const dx = b.pos[0] - a.pos[0], dy = b.pos[1] - a.pos[1], d = Math.hypot(dx, dy);
+        const key = `${free[i].index}:${free[j].index}`;
+        const push = act.push?.get(key) ?? 0;
+        const want = Math.max(0, clearance - d); // from the unpushed gap, so it never feeds back
+        const next = push + (want - push) * Math.min(1, dt * 12);
+        (act.push ??= new Map()).set(key, next);
+        const ux = d > 1e-6 ? dx / d : 1, uy = d > 1e-6 ? dy / d : 0;
+        a.pos = [a.pos[0] - ux * next / 2, a.pos[1] - uy * next / 2];
+        b.pos = [b.pos[0] + ux * next / 2, b.pos[1] + uy * next / 2];
+      }
     }
     for (const m of members) {
       const { pos, face, pose } = placed.get(m)!;
@@ -824,7 +871,10 @@ export class World {
       a.y = m.start[1] + (pos[1] - m.start[1]) * settle;
       a.facing = facingOfVec(face);
       a.yaw = yawOf(face);
-      a.lift = lifts.get(m) ?? 0;
+      a.lift = (lifts.get(m) ?? 0) + (a.rest ? 0 : 0);
+      const placeOf = def.target?.roles?.[m.role];
+      a.kneel = (placeOf?.posture ?? def.target?.posture) === "kneel";
+      a.plants = Object.keys(pose.plant).length ? pose.plant : undefined;
       a.pose = pose;
       a.held = pose.held || null;
       a.hidden = (this.presentation?.opacity ?? 0) >= 1;

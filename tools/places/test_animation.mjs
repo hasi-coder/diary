@@ -26,6 +26,7 @@ try {
         export { setShowLockedActions } from './src/lib/interactionSettings';
         export { interactionGate, interactionHidden, interactionDressed } from './src/lib/places/interactionPolicy';
         export { lengthOf, interactionWarnings } from './src/lib/places/interaction';
+        export { solveTwoBone, KNEEL_DROP, KNEEL_ANKLE } from './src/components/world/ik';
         export { CLOTHING_CATALOG } from './src/lib/places/clothingCatalog';
         export { FACE_DEFS, FACE_VIEWS, FALLBACK_VIEW, FACE_SLOTS } from './src/lib/places/character';
         export { setInteractionMinimumAge } from './src/lib/interactionSettings';
@@ -40,7 +41,7 @@ try {
 } finally {
   await rm(scratch, { recursive: true, force: true });
 }
-const { poseAt, interactionProblems, INTERACTION_POLICY, interactionEnabled, interactionPolicyProblem, setInteractionEnabled, setInteractionMinimumAge, subscribeInteractionPolicy, OUTFITS, outfitProblems, applyOutfit, outfitOf, withSlot, GARMENTS, CLOTHING_LAYERS, CLOTHING_STYLES, clothingProblems, normalizeWorn, garment, CLOTHING_CATALOG, ageRequirement, setShowLockedActions, interactionGate, interactionHidden, interactionDressed, lengthOf, interactionWarnings, FACE_DEFS, FACE_VIEWS, FALLBACK_VIEW, FACE_SLOTS, World, Body, THREE, GLTFLoader } = animation;
+const { poseAt, interactionProblems, INTERACTION_POLICY, interactionEnabled, interactionPolicyProblem, setInteractionEnabled, setInteractionMinimumAge, subscribeInteractionPolicy, OUTFITS, outfitProblems, applyOutfit, outfitOf, withSlot, GARMENTS, CLOTHING_LAYERS, CLOTHING_STYLES, clothingProblems, normalizeWorn, garment, CLOTHING_CATALOG, solveTwoBone, KNEEL_DROP, KNEEL_ANKLE, ageRequirement, setShowLockedActions, interactionGate, interactionHidden, interactionDressed, lengthOf, interactionWarnings, FACE_DEFS, FACE_VIEWS, FALLBACK_VIEW, FACE_SLOTS, World, Body, THREE, GLTFLoader } = animation;
 const { normalizeClothingFit, withClothingFit } = animation;
 const json = async (path) => JSON.parse(await readFile(join(root, path), "utf8"));
 const interaction = (keys, loop = false) => ({
@@ -347,6 +348,123 @@ await test("an action can frame the camera, and test_ files are ignored", async 
   assert.equal(world.framing, null);
   assert.notDeepEqual(interactionProblems({ ...def, camera: { zoom: -1 } }), []);
   assert.notDeepEqual(interactionProblems({ ...def, camera: { focus: "sky" } }), []);
+});
+
+await test("per-role wardrobe changes one role, with a guard for lower-body clothes", async () => {
+  const layered = OUTFITS.find((o) => o.id === "layered-masculine").wearing;
+  const has = (actor, test) => outfitOf(actor.look).some((w) => test(garment(w.garment)));
+  const outer = (g) => g.layer === "outer", lower = (g) => g.covers.some((r) => ["hips", "thighs", "calves"].includes(r));
+  const fitting = await action("care-fitting");
+  assert.deepEqual(interactionProblems(fitting), []);
+  {
+    const { world, me, partner } = household();
+    me.look = { ...me.look, wearing: layered }; partner.look = { ...partner.look, wearing: layered };
+    assert.ok(has(me, outer) && has(partner, outer), "both start in an outer layer");
+    assert.equal(world.startActivity(fitting, [me, partner]), true);
+    advance(world, () => world.activity?.state === "playing");
+    const beat = () => (world.t - world.activity.since) / fitting.beat;
+    advance(world, () => beat() > 8);
+    assert.equal(has(partner, outer), false, "the partner's outer layer is off");
+    assert.equal(has(me, outer), true, "the lead keeps theirs");
+    assert.ok(has(partner, lower), "the rest of the partner's clothes stay");
+    advance(world, () => beat() > 23);
+    assert.equal(has(partner, outer), true, "restored at 22");
+    world.stopActivity();
+  }
+  // Whatever a clip asks for, lower-body clothes come off only for a group of adults.
+  const strip = { ...structuredClone(fitting), id: "strip-base", wardrobe: { at: 2, restoreAt: 20, roles: { partner: { remove: ["base"] } } } };
+  for (const [label, kid, expectLower] of [["adults", false, false], ["a child among them", true, true]]) {
+    const { world, me, partner } = household();
+    me.look = { ...me.look, wearing: layered }; partner.look = { ...partner.look, wearing: layered };
+    if (kid) { partner.profile.birthday = "2018-06-01"; partner.look = { ...partner.look, age: "child" }; }
+    assert.equal(world.startActivity(strip, [me, partner]), true, label);
+    advance(world, () => world.activity?.state === "playing");
+    for (let i = 0; i < 80; i++) world.update(0.05);
+    assert.equal(has(partner, (g) => g.layer === "base" && lower(g)), expectLower, `${label}: trousers ${expectLower ? "stay on" : "come off"}`);
+    world.stopActivity();
+  }
+  // Lint: bad steps are load errors.
+  assert.notDeepEqual(interactionProblems({ ...fitting, wardrobe: { ...fitting.wardrobe, roles: { partner: { at: 10, restoreAt: 5, remove: ["outer"] } } } }), []);
+  assert.notDeepEqual(interactionProblems({ ...fitting, wardrobe: { ...fitting.wardrobe, roles: { partner: { remove: ["sleeves"] } } } }), []);
+});
+
+await test("clearance holds two roles apart: it lengthens an anchor, and eases free roles apart without jitter", async () => {
+  const fitting = structuredClone(await action("care-fitting"));
+  fitting.wardrobe = undefined;
+  // An anchor tighter than the clearance is lengthened to it, exactly.
+  {
+    const { world, me, partner } = household();
+    partner.look = { ...partner.look, age: "child" };
+    const def = { ...structuredClone(fitting), anchors: { lead: { role: "partner", at: "front", distance: 0.1 } }, clearance: { min: 0.2 } };
+    def.target.roles.lead = { posture: "stand" };
+    assert.equal(world.startActivity(def, [me, partner]), true);
+    advance(world, () => world.activity?.state === "playing");
+    for (let i = 0; i < 20; i++) world.update(0.05);
+    for (let i = 0; i < 60; i++) { world.update(0.05); assert.ok(Math.abs(Math.hypot(me.x - partner.x, me.y - partner.y) - 0.2) < 0.005, "held at the clearance"); }
+  }
+  // Two free roles placed too close are eased out to the clearance, smoothly.
+  {
+    const { world, me, partner } = household();
+    const def = { ...structuredClone(fitting), clearance: { min: 0.2 }, anchors: undefined };
+    def.target = { kinds: ["floor"], posture: "stand" };
+    def.formation.spots[1].at = [0, 0.1];
+    assert.equal(world.startActivity(def, [me, partner]), true);
+    advance(world, () => world.activity?.state === "playing");
+    for (let i = 0; i < 12; i++) world.update(0.05); // past the walk-in
+    const gaps = [];
+    for (let i = 0; i < 60; i++) { world.update(0.05); gaps.push(Math.hypot(me.x - partner.x, me.y - partner.y)); }
+    assert.ok(Math.abs(gaps.at(-1) - 0.2) < 0.01, `settles at the clearance (${gaps.at(-1).toFixed(3)})`);
+    for (let i = 1; i < gaps.length; i++) assert.ok(gaps[i] >= gaps[i - 1] - 0.002, `no jitter at frame ${i}`);
+  }
+  // Lint
+  assert.ok(interactionWarnings({ ...fitting, clearance: { min: 0.02 } }).some((w) => /5 cm/.test(w)));
+});
+
+await test("plants ramp in, hold, and release without a pop; bad plants are load errors", async () => {
+  const haircut = await action("care-haircut");
+  assert.deepEqual(interactionProblems(haircut), []);
+  const w = (beat, limb = "armL") => poseAt(haircut, "lead", beat).plant[limb]?.weight ?? 0;
+  assert.equal(w(0), 0, "nothing before its key");
+  assert.ok(w(3.5) > 0 && w(3.5) < 0.4, "ramping in toward 0.4");
+  for (let b = 6.1; b < 25.9; b += 0.37) { assert.equal(w(b), 1, `held at beat ${b.toFixed(1)}`); assert.equal(w(b, "armR"), 1); }
+  assert.equal(poseAt(haircut, "lead", 10).plant.armL.on, "role:partner");
+  assert.equal(poseAt(haircut, "lead", 10).plant.armL.point, "head");
+  // A release (weight 0) ramps down smoothly instead of popping.
+  const clip = { ...structuredClone(haircut), length: 12, wardrobe: undefined, roles: { lead: [{ beat: 0, plant: { armL: { on: "role:partner", point: "head", weight: 1, blend: 0 } } }, { beat: 6, plant: { armL: { on: "role:partner", point: "head", weight: 0, blend: 2 } } }, { beat: 12 }], partner: [{ beat: 0 }] }, formation: haircut.formation, target: undefined, camera: undefined };
+  let last = 1;
+  for (let b = 0; b <= 9; b += 0.05) {
+    const v = poseAt(clip, "lead", b).plant.armL?.weight ?? 0;
+    assert.ok(v <= last + 1e-9 && last - v < 0.12, `smooth at beat ${b.toFixed(2)}: ${last.toFixed(3)} -> ${v.toFixed(3)}`);
+    last = v;
+  }
+  assert.equal(last, 0, "fully released");
+  const bad = (plant) => interactionProblems({ ...haircut, roles: { ...haircut.roles, lead: [{ beat: 0, plant }] } }).length > 0;
+  assert.ok(bad({ legQ: { on: "bed" } }), "unknown limb");
+  assert.ok(bad({ armL: { on: "role:ghost", point: "head" } }), "unknown role");
+  assert.ok(bad({ armL: { on: "role:lead", point: "head" } }), "a role can't plant on itself");
+  assert.ok(bad({ armL: { on: "wall", point: "surface" } }), "walls aren't supported yet");
+  assert.ok(bad({ armL: { on: "role:partner", point: "elbowpit" } }), "unknown point");
+  assert.ok(bad({ armL: { on: "role:partner", weight: 2 } }), "weight out of range");
+});
+
+await test("kneel, floor targets and the content lint", async () => {
+  const steady = await action("care-steady");
+  assert.deepEqual(interactionProblems(steady), []);
+  const { world, me, partner } = household();
+  assert.equal(world.startActivity(steady, [me, partner]), true, "a floor target needs no furniture");
+  advance(world, () => world.activity?.state === "playing");
+  for (let i = 0; i < 80; i++) world.update(0.05);
+  assert.equal(me.kneel && partner.kneel, true, "both kneel");
+  assert.ok(me.plants?.armL || partner.plants?.armL, "plants reach the renderer");
+  world.stopActivity();
+  assert.equal(me.kneel, false);
+  // Content lint: where the gate can't see motion, the declaration can.
+  const base = { ...steady };
+  assert.ok(interactionWarnings({ ...base, content: { motion: "repetitive" } }).some((w) => /repetitive/.test(w)));
+  assert.ok(interactionWarnings({ ...base, content: { contact: "sustained" } }).some((w) => /sustained/.test(w)));
+  assert.equal(interactionWarnings({ ...base, content: { motion: "cyclic", contact: "incidental", witness: "fine" } }).length, 0);
+  assert.equal(interactionWarnings({ ...base, requires: { tier: "intimate" }, content: { motion: "repetitive", contact: "sustained" } }).some((w) => /casual/.test(w)), false, "fine under a higher tier");
+  assert.notDeepEqual(interactionProblems({ ...base, content: { motion: "frantic" } }), []);
 });
 
 await test("woohoo eligibility is centralized and applies to direct playback", async () => {
@@ -795,3 +913,53 @@ await test("shortened garment hems preserve boundary skin and only mask actual g
   assert.ok(boundary > 0 && hidden > 0, "The mask preserves hems while hiding interior skin");
 });
 body.dispose();
+
+await test("a planted arm reaches its point at short and tall scales, clamps out of reach, and blends", () => {
+  for (const scale of [0.7, 1, 1.3]) {
+    const reset = () => { body.root.scale.setScalar(scale); body.pose(neutral()); body.root.updateMatrixWorld(true); };
+    reset();
+    const [u, l, e] = ["upperarm_l", "lowerarm_l", "hand_l"].map((n) => body.bone(n));
+    const shoulder = at("upperarm_l");
+    const target = shoulder.clone().add(new THREE.Vector3(0.25 * scale, 0.05 * scale, 0.3 * scale));
+    const keyed = at("hand_l");
+    const r = solveTwoBone(u, l, e, target, 1);
+    body.root.updateMatrixWorld(true);
+    assert.ok(at("hand_l").distanceTo(target) < 0.02, `scale ${scale}: hand within 2 cm (${at("hand_l").distanceTo(target).toFixed(4)})`);
+    assert.equal(r.clamped, false);
+    // Half weight lands between the keyed hand and the target.
+    reset();
+    solveTwoBone(u, l, e, target, 0.5); body.root.updateMatrixWorld(true);
+    assert.ok(at("hand_l").distanceTo(keyed) > 0.01 && at("hand_l").distanceTo(target) > 0.02, "blended, not snapped");
+    // Weight 0 leaves the keyed pose exactly.
+    reset();
+    solveTwoBone(u, l, e, target, 0); body.root.updateMatrixWorld(true);
+    assert.ok(at("hand_l").distanceTo(keyed) < 1e-6, "weight 0 is the keyed pose");
+    // Out of reach: the arm straightens toward the point instead of snapping or bending backwards.
+    reset();
+    const far = shoulder.clone().add(new THREE.Vector3(0.1, 0.1, 3 * scale));
+    const out = solveTwoBone(u, l, e, far, 1); body.root.updateMatrixWorld(true);
+    assert.equal(out.clamped, true);
+    const aim = far.clone().sub(shoulder).normalize(), got = at("hand_l").sub(shoulder).normalize();
+    assert.ok(aim.dot(got) > 0.99, "pointing at it");
+    const reach = at("upperarm_l").distanceTo(at("lowerarm_l")) + at("lowerarm_l").distanceTo(at("hand_l"));
+    assert.ok(at("hand_l").distanceTo(shoulder) > reach - 0.01, "fully extended");
+  }
+  body.root.scale.setScalar(1); body.pose(neutral());
+});
+
+await test("kneeling puts the shins on the floor without penetrating it, at any scale", () => {
+  for (const scale of [0.64, 0.7, 1, 1.3]) {
+    body.root.scale.setScalar(scale);
+    const leg = body.hipHeight * scale;
+    body.root.position.y = -KNEEL_DROP * leg;
+    const p = neutral(); p.knees = [Math.PI / 2, Math.PI / 2]; p.ankles = [[KNEEL_ANKLE, 0], [KNEEL_ANKLE, 0]];
+    body.pose(p); body.root.updateMatrixWorld(true);
+    const low = Math.min(...["calf_l", "calf_r", "foot_l", "foot_r", "ball_l", "ball_r"].map((n) => at(n).y));
+    assert.ok(low >= -0.004 * scale, `scale ${scale}: lowest joint ${low.toFixed(4)} m is above the floor`);
+    assert.ok(low < 0.08 * scale, `scale ${scale}: shins rest on the floor (${low.toFixed(3)})`);
+    const hip = at("thigh_l").y;
+    assert.ok(Math.abs(hip - (1 - KNEEL_DROP) * leg) < 0.01 * scale, "hips at a thigh's length above the floor");
+    assert.ok(Math.abs(at("thigh_l").z - at("calf_l").z) < 0.05 * scale && at("thigh_l").y - at("calf_l").y > 0.4 * leg, "thighs upright (the rig rests slightly splayed)");
+  }
+  body.root.scale.setScalar(1); body.root.position.y = 0; body.pose(neutral());
+});

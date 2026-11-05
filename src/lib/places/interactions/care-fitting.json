@@ -1,0 +1,53 @@
+{
+  "id": "care-fitting",
+  "label": "Fitting",
+  "emoji": "🧵",
+  "category": "care",
+  "description": "Arms out, jacket off, pin here.",
+  "requires": { "tier": "casual" },
+  "people": { "min": 2, "max": 2 },
+  "beat": 0.8,
+  "length": 28,
+  "loop": false,
+  "formation": {
+    "type": "spots",
+    "spots": [
+      { "role": "lead", "at": [0, 0], "facing": 0 },
+      { "role": "partner", "at": [0, 0.45], "facing": 180 }
+    ]
+  },
+  "target": {
+    "kinds": ["floor"],
+    "posture": "stand",
+    "roles": {
+      "lead": { "posture": "stand", "anchor": { "role": "partner", "at": "front", "distance": 0.45 } },
+      "partner": { "posture": "stand", "side": "center" }
+    }
+  },
+  "wardrobe": { "at": 6, "restoreAt": 22, "roles": { "partner": { "at": 6, "restoreAt": 22, "remove": ["outer"] } } },
+  "camera": { "focus": "people", "zoom": 1.25, "height": 0.1 },
+  "roles": {
+    "lead": [
+      { "beat": 0 },
+      { "beat": 4, "armL": [80, 26], "armR": [80, 26], "elbowL": 45, "elbowR": 45, "head": [12, 0, 0], "plant": { "armL": { "on": "role:partner", "point": "shoulder", "weight": 0.6 } } },
+      { "beat": 7, "armL": [86, 30], "armR": [86, 30], "elbowL": 38, "elbowR": 38, "head": [14, 0, 1], "plant": { "armL": { "on": "role:partner", "point": "shoulder", "weight": 1 }, "armR": { "on": "role:partner", "point": "shoulder", "weight": 1 } } },
+      { "beat": 10, "armL": [90, 32], "armR": [90, 32], "elbowL": 34, "elbowR": 34, "head": [16, 0, -1], "emote": "🧵" },
+      { "beat": 14, "armL": [88, 28], "armR": [88, 28], "elbowL": 36, "elbowR": 36, "head": [15, 0, 1] },
+      { "beat": 18, "armL": [84, 24], "armR": [84, 24], "elbowL": 42, "elbowR": 42, "head": [13, 0, -2] },
+      { "beat": 22, "armL": [78, 22], "armR": [78, 22], "elbowL": 48, "elbowR": 48, "head": [10, 0, 0] },
+      { "beat": 25, "armL": [20, 12], "armR": [20, 12], "elbowL": 10, "elbowR": 10, "head": [4, 0, 0] },
+      { "beat": 28 }
+    ],
+    "partner": [
+      { "beat": 0, "armL": [10, 12], "armR": [10, 12] },
+      { "beat": 4, "armL": [50, 40], "armR": [50, 40], "head": [8, 0, 0] },
+      { "beat": 7, "armL": [60, 55], "armR": [60, 55], "head": [10, 0, 2] },
+      { "beat": 10, "armL": [58, 58], "armR": [58, 58], "head": [12, 0, -2] },
+      { "beat": 14, "armL": [30, 30], "armR": [30, 30], "head": [10, 0, 1] },
+      { "beat": 18, "armL": [16, 14], "armR": [16, 14], "head": [8, 0, -1] },
+      { "beat": 22, "armL": [12, 12], "armR": [12, 12], "head": [6, 0, 0] },
+      { "beat": 25, "head": [4, 0, 0], "emote": "🙂" },
+      { "beat": 28 }
+    ]
+  }
+}

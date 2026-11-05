@@ -9,6 +9,7 @@ import type { Actor } from "../../lib/places/world";
 import { garment, outfitOf } from "../../lib/places/garments";
 import { Body, loadBody, loadedBody, shapeOf, type Limbs } from "./body";
 import { drawnHead, photoHead } from "./faces";
+import { KNEEL_ANKLE, KNEEL_DROP, solveTwoBone } from "./ik";
 
 export const WALL = 2.4;
 const LOW = 0.3;
@@ -284,6 +285,20 @@ export function viewFor(facingAngle: number, azimuth: number): FaceView {
 }
 
 
+/** Where on a body each plant point is: the bone, how far out from its middle the surface is (metres at body scale 1), and whether it comes in left and right. */
+const PLANT_POINTS: Record<string, { bone: string; radius: number; sided: boolean }> = {
+  head: { bone: "head", radius: 0.1, sided: false },
+  shoulder: { bone: "upperarm", radius: 0.05, sided: true },
+  hand: { bone: "hand", radius: 0.035, sided: true },
+  hip: { bone: "thigh", radius: 0.09, sided: true },
+  knee: { bone: "calf", radius: 0.05, sided: true },
+  lowerBack: { bone: "spine_01", radius: 0.11, sided: false },
+};
+const LIMB_BONES: Record<string, [string, string, string]> = {
+  armL: ["upperarm_l", "lowerarm_l", "hand_l"], armR: ["upperarm_r", "lowerarm_r", "hand_r"],
+  legL: ["thigh_l", "calf_l", "foot_l"], legR: ["thigh_r", "calf_r", "foot_r"],
+};
+
 export class Figure {
   readonly group = new THREE.Group();
   /** The MakeHuman body once body.glb has loaded; until then (or if it can't load) the box body. */
@@ -318,6 +333,7 @@ export class Figure {
   private stoop: number;
   private ring: THREE.Mesh;
   private legLength: number;
+  private bodyScale = 1;
   private angle = 0;
   private phase = Math.random() * 6;
 
@@ -469,6 +485,7 @@ export class Figure {
     // little taller toward masculine, and up to 10% either way by the height slider.
     const scale = (AGES[look.age].height * (0.97 + 0.06 * shape.shape) * (1 + 0.1 * shape.height)) / body.top;
     body.root.scale.setScalar(scale);
+    this.bodyScale = scale;
     // The box body goes for good; the raycaster would still hit it hidden.
     this.body.traverse((o) => {
       const m = o as THREE.Mesh;
@@ -568,7 +585,9 @@ export class Figure {
     } else {
       this.posture.position.y = 0;
       this.posture.rotation.set(0, 0, 0);
-      this.body.position.y = 0;
+      // Kneeling: thighs upright, shins on the floor, so the hips drop to a thigh's length (plus the shin's
+      // thickness) above it, from this body's own leg length at any scale.
+      this.body.position.y = a.kneel ? -KNEEL_DROP * this.legLength : 0;
       this.body.rotation.y = this.angle;
     }
     const deg = Math.PI / 180;
@@ -602,6 +621,7 @@ export class Figure {
       limbs.knees = sitting ? [half, half] : [bend, bend];
       limbs.arms = sitting ? [[0.5, 0], [0.5, 0]] : [[-swing * 0.7, 0], [swing * 0.7, 0]];
     }
+    if (a.kneel) { limbs.knees = [limbs.knees[0] + half, limbs.knees[1] + half]; limbs.ankles = limbs.ankles.map(([up, roll]) => [up + KNEEL_ANKLE, roll]) as Limbs["ankles"]; }
     const { lean, tilt, twist } = limbs;
     const headUp = new THREE.Vector3(0, 1, 0);
     const headForward = new THREE.Vector3(0, 0, 1);
@@ -704,6 +724,39 @@ export class Figure {
     if (this.tag) this.tag.renderOrder = 5000 + depth;
     if (this.emote) this.emote.renderOrder = 5000 + depth;
     if (this.emote) this.emote.position.set(this.head.position.x, this.head.position.y + (this.tag ? 0.8 : 0.45) + Math.sin(t * 4) * 0.04, this.head.position.z);
+  }
+
+  /** A point on this body, on its surface toward `from`, in world space; null before the body has loaded. */
+  plantPoint(point: string, from: THREE.Vector3): THREE.Vector3 | null {
+    const body = this.skinned, def = PLANT_POINTS[point];
+    if (!body || !def) return null;
+    const names = def.sided ? [`${def.bone}_l`, `${def.bone}_r`] : [def.bone];
+    let best: THREE.Vector3 | null = null;
+    for (const name of names) {
+      const bone = body.bone(name);
+      if (!bone) continue;
+      const p = bone.getWorldPosition(new THREE.Vector3());
+      if (!best || p.distanceTo(from) < best.distanceTo(from)) best = p;
+    }
+    if (!best) return null;
+    // On the surface facing the limb, not inside the body.
+    return best.addScaledVector(new THREE.Vector3().subVectors(from, best).normalize(), def.radius * this.bodyScale);
+  }
+
+  /** Plants this figure's limbs where its action says (call once every figure is posed). Bodies that haven't loaded are skipped. */
+  applyPlants(other: (role: string) => Figure | undefined) {
+    const body = this.skinned, plants = this.actor.plants;
+    if (!body || !plants) return;
+    this.group.updateMatrixWorld(true);
+    for (const [limb, plant] of Object.entries(plants)) {
+      const [u, l, e] = (LIMB_BONES[limb] ?? []).map((n) => body.bone(n));
+      if (!u || !l || !e) continue;
+      const end = e.getWorldPosition(new THREE.Vector3());
+      let target: THREE.Vector3 | null = null;
+      if (plant.on === "floor" || plant.on === "bed") target = new THREE.Vector3(end.x, plant.on === "bed" ? 0.64 : 0.02, end.z);
+      else if (plant.on.startsWith("role:")) target = other(plant.on.slice(5))?.plantPoint(plant.point, end) ?? null;
+      if (target) solveTwoBone(u as THREE.Bone, l as THREE.Bone, e, target, plant.weight);
+    }
   }
 
   dispose() {
