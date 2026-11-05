@@ -244,7 +244,7 @@ state and have no participant eligibility logic.
 - **Standing on a surface** works with a role `rest: { height, pitch: 0 }` on furniture.
 - Load-time lint: unknown keys, wild angles and `target.roles` / `oscillators` that name a role with no keyframes are warned about in the console in development (`interactionWarnings`).
 
-Files named `test_<name>.json` are your scratch animations: the app loads them and lists them in the wheel like any other, but the tests, lint, `npm run list:animations` and the agent ignore them, and git does too.
+Files named `test_<name>.json` are your scratch animations: the app loads them and lists them in the wheel like any other, but the tests, lint, `npm run list:animations` and the agent ignore them, and git does too. **Git ignores them, so they are never committed or backed up by the repository.** Rename a stable one to a real filename (drop the `test_`) to promote it: it then joins the tests, lint and listing and can be committed.
 
 ## Adding one
 
