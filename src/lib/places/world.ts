@@ -54,6 +54,8 @@ export interface Actor {
   kneel?: boolean;
   /** Standing, kneeling or crawling on furniture: the surface height, metres. */
   surface?: number;
+  /** The drawn top of the furniture the action uses, metres: what a hand plant `on: "bed"` reaches for. */
+  top?: number;
   /** On all fours: hips at kneeling height, body pitched forward about them so the hands reach the floor. */
   allfours?: boolean;
   /** All fours: the band that flattens a near-floor hand (leg lengths), or false for never. */
@@ -581,7 +583,8 @@ export class World {
           at = wanted ?? centre;
         } else if (wanted && Math.hypot(wanted[0] - exit[0], wanted[1] - exit[1]) < 0.8) at = wanted;
         if (place?.facing !== undefined) facing = rotate(bedFacing, place.facing);
-        const base = surfaceHeight(target.kind);
+        const base = target.kind === "bed" ? 0.62 : 0.68; // hip heights for lying and sitting on it
+        const top = surfaceHeight(target.kind); // the drawn top, for standing, kneeling and crawling on it
         const custom = place?.rest ?? spec.rest;
         // On the top, these postures keep their own body model and are simply lifted to the surface (rest.height is that
         // surface, default the furniture's top); a pitch hands the body to the hip-height rest model instead.
@@ -589,7 +592,7 @@ export class World {
         const rest = lifted ? undefined : custom ? { height: custom.height, pitch: (custom.pitch * Math.PI) / 180 }
           : posture === "lie" ? { height: base, pitch: -Math.PI / 2 }
           : onSurface ? { height: base + 0.06, pitch: 0 } : undefined;
-        placements.push({ at, facing, exit, seat: entry.seat, rest: onSurface ? rest : undefined, surface: lifted ? (custom?.height ?? base) : undefined });
+        placements.push({ at, facing, exit, seat: entry.seat, rest: onSurface ? rest : undefined, surface: lifted ? (custom?.height ?? top) : undefined });
       }
       if (placements.length !== people.length) continue;
       if (people.length === 2 && spec.posture === "stand") {
@@ -714,6 +717,7 @@ export class World {
       actor.held = null;
       actor.lift = 0;
       actor.surface = 0;
+      actor.top = undefined;
       actor.kneel = false;
       actor.allfours = false;
       actor.grip = undefined;
@@ -791,6 +795,7 @@ export class World {
           const rest = act.placements?.[i].rest;
           if (rest) actor.rest = { ...rest };
           actor.surface = act.placements?.[i].surface ?? 0;
+          actor.top = surfaceHeight(act.target.kind);
         }
       }
     }

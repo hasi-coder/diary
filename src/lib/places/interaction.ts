@@ -1,5 +1,6 @@
 import type { ClothingLayer, ClothingRegion } from "./clothingTypes";
 import { FACE_VIEWS, type FaceView } from "./character";
+import { ITEM_KINDS } from "./layout";
 import { ALLFOURS_GRIP, estimateHandHeight, type Grip } from "./allfours";
 
 // Things people do together in the Places world (dance, hug, high-five, …),
@@ -302,8 +303,16 @@ const NEUTRAL: Required<Omit<Pose, "emote" | "held" | "face" | "plant">> = {
   bob: 0,
   move: [0, 0],
 };
-/** The height of a piece of furniture's top surface, metres: a bed's mattress, or a bench, sofa or chair seat. */
-export const surfaceHeight = (kind: string) => (kind === "bed" ? 0.62 : 0.68);
+/**
+ * The height of a piece of furniture's top surface, metres: the highest of its drawn parts that covers at least 40%
+ * of its footprint (a bed's mattress, a bench's or chair's seat), so what a role stands or kneels on matches what is
+ * drawn. Kinds with no such part get a seat's height.
+ */
+export function surfaceHeight(kind: string): number {
+  const parts = ITEM_KINDS[kind]?.parts("#000", 1) ?? [];
+  const tops = parts.filter(([x0, y0, x1, y1]) => (x1 - x0) * (y1 - y0) >= 0.4).map((part) => part[5]);
+  return tops.length ? Math.max(...tops) : 0.47;
+}
 
 /** The posture a role is in, falling back to the clip's. */
 export const postureOf = (def: Pick<Interaction, "target">, role: string): Posture | undefined => def.target?.roles?.[role]?.posture ?? def.target?.posture;
@@ -554,6 +563,19 @@ export function interactionWarnings(value: unknown): string[] {
     if (grip !== false) for (const key of list) for (const arm of ["armL", "armR"] as const) {
       const forward = key[arm]?.[0];
       if (forward !== undefined && forward >= 110 && estimateHandHeight(forward) < grip.fade) out.push(`${name}: role "${role}" at beat ${key.beat}: ${arm} is keyed to ${forward} (a lift), but its hand would sit about ${estimateHandHeight(forward).toFixed(2)} leg lengths up, inside the flatten band (under ${grip.fade}), so it is pressed back to the floor; lift it higher, narrow target.grip, or set grip: false.`);
+    }
+  }
+  // `across` does nothing with side: "center", and two roles on the centre line at the same `along` end up in one place.
+  {
+    const placed = Object.entries(v.target?.roles ?? {});
+    for (const [role, place] of placed) if (place?.side === "center" && place.across !== undefined && place.across !== 0) out.push(`${name}: role "${role}" sets across ${place.across} with side "center", which ignores it; use side "left" or "right" to move off the centre line.`);
+    const seen = new Map<string, string>();
+    for (const [role, place] of placed) {
+      if (place?.side !== "center") continue;
+      const key = `${place.along ?? 0}`;
+      const other = seen.get(key);
+      if (other) out.push(`${name}: roles "${other}" and "${role}" are both on the centre line at along ${place.along ?? 0}, so they are placed in the same spot; give them different along values, or put them on different sides.`);
+      else seen.set(key, role);
     }
   }
   // A role that stands, kneels or crawls on furniture stands on its top; a surface height far from the furniture's own is a mistake (it is a surface height, not a hip height).

@@ -166,3 +166,6 @@ export function polePoint(limb: "armL" | "armR" | "legL" | "legR", joint: THREE.
   const up = pole ? frame.up : worldUp;
   return joint.clone().add(out.multiplyScalar(o)).addScaledVector(up, u).addScaledVector(frame.forward, f);
 }
+
+/** Where a hand plant on a surface (`on: "bed"`, the top of the furniture the action uses) aims: the wrist a little above the drawn top, as an all-fours hand rests on the floor. */
+export const surfacePlantY = (top: number, scale: number) => top + 0.04 * scale;

@@ -30,7 +30,8 @@ try {
         export { furnitureToUse, usable } from './src/lib/places/furnitureActions';
         export { longestPlantHold } from './src/lib/places/interaction';
         export { mirrorInteraction } from './src/lib/places/interaction';
-        export { lengthOf, interactionWarnings } from './src/lib/places/interaction';
+        export { lengthOf, interactionWarnings, surfaceHeight } from './src/lib/places/interaction';
+        export { ITEM_KINDS } from './src/lib/places/layout';
         export { solveTwoBone, KNEEL_DROP, KNEEL_ANKLE, handPlantTarget, measureAllFours, allFoursGrip, polePoint } from './src/components/world/ik';
         export { estimateHandHeight, ALLFOURS_GRIP } from './src/lib/places/allfours';
         export { CLOTHING_CATALOG } from './src/lib/places/clothingCatalog';
@@ -47,7 +48,7 @@ try {
 } finally {
   await rm(scratch, { recursive: true, force: true });
 }
-const { handPlantTarget, poseAt, interactionProblems, INTERACTION_POLICY, interactionEnabled, interactionPolicyProblem, setInteractionEnabled, setInteractionMinimumAge, subscribeInteractionPolicy, OUTFITS, outfitProblems, applyOutfit, outfitOf, withSlot, GARMENTS, CLOTHING_LAYERS, CLOTHING_STYLES, clothingProblems, normalizeWorn, garment, CLOTHING_CATALOG, solveTwoBone, KNEEL_DROP, KNEEL_ANKLE, measureAllFours, allFoursGrip, estimateHandHeight, polePoint, ALLFOURS_GRIP, ageRequirement, mirrorInteraction, furnitureToUse, interactionAccess, categoryTree, categoriesOf, longestPlantHold, setShowLockedActions, interactionGate, interactionHidden, interactionDressed, lengthOf, interactionWarnings, FACE_DEFS, FACE_VIEWS, FALLBACK_VIEW, FACE_SLOTS, World, Body, THREE, GLTFLoader } = animation;
+const { handPlantTarget, poseAt, interactionProblems, INTERACTION_POLICY, interactionEnabled, interactionPolicyProblem, setInteractionEnabled, setInteractionMinimumAge, subscribeInteractionPolicy, OUTFITS, outfitProblems, applyOutfit, outfitOf, withSlot, GARMENTS, CLOTHING_LAYERS, CLOTHING_STYLES, clothingProblems, normalizeWorn, garment, CLOTHING_CATALOG, solveTwoBone, KNEEL_DROP, KNEEL_ANKLE, measureAllFours, allFoursGrip, estimateHandHeight, polePoint, ALLFOURS_GRIP, surfaceHeight, ITEM_KINDS, ageRequirement, mirrorInteraction, furnitureToUse, interactionAccess, categoryTree, categoriesOf, longestPlantHold, setShowLockedActions, interactionGate, interactionHidden, interactionDressed, lengthOf, interactionWarnings, FACE_DEFS, FACE_VIEWS, FALLBACK_VIEW, FACE_SLOTS, World, Body, THREE, GLTFLoader } = animation;
 const { normalizeClothingFit, withClothingFit } = animation;
 const json = async (path) => JSON.parse(await readFile(join(root, path), "utf8"));
 const interaction = (keys, loop = false) => ({
@@ -1347,8 +1348,8 @@ await test("standing, kneeling and crawling on furniture land on its top; `acros
     // Inside the footprint, with no rest at all: on the mattress, lifted to the surface.
     const on = play(clip(posture, { side: "center", across: 0, along: 0.4 }));
     assert.ok(inside(on, on.b), `${posture}: placed on the bed`);
-    assert.equal(on.b.surface, 0.62, `${posture}: the surface is the mattress height by default`);
-    assert.equal(on.b.lift, 0.62, `${posture}: and the body is lifted to it`);
+    assert.equal(on.b.surface, surfaceHeight("bed"), `${posture}: the surface is the drawn top by default`);
+    assert.equal(on.b.lift, surfaceHeight("bed"), `${posture}: and the body is lifted to it`);
     assert.equal(on.b.rest ?? null, null, `${posture}: no hip-height rest is involved`);
     // rest.height only adjusts the surface.
     const higher = play(clip(posture, { side: "center", across: 0, along: 0.4, rest: { height: 0.7, pitch: 0 } }));
@@ -1358,6 +1359,19 @@ await test("standing, kneeling and crawling on furniture land on its top; `acros
     assert.ok(!inside(beside, beside.b), `${posture}: beside the bed by default`);
     assert.equal(beside.b.lift, 0, `${posture}: on the floor`);
   }
+  const topped = play(clip("kneel", { side: "center", across: 0 }));
+  assert.equal(topped.b.top, surfaceHeight("bed"), "hand plants on a surface reach for the furniture's drawn top");
+  // The default surface heights are the drawn tops, not a guess: a bed's mattress, a bench's or chair's seat.
+  const drawn = (kind) => Math.max(...ITEM_KINDS[kind].parts("#000", 1).filter(([x0, y0, x1, y1]) => (x1 - x0) * (y1 - y0) >= 0.4).map((part) => part[5]));
+  for (const kind of ["bed", "hbed", "bench", "chair", "sofa", "armchair"]) assert.equal(surfaceHeight(kind), drawn(kind), `${kind}: the drawn top`);
+  assert.ok(surfaceHeight("bed") < 0.6 && surfaceHeight("bench") < 0.5, "and lower than the old 0.62 / 0.68, which floated a body above it");
+  // Lint: `across` with side center does nothing, and two centre-line roles at one `along` coincide.
+  const placeWarns = (a, b) => interactionWarnings({ ...clip("kneel").roles && clip("kneel"), target: { kinds: ["bed"], posture: "stand", roles: { a, b } } }).filter((w) => /centre line|ignores it/.test(w));
+  assert.equal(placeWarns({ posture: "lie", side: "center" }, { posture: "kneel", side: "center", across: 0.5 }).filter((w) => /ignores/.test(w)).length, 1, "across with side center is dead");
+  assert.equal(placeWarns({ posture: "lie", side: "center" }, { posture: "kneel", side: "center" }).filter((w) => /same spot/.test(w)).length, 1, "two centre roles at the same along are coincident");
+  assert.equal(placeWarns({ posture: "lie", side: "center", along: -0.3 }, { posture: "kneel", side: "center", along: 0.3 }).length, 0, "different along values keep them apart");
+  assert.equal(placeWarns({ posture: "lie", side: "left", across: 0.4 }, { posture: "kneel", side: "right", across: 0.4 }).length, 0, "and so do different sides");
+  assert.equal(placeWarns({ posture: "lie", side: "center", across: 0 }, { posture: "kneel", side: "left", across: 0.8 }).length, 0, "across 0 on the centre line is not dead weight");
   // A pitch hands the body to the hip-height rest model.
   const legacy = play(clip("stand", { side: "center", across: 0, rest: { height: 1.2, pitch: 30 } }));
   assert.ok(legacy.b.rest && legacy.b.rest.height === 1.2, "a non-zero pitch keeps the hip-height model");

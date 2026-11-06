@@ -9,7 +9,8 @@ import type { Actor } from "../../lib/places/world";
 import { garment, outfitOf } from "../../lib/places/garments";
 import { Body, loadBody, loadedBody, shapeOf, type Limbs } from "./body";
 import { drawnHead, photoHead } from "./faces";
-import { KNEEL_ANKLE, KNEEL_DROP, allFoursGrip, measureAllFours, handPlantTarget, polePoint, type BodyFrame, solveTwoBone, type KeyedHands } from "./ik";
+import { surfaceHeight } from "../../lib/places/interaction";
+import { KNEEL_ANKLE, KNEEL_DROP, allFoursGrip, surfacePlantY, measureAllFours, handPlantTarget, polePoint, type BodyFrame, solveTwoBone, type KeyedHands } from "./ik";
 
 export const WALL = 2.4;
 const LOW = 0.3;
@@ -819,7 +820,7 @@ export class Figure {
       if (!u || !l || !e) continue;
       const end = e.getWorldPosition(new THREE.Vector3());
       let target: THREE.Vector3 | null = null;
-      if (plant.on === "floor" || plant.on === "bed") target = new THREE.Vector3(end.x, plant.on === "bed" ? 0.64 : 0.02, end.z);
+      if (plant.on === "floor" || plant.on === "bed") target = new THREE.Vector3(end.x, plant.on === "bed" ? surfacePlantY(this.actor.top ?? surfaceHeight("bed"), this.bodyScale) : 0.02, end.z);
       else if (plant.on.startsWith("role:")) {
         const partner = other(plant.on.slice(5));
         if (["hand", "handL", "handR"].includes(plant.point) && (limb === "armL" || limb === "armR")) {
