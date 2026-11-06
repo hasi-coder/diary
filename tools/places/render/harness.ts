@@ -17,8 +17,9 @@ window.addEventListener("error", (ev) => void fail(ev.error ?? ev.message));
 
 try {
   await loadBody("/places/");
-  const files = import.meta.glob("../../../src/lib/places/interactions/*.json", { eager: true, import: "default" }) as Record<string, any>;
-  const def = Object.values(files).find((f) => f.id === q.get("id"))!;
+  // The app's own list, so mirrored copies (`<id>-mirrored`) render too.
+  const { INTERACTIONS } = await import("../../../src/lib/places/interactions");
+  const def = (INTERACTIONS as any[]).find((f) => f.id === q.get("id"))!;
   delete (def as any).camera; // a fixed debug camera: the clip's own framing is not used to check the clip
   const floor = { name: "h", width: 10, depth: 8, entrance: [0, 0], rooms: [{ name: "R", rect: [0, 0, 10, 8] }], doors: [], items: [{ kind: "chair", x: 4, y: 3, facing: "S" }, { kind: "bench", x: 4, y: 3, w: 2, facing: "S" }].filter((i) => i.kind === (def.target?.kinds?.[0])) };
   const world = new World(floor as any);
