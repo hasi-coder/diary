@@ -72,3 +72,26 @@ export function solveTwoBone(upper: THREE.Bone, lower: THREE.Bone, end: THREE.Ob
   }
   return { miss: end.getWorldPosition(new THREE.Vector3()).distanceTo(target), clamped };
 }
+
+/** The keyed (pre-IK) world positions of a body's two hands. */
+export interface KeyedHands { armL: THREE.Vector3; armR: THREE.Vector3 }
+
+/**
+ * Where a hand plant on another body aims. Always computed from keyed positions, never from solved ones, so
+ * the target doesn't walk from frame to frame as the arms are solved.
+ *  - `hand`, reciprocated (the other body plants a hand back): the midpoint of the two keyed hands. Your
+ *    `armL` meets their `armR` (facing each other, left clasps right), so both bodies aim at the same point.
+ *  - `hand`, not reciprocated: falls back to their opposite hand (`handR` for your `armL`); lint flags it.
+ *  - `handL` / `handR`: that specific keyed hand of theirs, on its surface toward yours.
+ */
+export function handPlantTarget(
+  point: "hand" | "handL" | "handR", limb: "armL" | "armR", mine: KeyedHands, theirs: KeyedHands,
+  reciprocated: boolean, surface: number,
+): THREE.Vector3 {
+  const own = mine[limb];
+  const opposite = limb === "armL" ? "armR" : "armL";
+  const named = point === "handL" ? "armL" : point === "handR" ? "armR" : opposite;
+  if (point === "hand" && reciprocated) return own.clone().add(theirs[opposite]).multiplyScalar(0.5);
+  const hand = theirs[named];
+  return hand.clone().addScaledVector(own.clone().sub(hand).normalize(), surface);
+}

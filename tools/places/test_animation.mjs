@@ -31,7 +31,7 @@ try {
         export { longestPlantHold } from './src/lib/places/interaction';
         export { mirrorInteraction } from './src/lib/places/interaction';
         export { lengthOf, interactionWarnings } from './src/lib/places/interaction';
-        export { solveTwoBone, KNEEL_DROP, KNEEL_ANKLE } from './src/components/world/ik';
+        export { solveTwoBone, KNEEL_DROP, KNEEL_ANKLE, handPlantTarget } from './src/components/world/ik';
         export { CLOTHING_CATALOG } from './src/lib/places/clothingCatalog';
         export { FACE_DEFS, FACE_VIEWS, FALLBACK_VIEW, FACE_SLOTS } from './src/lib/places/character';
         export { setInteractionMinimumAge } from './src/lib/interactionSettings';
@@ -46,7 +46,7 @@ try {
 } finally {
   await rm(scratch, { recursive: true, force: true });
 }
-const { poseAt, interactionProblems, INTERACTION_POLICY, interactionEnabled, interactionPolicyProblem, setInteractionEnabled, setInteractionMinimumAge, subscribeInteractionPolicy, OUTFITS, outfitProblems, applyOutfit, outfitOf, withSlot, GARMENTS, CLOTHING_LAYERS, CLOTHING_STYLES, clothingProblems, normalizeWorn, garment, CLOTHING_CATALOG, solveTwoBone, KNEEL_DROP, KNEEL_ANKLE, ageRequirement, mirrorInteraction, furnitureToUse, interactionAccess, categoryTree, categoriesOf, longestPlantHold, setShowLockedActions, interactionGate, interactionHidden, interactionDressed, lengthOf, interactionWarnings, FACE_DEFS, FACE_VIEWS, FALLBACK_VIEW, FACE_SLOTS, World, Body, THREE, GLTFLoader } = animation;
+const { handPlantTarget, poseAt, interactionProblems, INTERACTION_POLICY, interactionEnabled, interactionPolicyProblem, setInteractionEnabled, setInteractionMinimumAge, subscribeInteractionPolicy, OUTFITS, outfitProblems, applyOutfit, outfitOf, withSlot, GARMENTS, CLOTHING_LAYERS, CLOTHING_STYLES, clothingProblems, normalizeWorn, garment, CLOTHING_CATALOG, solveTwoBone, KNEEL_DROP, KNEEL_ANKLE, ageRequirement, mirrorInteraction, furnitureToUse, interactionAccess, categoryTree, categoriesOf, longestPlantHold, setShowLockedActions, interactionGate, interactionHidden, interactionDressed, lengthOf, interactionWarnings, FACE_DEFS, FACE_VIEWS, FALLBACK_VIEW, FACE_SLOTS, World, Body, THREE, GLTFLoader } = animation;
 const { normalizeClothingFit, withClothingFit } = animation;
 const json = async (path) => JSON.parse(await readFile(join(root, path), "utf8"));
 const interaction = (keys, loop = false) => ({
@@ -619,15 +619,16 @@ await test("plants ramp in, hold, and release without a pop; bad plants are load
   assert.ok(bad({ armL: { on: "role:partner", weight: 2 } }), "weight out of range");
   // handL / handR name a specific hand; plain "hand" (the nearest) on another body is linted.
   assert.ok(!bad({ armL: { on: "role:partner", point: "handR" } }) && !bad({ armR: { on: "role:partner", point: "handL" } }), "handL and handR are valid points");
-  const warns = (plant) => interactionWarnings({ ...haircut, roles: { ...haircut.roles, lead: [{ beat: 0, plant }] } }).filter((w) => /nearest hand/.test(w)).length;
-  assert.equal(warns({ armL: { on: "role:partner", point: "hand" } }), 1, "hand on a role is ambiguous");
-  assert.equal(warns({ armL: { on: "role:partner" } }), 1, "and so is leaving the point out");
+  const warns = (plant) => interactionWarnings({ ...haircut, roles: { ...haircut.roles, lead: [{ beat: 0, plant }] } }).filter((w) => /never plants a hand back/.test(w)).length;
+  assert.equal(warns({ armL: { on: "role:partner", point: "hand" } }), 1, "a one-sided hand plant is flagged");
+  assert.equal(warns({ armL: { on: "role:partner" } }), 1, "and so is leaving the point out (it means hand)");
   assert.equal(warns({ armL: { on: "role:partner", point: "handR" } }), 0);
   assert.equal(warns({ armL: { on: "floor" } }), 0, "a surface needs no hand to name");
-  // care-steady crosses its hands: each arm takes the other body's opposite hand.
+  // care-steady clasps: both roles plant "hand" on each other, so it is the mutual midpoint and lint is quiet about it.
   const steady = await action("care-steady");
   const plants = Object.values(steady.roles).flat().flatMap((k) => Object.entries(k.plant ?? {}));
-  assert.ok(plants.length > 0 && plants.every(([limb, p]) => p.point === (limb === "armL" ? "handR" : "handL")), "crossed hands");
+  assert.ok(plants.length > 0 && plants.every(([, p]) => p.point === "hand"), "mutual hand plants");
+  assert.equal(interactionWarnings(steady).filter((w) => /never plants a hand back/.test(w)).length, 0, "reciprocal, so no asymmetry");
   assert.equal(steady.target.roles.lead.anchor.distance, 0.62, "a kneeling pair stands apart a little over a forearm");
 });
 
@@ -1162,4 +1163,39 @@ await test("kneeling puts the shins on the floor without penetrating it, at any 
     assert.ok(Math.abs(at("thigh_l").z - at("calf_l").z) < 0.05 * scale && at("thigh_l").y - at("calf_l").y > 0.4 * leg, "thighs upright (the rig rests slightly splayed)");
   }
   body.root.scale.setScalar(1); body.root.position.y = 0; body.pose(neutral());
+});
+
+await test("reciprocal hand plants converge on the midpoint of the keyed hands, and it holds across the clip", async () => {
+  const V = (x, y, z) => new THREE.Vector3(x, y, z);
+  // Keyed hands of two bodies facing each other 0.62 m apart, read from care-steady's own arm angles (forward degrees).
+  const steady = await action("care-steady");
+  const hands = (role, beat, side) => {
+    const pose = poseAt(steady, role, beat);
+    const reach = (a) => 0.55 * Math.sin((a[0] * Math.PI) / 180), rise = (a) => 1.2 - 0.55 * Math.cos((a[0] * Math.PI) / 180);
+    const x = side === "lead" ? 0 : 0.62, dir = side === "lead" ? 1 : -1;
+    return { armL: V(x + dir * reach(pose.armL), rise(pose.armL), -0.2 * dir), armR: V(x + dir * reach(pose.armR), rise(pose.armR), 0.2 * dir) };
+  };
+  let previous = null;
+  for (let beat = 6; beat <= 24; beat += 0.5) {
+    const lead = hands("lead", beat, "lead"), partner = hands("partner", beat, "partner");
+    for (const limb of ["armL", "armR"]) {
+      const opposite = limb === "armL" ? "armR" : "armL";
+      const mine = handPlantTarget("hand", limb, lead, partner, true, 0.035);
+      const theirs = handPlantTarget("hand", opposite, partner, lead, true, 0.035);
+      // Lead's left meets partner's right: the same point from both sides.
+      const expected = lead[limb].clone().add(partner[opposite]).multiplyScalar(0.5);
+      assert.ok(mine.distanceTo(expected) < 1e-9, "the midpoint of the two keyed hands");
+      if (limb === "armL") assert.ok(mine.distanceTo(handPlantTarget("hand", "armR", partner, lead, true, 0.035)) < 1e-9, "both limbs of a pair aim at one point");
+      void theirs;
+    }
+    const m = handPlantTarget("hand", "armL", lead, partner, true, 0.035);
+    if (previous) assert.ok(m.distanceTo(previous) < 0.08, `the midpoint doesn't jump (${m.distanceTo(previous).toFixed(3)} m at beat ${beat})`);
+    previous = m;
+  }
+  // Not reciprocated: falls back to their opposite hand's surface, not the midpoint.
+  const a = { armL: V(0, 1, 0), armR: V(0.1, 1, 0) }, b = { armL: V(0.6, 1, 0), armR: V(0.5, 1, 0) };
+  const alone = handPlantTarget("hand", "armL", a, b, false, 0.035);
+  assert.ok(alone.distanceTo(b.armR) < 0.036 && alone.distanceTo(a.armL.clone().add(b.armR).multiplyScalar(0.5)) > 0.1, "one-sided falls back to handR");
+  // Solved hand positions are never an input: the signature takes keyed hands only, so the target can't walk.
+  assert.equal(handPlantTarget.length, 6);
 });

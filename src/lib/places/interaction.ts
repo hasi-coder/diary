@@ -145,7 +145,7 @@ export interface Clearance { min?: number }
 /** What a role's limb is planted on: `role:<id>`, `bed` or `floor`, at a named point of that body. */
 export type Limb = "armL" | "armR" | "legL" | "legR";
 export const LIMBS: Limb[] = ["armL", "armR", "legL", "legR"];
-/** Points on a body a limb can be planted on. `handL` / `handR` name one hand of that body; `hand` is shorthand for whichever is nearest and is the wrong choice whenever both bodies have hands near each other. */
+/** Points on a body a limb can be planted on. `hand` on another body is the mutual midpoint of the two keyed hands when that body plants a hand back (else it falls back to their opposite hand, and lint flags it); `handL` / `handR` name one specific keyed hand of that body. */
 export const PLANT_POINTS = ["head", "shoulder", "hand", "handL", "handR", "hip", "lowerBack", "knee", "surface"];
 export interface Plant { on: string; point?: string; weight?: number; blend?: number }
 /** A planted limb at an instant: how strongly it is held on its target. */
@@ -503,8 +503,16 @@ export function interactionWarnings(value: unknown): string[] {
   const held = longestPlantHold(v as Interaction);
   if (held >= 6 && v.content?.contact === undefined && tier === "casual") out.push(`${name}: a limb is held on another body for ${Math.round(held)} beats (sustained contact); declare content.contact and a tier that fits.`);
   if (held >= 6 && (v.content?.contact === "none" || v.content?.contact === "incidental")) out.push(`${name}: content.contact says ${v.content.contact}, but a limb is held on another body for ${Math.round(held)} beats.`);
+  // A hand plant on a hand is the mutual midpoint only if the other body plants a hand back.
+  const handsBack = (from: string, onto: string) => (Array.isArray(v.roles?.[from]) ? v.roles![from] : []).some((k) => Object.values(k.plant ?? {}).some((q) => q?.on === `role:${onto}` && ["hand", "handL", "handR"].includes(q.point ?? "hand") && (q.weight ?? 1) > 0));
+  const flagged = new Set<string>();
   for (const [role, keys] of Object.entries(v.roles ?? {})) for (const key of Array.isArray(keys) ? keys : []) for (const [limb, plant] of Object.entries(key.plant ?? {})) {
-    if (typeof plant?.on === "string" && plant.on.startsWith("role:") && (plant.point ?? "hand") === "hand") out.push(`${name}: role "${role}" at beat ${key.beat}: plant ${limb} on another body uses point "hand" (the nearest hand), which is ambiguous when both bodies' hands are close; name handL or handR.`);
+    if (typeof plant?.on !== "string" || !plant.on.startsWith("role:") || (plant.point ?? "hand") !== "hand") continue;
+    const other = plant.on.slice(5);
+    if (!handsBack(other, role) && !flagged.has(`${role}>${other}`)) {
+      flagged.add(`${role}>${other}`);
+      out.push(`${name}: role "${role}" at beat ${key.beat}: plant ${limb} on "${other}" uses point "hand" (the mutual midpoint), but "${other}" never plants a hand back, so it falls back to their opposite hand; plant a hand back, or name handL / handR.`);
+    }
   }
   if (v.clearance?.min !== undefined && v.clearance.min < 0.05) out.push(`${name}: clearance.min is under 5 cm, which lets bodies intersect.`);
   for (const [role, place] of Object.entries(v.target?.roles ?? {})) if (place?.posture && !["stand", "sit", "lie", "inside", "kneel"].includes(place.posture)) out.push(`${name}: role "${role}" has a posture with no placement rule.`);
