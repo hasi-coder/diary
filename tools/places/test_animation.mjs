@@ -1386,3 +1386,55 @@ await test("standing, kneeling and crawling on furniture land on its top; `acros
   assert.equal(warns({ side: "center", across: 0, rest: { height: 0.6, pitch: 0 } }), 0, "near the surface");
   assert.equal(warns({ side: "center", across: 0, rest: { height: 1.4, pitch: 0 } }), 1, "a hip height where a surface height belongs");
 });
+
+await test("sweep: where every committed furniture clip puts each role (on top or beside)", async () => {
+  const { readdirSync } = await import("node:fs");
+  const ids = readdirSync("src/lib/places/interactions").filter((f) => f.endsWith(".json") && !/^test[_-]/.test(f) && f !== "categories.json").map((f) => f.replace(/\.json$/, ""));
+  const rows = [];
+  for (const id of ids) {
+    const def = await action(id);
+    if (!def.target || def.target.kinds.every((k) => k === "floor")) continue;
+    const { world, me, partner } = household();
+    const kind = def.target.kinds[0];
+    const floor = world.floor;
+    if (!world.place.items.some((i) => i.kind === kind)) world.place.items.push({ kind, x: 5, y: 5, w: kind === "bench" ? 2 : 1, h: 1, facing: "S" });
+    const item = world.place.items.find((i) => i.kind === kind);
+    const people = def.people.max >= 2 ? [me, partner] : [me];
+    if (!world.startActivity(def, people, { target: item })) { rows.push(`${id}: did not start`); continue; }
+    for (let i = 0; i < 600 && world.activity?.state !== "playing"; i++) world.update(0.1);
+    for (let i = 0; i < 10; i++) world.update(0.1);
+    for (const m of world.activity?.members ?? []) {
+      const posture = def.target.roles?.[m.role]?.posture ?? def.target.posture;
+      const inside = m.actor.x >= item.x && m.actor.x <= item.x + item.w && m.actor.y >= item.y && m.actor.y <= item.y + item.h;
+      rows.push(`${id}.${m.role} ${posture} ${inside ? "INSIDE" : "beside"} lift ${m.actor.lift.toFixed(2)} surface ${m.actor.surface ?? 0}${m.actor.rest ? " rest " + m.actor.rest.height : ""}`);
+    }
+    void floor;
+  }
+  // Moved onto the furniture means lifted to its top: a stand beside a chair that merely shares its cell is not.
+  const moved = rows.filter((r) => / (stand|kneel|allfours) (INSIDE|beside) lift (?!0\.00)/.test(r) || / surface (?!0\b)/.test(r));
+  assert.deepEqual(moved, [], "no committed non-lie role was lifted onto its furniture by the footprint rule");
+  assert.ok(rows.filter((r) => /^(doctor|therapy)/.test(r) && / (stand) beside lift 0.00/.test(r)).length >= 3, "the doctor and therapist still stand on the floor beside the bed");
+});
+
+await test("the on-top rule is stable on the footprint boundary: decided once, inclusive, no flicker", () => {
+  const clip = (across) => ({
+    id: "edge", label: "Edge", people: { min: 2, max: 2 }, beat: 1, length: 8, loop: false, requires: { tier: "casual" },
+    formation: { type: "spots", spots: [{ role: "a", at: [0, 0], facing: 0 }, { role: "b", at: [0, 1], facing: 180 }] },
+    target: { kinds: ["bed"], posture: "stand", roles: { a: { posture: "lie", side: "center" }, b: { posture: "kneel", side: "left", across, along: 0 } } },
+    roles: { a: [{ beat: 0 }, { beat: 8 }], b: [{ beat: 0 }, { beat: 8 }] },
+  });
+  // The household bed is 2 m wide: its edge is at across 1.0 from the centre line.
+  const trace = (across) => {
+    const { world, me, partner } = household();
+    assert.ok(world.startActivity(clip(across), [me, partner], { target: world.place.items.find((i) => i.kind === "bed") }));
+    for (let i = 0; i < 600 && world.activity?.state !== "playing"; i++) world.update(0.1);
+    const lifts = [];
+    for (let i = 0; i < 60; i++) { world.update(0.05); lifts.push(partner.lift); }
+    return lifts;
+  };
+  const onEdge = trace(1), past = trace(1.001), within = trace(0.999);
+  assert.ok(onEdge.every((l) => l === onEdge[0]) && past.every((l) => l === past[0]) && within.every((l) => l === within[0]), "constant across frames: it never flips mid-clip");
+  assert.equal(onEdge[0], surfaceHeight("bed"), "exactly on the edge counts as on top (the boundary is inclusive)");
+  assert.equal(within[0], surfaceHeight("bed"), "just inside is on top");
+  assert.equal(past[0], 0, "just outside is beside it, on the floor");
+});
