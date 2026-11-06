@@ -1326,3 +1326,49 @@ await test("a pole aims the elbow without changing where the hand lands", () => 
   assert.deepEqual(withPole([1, 0.3, 0]), []);
   assert.ok(withPole([0, 0, 0]).length > 0 && withPole([1, 2]).length > 0 && withPole("out").length > 0, "a zero, short or non-vector pole is a load error");
 });
+
+await test("standing, kneeling and crawling on furniture land on its top; `across` is measured from the centre line", () => {
+  const clip = (posture, place = {}) => ({
+    id: "on-top", label: "On top", people: { min: 2, max: 2 }, beat: 1, length: 8, loop: false, requires: { tier: "casual" },
+    formation: { type: "spots", spots: [{ role: "a", at: [0, 0], facing: 0 }, { role: "b", at: [0, 1], facing: 180 }] },
+    target: { kinds: ["bed"], posture: "stand", roles: { a: { posture: "lie", side: "center" }, b: { posture, ...place } } },
+    roles: { a: [{ beat: 0 }, { beat: 8 }], b: [{ beat: 0 }, { beat: 8 }] },
+  });
+  const play = (def) => {
+    const { world, me, partner } = household();
+    assert.ok(world.startActivity(def, [me, partner], { target: world.place.items.find((i) => i.kind === "bed") }), "starts");
+    for (let i = 0; i < 400 && world.activity?.state !== "playing"; i++) world.update(0.1);
+    for (let i = 0; i < 20; i++) world.update(0.1);
+    const bed = world.place.items.find((i) => i.kind === "bed"), centre = [bed.x + bed.w / 2, bed.y + bed.h / 2];
+    return { world, bed, centre, a: me, b: partner, def };
+  };
+  const inside = (r, who) => who.x > r.bed.x && who.x < r.bed.x + r.bed.w && who.y > r.bed.y && who.y < r.bed.y + r.bed.h;
+  for (const posture of ["stand", "kneel", "allfours"]) {
+    // Inside the footprint, with no rest at all: on the mattress, lifted to the surface.
+    const on = play(clip(posture, { side: "center", across: 0, along: 0.4 }));
+    assert.ok(inside(on, on.b), `${posture}: placed on the bed`);
+    assert.equal(on.b.surface, 0.62, `${posture}: the surface is the mattress height by default`);
+    assert.equal(on.b.lift, 0.62, `${posture}: and the body is lifted to it`);
+    assert.equal(on.b.rest ?? null, null, `${posture}: no hip-height rest is involved`);
+    // rest.height only adjusts the surface.
+    const higher = play(clip(posture, { side: "center", across: 0, along: 0.4, rest: { height: 0.7, pitch: 0 } }));
+    assert.equal(higher.b.lift, 0.7, `${posture}: rest.height adjusts the surface`);
+    // Beside the bed (the default for a role with no place), on the floor.
+    const beside = play(clip(posture));
+    assert.ok(!inside(beside, beside.b), `${posture}: beside the bed by default`);
+    assert.equal(beside.b.lift, 0, `${posture}: on the floor`);
+  }
+  // A pitch hands the body to the hip-height rest model.
+  const legacy = play(clip("stand", { side: "center", across: 0, rest: { height: 1.2, pitch: 30 } }));
+  assert.ok(legacy.b.rest && legacy.b.rest.height === 1.2, "a non-zero pitch keeps the hip-height model");
+  // across: from the centre line, toward the side; a 2 m wide bed has its near edge at 1.0, not 0.5.
+  const d = (side, across) => { const r = play(clip("kneel", { side, across })); return Math.hypot(r.b.x - r.centre[0], r.b.y - r.centre[1]); };
+  assert.ok(Math.abs(d("left", 0.5) - 0.5) < 0.05, `across 0.5 is half a metre from the centre line (${d("left", 0.5).toFixed(2)})`);
+  assert.ok(Math.abs(d("left", 0.9) - 0.9) < 0.05 && Math.abs(d("right", 0.9) - 0.9) < 0.05, "and 0.9 is 0.9 on either side");
+  assert.ok(d("center", 0.9) < 0.05, "side: center ignores across");
+  // Lint: a surface height far from the furniture's own is flagged; the default and small adjustments are not.
+  const warns = (place) => interactionWarnings(clip("stand", place)).filter((w) => /surface/.test(w)).length;
+  assert.equal(warns({ side: "center", across: 0 }), 0, "no rest: the default surface");
+  assert.equal(warns({ side: "center", across: 0, rest: { height: 0.6, pitch: 0 } }), 0, "near the surface");
+  assert.equal(warns({ side: "center", across: 0, rest: { height: 1.4, pitch: 0 } }), 1, "a hip height where a surface height belongs");
+});

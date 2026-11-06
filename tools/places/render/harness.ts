@@ -21,7 +21,7 @@ try {
   const { INTERACTIONS } = await import("../../../src/lib/places/interactions");
   const def = (INTERACTIONS as any[]).find((f) => f.id === q.get("id"))!;
   delete (def as any).camera; // a fixed debug camera: the clip's own framing is not used to check the clip
-  const floor = { name: "h", width: 10, depth: 8, entrance: [0, 0], rooms: [{ name: "R", rect: [0, 0, 10, 8] }], doors: [], items: [{ kind: "chair", x: 4, y: 3, facing: "S" }, { kind: "bench", x: 4, y: 3, w: 2, facing: "S" }].filter((i) => i.kind === (def.target?.kinds?.[0])) };
+  const floor = { name: "h", width: 10, depth: 8, entrance: [0, 0], rooms: [{ name: "R", rect: [0, 0, 10, 8] }], doors: [], items: [{ kind: "chair", x: 4, y: 3, facing: "S" }, { kind: "bench", x: 4, y: 3, w: 2, facing: "S" }, { kind: "bed", x: 4, y: 3, w: 2, h: 3, facing: "S" }].filter((i) => i.kind === (def.target?.kinds?.[0])) };
   const world = new World(floor as any);
   const me = world.addAuthor({ id: "me", name: "Me", birthday: "1985-01-01", terms: "feminine" } as any);
   const other = world.add({ id: "p", name: "P", birthday: q.get("kid") ? "2017-01-01" : "1986-01-01", terms: "masculine" } as any, "guest", { cell: [1, 0] } as any);

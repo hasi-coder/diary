@@ -85,7 +85,11 @@ export interface Rest { height: number; pitch: number }
 /** Where one role goes at the furniture, instead of the action's own posture. */
 export interface RolePlacement {
   posture: Posture;
-  /** Overrides the action's `rest` for this role. */
+  /**
+   * Overrides the action's `rest` for this role. For `stand`, `kneel` and `allfours` on furniture it is the height of
+   * the surface the role stands on (default: the furniture's own top, `surfaceHeight`), not a hip height; a non-zero
+   * `pitch` there hands the body over to the rest model (hip height) instead.
+   */
   rest?: Rest;
   /** All fours only: the band that flattens a near-floor hand, in leg lengths, or `false` to never flatten (see allfours.ts). */
   grip?: Grip | false;
@@ -298,6 +302,9 @@ const NEUTRAL: Required<Omit<Pose, "emote" | "held" | "face" | "plant">> = {
   bob: 0,
   move: [0, 0],
 };
+/** The height of a piece of furniture's top surface, metres: a bed's mattress, or a bench, sofa or chair seat. */
+export const surfaceHeight = (kind: string) => (kind === "bed" ? 0.62 : 0.68);
+
 /** The posture a role is in, falling back to the clip's. */
 export const postureOf = (def: Pick<Interaction, "target">, role: string): Posture | undefined => def.target?.roles?.[role]?.posture ?? def.target?.posture;
 
@@ -547,6 +554,14 @@ export function interactionWarnings(value: unknown): string[] {
     if (grip !== false) for (const key of list) for (const arm of ["armL", "armR"] as const) {
       const forward = key[arm]?.[0];
       if (forward !== undefined && forward >= 110 && estimateHandHeight(forward) < grip.fade) out.push(`${name}: role "${role}" at beat ${key.beat}: ${arm} is keyed to ${forward} (a lift), but its hand would sit about ${estimateHandHeight(forward).toFixed(2)} leg lengths up, inside the flatten band (under ${grip.fade}), so it is pressed back to the floor; lift it higher, narrow target.grip, or set grip: false.`);
+    }
+  }
+  // A role that stands, kneels or crawls on furniture stands on its top; a surface height far from the furniture's own is a mistake (it is a surface height, not a hip height).
+  if (v.target && !v.target.kinds.every((k) => k === "floor")) {
+    const top = surfaceHeight(v.target.kinds[0]);
+    for (const [role, place] of Object.entries(v.target.roles ?? {})) {
+      if (!["stand", "kneel", "allfours"].includes(place?.posture) || !place.rest || place.rest.pitch) continue; // a non-zero pitch is the hip-height rest model
+      if (Math.abs(place.rest.height - top) > 0.25) out.push(`${name}: role "${role}" is ${place.posture} on furniture with rest.height ${place.rest.height}, but the surface is about ${top}; for these postures rest.height is the surface the role stands on (it defaults to ${top}), not a hip height.`);
     }
   }
   if (v.clearance?.min !== undefined && v.clearance.min < 0.05) out.push(`${name}: clearance.min is under 5 cm, which lets bodies intersect.`);

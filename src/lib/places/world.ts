@@ -3,7 +3,7 @@
 // cubicles that lock with everyone inside.
 import type { Profile } from "../api";
 import { AGES, characterOf, type Character } from "./character";
-import { ADULT_AGE, ADULT_REGIONS, anchorsOf, lengthOf, poseAt, type FullPose, type HeldItem, type Interaction, type Posture } from "./interaction";
+import { ADULT_AGE, ADULT_REGIONS, anchorsOf, lengthOf, poseAt, surfaceHeight, type FullPose, type HeldItem, type Interaction, type Posture } from "./interaction";
 import { interactionDressed, interactionGate, interactionPolicyProblem } from "./interactionPolicy";
 import { applyOutfit, OUTFITS, type Outfit } from "./outfits";
 import { garment, legacyFields, outfitOf, underwearOf } from "./garments";
@@ -52,6 +52,8 @@ export interface Actor {
   hidden?: boolean;
   /** Kneeling: hips lowered to a kneeling height derived from their own leg length, shins on the floor. */
   kneel?: boolean;
+  /** Standing, kneeling or crawling on furniture: the surface height, metres. */
+  surface?: number;
   /** On all fours: hips at kneeling height, body pitched forward about them so the hands reach the floor. */
   allfours?: boolean;
   /** All fours: the band that flattens a near-floor hand (leg lengths), or false for never. */
@@ -72,6 +74,8 @@ interface Placement {
   seat?: Seat;
   /** How the body rests on the furniture while the action plays (lying, sitting in a tub); none stands. */
   rest?: { height: number; pitch: number };
+  /** Standing, kneeling or crawling on the furniture's top: the height of the surface, metres. */
+  surface?: number;
 }
 
 export interface ActivityOptions {
@@ -563,7 +567,10 @@ export class World {
         let at = exit;
         let facing: Vec = entry.seat ? [...DIRS[entry.seat.facing]] : [toward[0] / length, toward[1] / length];
         // Sitting on furniture with no seats (a bed's edge) or a role with its own rest: on the surface.
-        const onSurface = lies || (posture === "sit" && !entry.seat) || !!place?.rest;
+        // A role that stands, kneels or crawls is on the furniture's top when it is placed inside the footprint or sets a rest; otherwise beside it, on the floor.
+        const inFootprint = !!wanted && wanted[0] >= target.x && wanted[0] <= target.x + target.w && wanted[1] >= target.y && wanted[1] <= target.y + target.h;
+        const standsOn = !lies && posture !== "sit" && (!!place?.rest || inFootprint);
+        const onSurface = lies || (posture === "sit" && !entry.seat) || standsOn;
         if (lies) {
           facing = bedFacing;
           const offset = (lyingSeen++ - (lyingCount - 1) / 2) * 0.55;
@@ -574,12 +581,15 @@ export class World {
           at = wanted ?? centre;
         } else if (wanted && Math.hypot(wanted[0] - exit[0], wanted[1] - exit[1]) < 0.8) at = wanted;
         if (place?.facing !== undefined) facing = rotate(bedFacing, place.facing);
-        const base = target.kind === "bed" ? 0.62 : 0.68;
+        const base = surfaceHeight(target.kind);
         const custom = place?.rest ?? spec.rest;
-        const rest = custom ? { height: custom.height, pitch: (custom.pitch * Math.PI) / 180 }
+        // On the top, these postures keep their own body model and are simply lifted to the surface (rest.height is that
+        // surface, default the furniture's top); a pitch hands the body to the hip-height rest model instead.
+        const lifted = standsOn && !(custom && custom.pitch);
+        const rest = lifted ? undefined : custom ? { height: custom.height, pitch: (custom.pitch * Math.PI) / 180 }
           : posture === "lie" ? { height: base, pitch: -Math.PI / 2 }
           : onSurface ? { height: base + 0.06, pitch: 0 } : undefined;
-        placements.push({ at, facing, exit, seat: entry.seat, rest: onSurface ? rest : undefined });
+        placements.push({ at, facing, exit, seat: entry.seat, rest: onSurface ? rest : undefined, surface: lifted ? (custom?.height ?? base) : undefined });
       }
       if (placements.length !== people.length) continue;
       if (people.length === 2 && spec.posture === "stand") {
@@ -703,6 +713,7 @@ export class World {
       actor.hidden = false;
       actor.held = null;
       actor.lift = 0;
+      actor.surface = 0;
       actor.kneel = false;
       actor.allfours = false;
       actor.grip = undefined;
@@ -779,6 +790,7 @@ export class World {
         for (const [i, { actor }] of members.entries()) {
           const rest = act.placements?.[i].rest;
           if (rest) actor.rest = { ...rest };
+          actor.surface = act.placements?.[i].surface ?? 0;
         }
       }
     }
@@ -877,7 +889,7 @@ export class World {
       a.y = m.start[1] + (pos[1] - m.start[1]) * settle;
       a.facing = facingOfVec(face);
       a.yaw = yawOf(face);
-      a.lift = (lifts.get(m) ?? 0) + (a.rest ? 0 : 0);
+      a.lift = (lifts.get(m) ?? 0) + (a.surface ?? 0);
       const placeOf = def.target?.roles?.[m.role];
       const posture = placeOf?.posture ?? def.target?.posture;
       a.kneel = posture === "kneel";
