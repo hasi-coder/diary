@@ -231,6 +231,7 @@ export const WorldScene = forwardRef<WorldSceneHandle, Props>(function WorldScen
       // Planted limbs are solved once everyone is posed, against the other body's pose this frame.
       if (activity?.state === "playing") {
         const byRole = new Map(activity.members.map((m) => [m.role, figures.get(m.actor.id)]));
+        for (const m of activity.members) figures.get(m.actor.id)?.snapshotHands();
         for (const m of activity.members) figures.get(m.actor.id)?.applyPlants((role) => byRole.get(role));
       }
       renderer.render(scene, camera);

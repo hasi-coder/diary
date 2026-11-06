@@ -628,7 +628,7 @@ await test("plants ramp in, hold, and release without a pop; bad plants are load
   const steady = await action("care-steady");
   const plants = Object.values(steady.roles).flat().flatMap((k) => Object.entries(k.plant ?? {}));
   assert.ok(plants.length > 0 && plants.every(([limb, p]) => p.point === (limb === "armL" ? "handR" : "handL")), "crossed hands");
-  assert.equal(steady.target.roles.lead.anchor.distance, 0.6, "a kneeling pair stands apart a little over a forearm");
+  assert.equal(steady.target.roles.lead.anchor.distance, 0.62, "a kneeling pair stands apart a little over a forearm");
 });
 
 await test("kneel, floor targets and the content lint", async () => {

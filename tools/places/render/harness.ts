@@ -51,6 +51,7 @@ try {
       figures.forEach((f) => f.update(az, world.t, { selected: false, tag: null }));
       const act = world.activity!; const byRole = new Map(act.members.map((m) => [m.role, figures.get(m.actor.id)]));
       overlay.clear(); plantReport.length = 0;
+      for (const m of act.members) figures.get(m.actor.id)?.snapshotHands();
       for (const m of act.members) {
         for (const r of figures.get(m.actor.id)?.applyPlants((role) => byRole.get(role)) ?? []) {
           plantReport.push(`${m.role}.${r.limb} -> ${r.on}/${r.point} weight ${r.weight.toFixed(2)}: ${Number.isNaN(r.miss) ? "no target" : (r.miss * 100).toFixed(1) + " cm from the point"}`);

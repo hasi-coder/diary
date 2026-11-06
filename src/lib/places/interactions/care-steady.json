@@ -29,24 +29,24 @@
   "roles": {
     "lead": [
       { "beat": 0 },
-      { "beat": 3, "armL": [95, 10], "armR": [95, 10], "elbowL": 15, "elbowR": 15, "head": [12, 0, 0], "plant": {"armL": {"on": "role:partner", "point": "handR", "weight": 0.5}, "armR": {"on": "role:partner", "point": "handL", "weight": 0.5}} },
-      { "beat": 6, "armL": [95, 10], "armR": [95, 10], "elbowL": 15, "elbowR": 15, "head": [15, 0, 0], "plant": {"armL": {"on": "role:partner", "point": "handR", "weight": 1}, "armR": {"on": "role:partner", "point": "handL", "weight": 1}} },
-      { "beat": 9, "armL": [78, 20], "armR": [78, 20], "elbowL": 32, "elbowR": 32, "head": [14, 0, 1], "lean": 4 },
-      { "beat": 12, "armL": [84, 16], "armR": [84, 16], "elbowL": 26, "elbowR": 26, "head": [16, 0, -1], "lean": 6, "emote": "💪" },
-      { "beat": 15, "armL": [88, 14], "armR": [88, 14], "elbowL": 22, "elbowR": 22, "head": [17, 0, 0], "lean": 7 },
-      { "beat": 18, "armL": [92, 12], "armR": [92, 12], "elbowL": 18, "elbowR": 18, "head": [15, 0, 1], "lean": 6 },
-      { "beat": 21, "armL": [96, 10], "armR": [96, 10], "elbowL": 16, "elbowR": 16, "head": [12, 0, 0], "lean": 4 },
-      { "beat": 24, "armL": [80, 14], "armR": [80, 14], "elbowL": 20, "elbowR": 20, "head": [8, 0, 0], "lean": 4 },
+      { "beat": 3, "armL": [58, 10], "armR": [58, 10], "elbowL": 15, "elbowR": 15, "head": [12, 0, 0], "plant": {"armL": {"on": "role:partner", "point": "handR", "weight": 0.5}, "armR": {"on": "role:partner", "point": "handL", "weight": 0.5}} },
+      { "beat": 6, "armL": [58, 10], "armR": [58, 10], "elbowL": 15, "elbowR": 15, "head": [15, 0, 0], "plant": {"armL": {"on": "role:partner", "point": "handR", "weight": 1}, "armR": {"on": "role:partner", "point": "handL", "weight": 1}} },
+      { "beat": 9, "armL": [58, 20], "armR": [58, 20], "elbowL": 32, "elbowR": 32, "head": [14, 0, 1], "lean": 4 },
+      { "beat": 12, "armL": [58, 16], "armR": [58, 16], "elbowL": 26, "elbowR": 26, "head": [16, 0, -1], "lean": 6, "emote": "💪" },
+      { "beat": 15, "armL": [58, 14], "armR": [58, 14], "elbowL": 22, "elbowR": 22, "head": [17, 0, 0], "lean": 7 },
+      { "beat": 18, "armL": [58, 12], "armR": [58, 12], "elbowL": 18, "elbowR": 18, "head": [15, 0, 1], "lean": 6 },
+      { "beat": 21, "armL": [58, 10], "armR": [58, 10], "elbowL": 16, "elbowR": 16, "head": [12, 0, 0], "lean": 4 },
+      { "beat": 24, "armL": [58, 14], "armR": [58, 14], "elbowL": 20, "elbowR": 20, "head": [8, 0, 0], "lean": 4 },
       { "beat": 26, "armL": [20, 12], "armR": [20, 12], "head": [4, 0, 0], "lean": 0 },
       { "beat": 28 }
     ],
     "partner": [
       { "beat": 0, "armL": [20, 14], "armR": [20, 14], "lean": 16, "head": [18, 0, 0] },
-      { "beat": 3, "armL": [95, 10], "armR": [95, 10], "elbowL": 15, "elbowR": 15, "lean": 12, "head": [15, 0, 0], "plant": {"armL": {"on": "role:lead", "point": "handR", "weight": 0.5}, "armR": {"on": "role:lead", "point": "handL", "weight": 0.5}} },
-      { "beat": 6, "armL": [95, 10], "armR": [95, 10], "elbowL": 15, "elbowR": 15, "lean": 9, "head": [13, 0, 0], "plant": {"armL": {"on": "role:lead", "point": "handR", "weight": 1}, "armR": {"on": "role:lead", "point": "handL", "weight": 1}} },
-      { "beat": 12, "armL": [64, 16], "armR": [64, 16], "elbowL": 32, "elbowR": 32, "lean": 6, "head": [10, 0, 1] },
-      { "beat": 18, "armL": [62, 16], "armR": [62, 16], "elbowL": 28, "elbowR": 28, "lean": 4, "head": [7, 0, 0] },
-      { "beat": 24, "armL": [40, 14], "armR": [40, 14], "elbowL": 22, "elbowR": 22, "lean": 1, "head": [5, 0, 0], "emote": "😊" },
+      { "beat": 3, "armL": [58, 10], "armR": [58, 10], "elbowL": 15, "elbowR": 15, "lean": 12, "head": [15, 0, 0], "plant": {"armL": {"on": "role:lead", "point": "handR", "weight": 0.5}, "armR": {"on": "role:lead", "point": "handL", "weight": 0.5}} },
+      { "beat": 6, "armL": [58, 10], "armR": [58, 10], "elbowL": 15, "elbowR": 15, "lean": 9, "head": [13, 0, 0], "plant": {"armL": {"on": "role:lead", "point": "handR", "weight": 1}, "armR": {"on": "role:lead", "point": "handL", "weight": 1}} },
+      { "beat": 12, "armL": [58, 16], "armR": [58, 16], "elbowL": 32, "elbowR": 32, "lean": 6, "head": [10, 0, 1] },
+      { "beat": 18, "armL": [58, 16], "armR": [58, 16], "elbowL": 28, "elbowR": 28, "lean": 4, "head": [7, 0, 0] },
+      { "beat": 24, "armL": [58, 14], "armR": [58, 14], "elbowL": 22, "elbowR": 22, "lean": 1, "head": [5, 0, 0], "emote": "😊" },
       { "beat": 28 }
     ]
   }

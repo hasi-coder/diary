@@ -728,6 +728,26 @@ export class Figure {
     if (this.emote) this.emote.position.set(this.head.position.x, this.head.position.y + (this.tag ? 0.8 : 0.45) + Math.sin(t * 4) * 0.04, this.head.position.z);
   }
 
+  /** Where each hand is as keyed, before any plant moves it (hand-to-hand plants meet halfway between the two keyed hands). */
+  private keyedHands: Record<string, THREE.Vector3> = {};
+  snapshotHands() {
+    const body = this.skinned;
+    if (!body) return;
+    this.group.updateMatrixWorld(true);
+    for (const limb of ["armL", "armR"]) {
+      const h = body.bone(LIMB_BONES[limb][2]);
+      if (h) this.keyedHands[limb] = h.getWorldPosition(new THREE.Vector3());
+    }
+  }
+
+  /** The keyed hand of this body a hand plant refers to: handL/handR name one, "hand" is whichever is nearest. */
+  private keyedHandFor(point: string, from: THREE.Vector3): THREE.Vector3 | null {
+    const hands = point === "handL" ? [this.keyedHands.armL] : point === "handR" ? [this.keyedHands.armR] : [this.keyedHands.armL, this.keyedHands.armR];
+    let best: THREE.Vector3 | null = null;
+    for (const h of hands) if (h && (!best || h.distanceTo(from) < best.distanceTo(from))) best = h;
+    return best;
+  }
+
   /** A point on this body, on its surface toward `from`, in world space; null before the body has loaded. */
   plantPoint(point: string, from: THREE.Vector3): THREE.Vector3 | null {
     const body = this.skinned, def = PLANT_POINTS[point];
@@ -760,7 +780,14 @@ export class Figure {
       const end = e.getWorldPosition(new THREE.Vector3());
       let target: THREE.Vector3 | null = null;
       if (plant.on === "floor" || plant.on === "bed") target = new THREE.Vector3(end.x, plant.on === "bed" ? 0.64 : 0.02, end.z);
-      else if (plant.on.startsWith("role:")) target = other(plant.on.slice(5))?.plantPoint(plant.point, end) ?? null;
+      else if (plant.on.startsWith("role:")) {
+        const partner = other(plant.on.slice(5));
+        const mine = this.keyedHands[limb], theirs = partner?.keyedHandFor(plant.point, mine ?? end);
+        // Hand to hand: both meet at the midpoint of the two keyed hands, so neither chases the other across the body.
+        target = ["hand", "handL", "handR"].includes(plant.point) && limb.startsWith("arm") && mine && theirs
+          ? mine.clone().add(theirs).multiplyScalar(0.5)
+          : partner?.plantPoint(plant.point, end) ?? null;
+      }
       if (target) solveTwoBone(u as THREE.Bone, l as THREE.Bone, e, target, plant.weight);
       const after = e.getWorldPosition(new THREE.Vector3());
       report.push({ limb, on: plant.on, point: plant.point, weight: plant.weight, target, hand: after, miss: target ? after.distanceTo(target) : NaN });
