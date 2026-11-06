@@ -9,7 +9,7 @@ import type { Actor } from "../../lib/places/world";
 import { garment, outfitOf } from "../../lib/places/garments";
 import { Body, loadBody, loadedBody, shapeOf, type Limbs } from "./body";
 import { drawnHead, photoHead } from "./faces";
-import { KNEEL_ANKLE, KNEEL_DROP, allFoursGrip, measureAllFours, handPlantTarget, solveTwoBone, type KeyedHands } from "./ik";
+import { KNEEL_ANKLE, KNEEL_DROP, allFoursGrip, measureAllFours, handPlantTarget, polePoint, type BodyFrame, solveTwoBone, type KeyedHands } from "./ik";
 
 export const WALL = 2.4;
 const LOW = 0.3;
@@ -689,7 +689,7 @@ export class Figure {
     // front-on, rolled with the head, and shortened a little as seen from the raised camera.
     const faceUp = headForward.y > 0.55;
     const seenFromAbove = faceUp || pose?.face === "up" || pose?.face === "sleeping";
-    this.head.scale.set(this.headSize, this.headSize * (seenFromAbove ? 0.78 : Math.abs(Math.cos(limbs.neck[0] + limbs.head[0]))), this.headSize);
+    this.head.scale.set(this.headSize, this.headSize * (seenFromAbove ? 0.78 : Math.abs(Math.cos(limbs.neck[0] + limbs.head[0] + (four ? this.fourPitch : 0)))), this.headSize);
     // Shadow stays on the floor.
     this.group.children[0].position.y = 0.012 - rise;
     this.ring.visible = opts.selected;
@@ -748,6 +748,13 @@ export class Figure {
     if (this.emote) this.emote.position.set(this.head.position.x, this.head.position.y + (this.tag ? 0.8 : 0.45) + Math.sin(t * 4) * 0.04, this.head.position.z);
   }
 
+  /** The body's own up, forward and leftward in world space as posed now (for elbow and knee poles). */
+  private bodyFrame(body: Body): BodyFrame {
+    const q = body.root.getWorldQuaternion(new THREE.Quaternion());
+    const at = (n: string) => body.bone(n)!.getWorldPosition(new THREE.Vector3());
+    return { up: new THREE.Vector3(0, 1, 0).applyQuaternion(q), forward: new THREE.Vector3(0, 0, 1).applyQuaternion(q), leftward: at("upperarm_l").sub(at("upperarm_r")).normalize() };
+  }
+
   /** The all-fours pitch from this body's own bones (rest pose, current scale). */
   private measureFourPitch(body: Body): number {
     body.root.updateMatrixWorld(true);
@@ -793,14 +800,15 @@ export class Figure {
     if (!body) return report;
     this.group.updateMatrixWorld(true);
     // On all fours the hands go flat on the floor unless the clip plants them somewhere else.
-    if (this.actor.allfours && !this.actor.rest) {
+    if (this.actor.allfours && !this.actor.rest && this.actor.grip !== false) {
       for (const limb of ["armL", "armR"] as const) {
         if (plants?.[limb]) continue;
         const [u, l, e] = LIMB_BONES[limb].map((n) => body.bone(n));
         if (!u || !l || !e) continue;
-        const { target, weight } = allFoursGrip(e.getWorldPosition(new THREE.Vector3()), this.legLength, this.bodyScale);
+        const shoulder = u.getWorldPosition(new THREE.Vector3());
+        const { target, weight } = allFoursGrip(e.getWorldPosition(new THREE.Vector3()), shoulder, shoulder.distanceTo(l.getWorldPosition(new THREE.Vector3())) + l.getWorldPosition(new THREE.Vector3()).distanceTo(e.getWorldPosition(new THREE.Vector3())), this.legLength, this.bodyScale, this.actor.grip || undefined);
         if (weight <= 0) continue;
-        solveTwoBone(u as THREE.Bone, l as THREE.Bone, e, target, weight);
+        solveTwoBone(u as THREE.Bone, l as THREE.Bone, e, target, weight, polePoint(limb, u.getWorldPosition(new THREE.Vector3()), this.bodyFrame(body)));
         const hand = e.getWorldPosition(new THREE.Vector3());
         report.push({ limb, on: "floor", point: "hand", weight, target, hand, miss: hand.distanceTo(target) });
       }
@@ -822,7 +830,7 @@ export class Figure {
           }
         } else target = partner?.plantPoint(plant.point, end) ?? null;
       }
-      if (target) solveTwoBone(u as THREE.Bone, l as THREE.Bone, e, target, plant.weight);
+      if (target) solveTwoBone(u as THREE.Bone, l as THREE.Bone, e, target, plant.weight, polePoint(limb as "armL", u.getWorldPosition(new THREE.Vector3()), this.bodyFrame(body), plant.pole));
       const after = e.getWorldPosition(new THREE.Vector3());
       report.push({ limb, on: plant.on, point: plant.point, weight: plant.weight, target, hand: after, miss: target ? after.distanceTo(target) : NaN });
     }

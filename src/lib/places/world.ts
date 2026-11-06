@@ -54,6 +54,8 @@ export interface Actor {
   kneel?: boolean;
   /** On all fours: hips at kneeling height, body pitched forward about them so the hands reach the floor. */
   allfours?: boolean;
+  /** All fours: the band that flattens a near-floor hand (leg lengths), or false for never. */
+  grip?: import("./allfours").Grip | false;
   /** Limbs planted on something this frame (the renderer solves them with IK once everyone is posed). */
   plants?: import("./interaction").PlantState;
   /** Metres off the ground an action holds them at; stacks with the pose's bob. */
@@ -703,6 +705,7 @@ export class World {
       actor.lift = 0;
       actor.kneel = false;
       actor.allfours = false;
+      actor.grip = undefined;
       actor.plants = undefined;
       actor.rest = null;
       if (act.placements) {
@@ -879,6 +882,7 @@ export class World {
       const posture = placeOf?.posture ?? def.target?.posture;
       a.kneel = posture === "kneel";
       a.allfours = posture === "allfours";
+      a.grip = placeOf?.grip ?? def.target?.grip;
       a.plants = Object.keys(pose.plant).length ? pose.plant : undefined;
       a.pose = pose;
       a.held = pose.held || null;

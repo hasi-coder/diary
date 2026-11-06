@@ -1,6 +1,7 @@
 // Two-bone IK for planting an arm or leg on a point, on the MakeHuman rig. Pure three.js on the
 // bones it is given, so it can be tested without a renderer.
 import * as THREE from "three";
+import { ALLFOURS_GRIP, ALLFOURS_SPREAD, type Grip } from "../../lib/places/allfours";
 
 /**
  * Kneeling: thighs upright, shins flat. The hips drop by this share of the body's own leg length
@@ -36,9 +37,12 @@ export interface PlantResult {
 /**
  * Bends `upper` and `lower` so `end` reaches `target` (world space), keeping the elbow or knee on
  * the side it already bends to. Out of reach, the limb straightens toward the target (never snaps).
- * `weight` blends from the pose the bones are in (0) to the solved pose (1).
+ * `weight` blends from the pose the bones are in (0) to the solved pose (1). With a world-space `pole` point the
+ * elbow goes toward it (the part of it across the aim); without one it stays on the side it already bends to.
+ * Reaching the target and which way the elbow points are independent: a hand can land exactly while the elbow folds
+ * through the ribs, which is what the pole is for.
  */
-export function solveTwoBone(upper: THREE.Bone, lower: THREE.Bone, end: THREE.Object3D, target: THREE.Vector3, weight: number): PlantResult {
+export function solveTwoBone(upper: THREE.Bone, lower: THREE.Bone, end: THREE.Object3D, target: THREE.Vector3, weight: number, pole?: THREE.Vector3): PlantResult {
   const w = Math.max(0, Math.min(1, weight));
   const miss0 = end.getWorldPosition(new THREE.Vector3()).distanceTo(target);
   if (w === 0) return { miss: miss0, clamped: false };
@@ -54,12 +58,14 @@ export function solveTwoBone(upper: THREE.Bone, lower: THREE.Bone, end: THREE.Ob
   const u = to.normalize();
   // The elbow stays on the side it is on: the part of the current upper-limb direction across the aim.
   const bend = new THREE.Vector3().subVectors(p1, p0);
-  const pole = bend.sub(u.clone().multiplyScalar(bend.dot(u)));
-  if (pole.lengthSq() < 1e-8) pole.set(0, 0, 1).sub(u.clone().multiplyScalar(u.z));
-  pole.normalize();
+  const across = (v: THREE.Vector3) => v.sub(u.clone().multiplyScalar(v.dot(u)));
+  let side = pole ? across(new THREE.Vector3().subVectors(pole, p0)) : across(bend);
+  if (side.lengthSq() < 1e-8) side = across(bend);
+  if (side.lengthSq() < 1e-8) side = new THREE.Vector3(0, 0, 1).sub(u.clone().multiplyScalar(u.z));
+  const poleDir = side.normalize();
   const a = (l1 * l1 - l2 * l2 + d * d) / (2 * d);
   const h = Math.sqrt(Math.max(l1 * l1 - a * a, 0));
-  const elbow = p0.clone().addScaledVector(u, a).addScaledVector(pole, h);
+  const elbow = p0.clone().addScaledVector(u, a).addScaledVector(poleDir, h);
   const hand = p0.clone().addScaledVector(u, d);
   const startUpper = upper.quaternion.clone(), startLower = lower.quaternion.clone();
   aim(upper, lower, elbow.clone().sub(p0));
@@ -123,16 +129,40 @@ export function measureAllFours(at: (bone: string) => THREE.Vector3, legLength: 
   const shoulder = at("upperarm_l").add(at("upperarm_r")).multiplyScalar(0.5);
   const arm = at("upperarm_l").distanceTo(at("lowerarm_l")) + at("lowerarm_l").distanceTo(at("hand_l"));
   // Knees on the floor put the hips a thigh's length up (as kneeling does); the wrist rests a little off the floor.
-  return allFoursPitch(legLength * (1 - KNEEL_DROP), shoulder.y - hip.y, shoulder.z - hip.z, arm + 0.04 * scale);
+  // The arm reaches the floor with its hand a little forward of the shoulder (the rig's forearm bend), not straight below it.
+  return allFoursPitch(legLength * (1 - KNEEL_DROP), shoulder.y - hip.y, shoulder.z - hip.z, arm * Math.sqrt(1 - ALLFOURS_SPREAD ** 2) + 0.04 * scale);
 }
 
 /**
  * On all fours a hand that is near the floor is put flat on it: straight down from where the pose keyed it. The
  * rig's forearm rests with a forward bend, so the keyed hand floats a few centimetres up at every scale; this
- * closes that. The weight is full within 0.2 of a leg's length of the floor and fades to nothing by 0.3, so a hand
- * the clip really lifts is left alone.
+ * closes that. The weight is full within `grip.full` of a leg's length of the floor and fades to nothing by
+ * `grip.fade` (default 0.2 and 0.25, see allfours.ts; a clip can set `target.grip`), so a hand the clip really lifts
+ * is left alone.
  */
-export function allFoursGrip(hand: THREE.Vector3, legLength: number, scale: number): { target: THREE.Vector3; weight: number } {
-  const weight = Math.max(0, Math.min(1, (0.3 * legLength - hand.y) / (0.1 * legLength)));
-  return { target: new THREE.Vector3(hand.x, 0.04 * scale, hand.z), weight };
+export function allFoursGrip(hand: THREE.Vector3, shoulder: THREE.Vector3, armLength: number, legLength: number, scale: number, grip: Grip = ALLFOURS_GRIP): { target: THREE.Vector3; weight: number } {
+  const weight = Math.max(0, Math.min(1, (grip.fade * legLength - hand.y) / ((grip.fade - grip.full) * legLength)));
+  // Straight down from the keyed hand, but no further forward of the shoulder than the arm can reach with its wrist on the floor.
+  const spread = new THREE.Vector3(hand.x - shoulder.x, 0, hand.z - shoulder.z);
+  if (spread.length() > ALLFOURS_SPREAD * armLength) spread.setLength(ALLFOURS_SPREAD * armLength);
+  return { target: new THREE.Vector3(shoulder.x + spread.x, 0.04 * scale, shoulder.z + spread.z), weight };
+}
+
+/** The body's frame in world space, for turning a pole given as [out, up, forward] into a point. */
+export interface BodyFrame { up: THREE.Vector3; forward: THREE.Vector3; leftward: THREE.Vector3 }
+
+/**
+ * A world-space pole point for a limb's elbow or knee. `pole` is [out, up, forward] for that limb's own side
+ * (out = away from the midline); without one an arm's elbow goes out and a little up (world up, so an arm
+ * planted on the floor keeps its elbow out and up whatever the torso's pitch) and a leg's knee goes forward and a
+ * little out. `joint` is the shoulder or hip, `isLeft` which side.
+ */
+export function polePoint(limb: "armL" | "armR" | "legL" | "legR", joint: THREE.Vector3, frame: BodyFrame, pole?: [number, number, number]): THREE.Vector3 {
+  const left = limb.endsWith("L");
+  const out = frame.leftward.clone().multiplyScalar(left ? 1 : -1);
+  const [o, u, f] = pole ?? (limb.startsWith("arm") ? [1, 0.35, 0] : [0.15, 0.2, 1]);
+  const worldUp = new THREE.Vector3(0, 1, 0);
+  // Default arms use world up; a stated pole uses the body's own up.
+  const up = pole ? frame.up : worldUp;
+  return joint.clone().add(out.multiplyScalar(o)).addScaledVector(up, u).addScaledVector(frame.forward, f);
 }

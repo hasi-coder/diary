@@ -31,7 +31,8 @@ try {
         export { longestPlantHold } from './src/lib/places/interaction';
         export { mirrorInteraction } from './src/lib/places/interaction';
         export { lengthOf, interactionWarnings } from './src/lib/places/interaction';
-        export { solveTwoBone, KNEEL_DROP, KNEEL_ANKLE, handPlantTarget, measureAllFours, allFoursGrip } from './src/components/world/ik';
+        export { solveTwoBone, KNEEL_DROP, KNEEL_ANKLE, handPlantTarget, measureAllFours, allFoursGrip, polePoint } from './src/components/world/ik';
+        export { estimateHandHeight, ALLFOURS_GRIP } from './src/lib/places/allfours';
         export { CLOTHING_CATALOG } from './src/lib/places/clothingCatalog';
         export { FACE_DEFS, FACE_VIEWS, FALLBACK_VIEW, FACE_SLOTS } from './src/lib/places/character';
         export { setInteractionMinimumAge } from './src/lib/interactionSettings';
@@ -46,7 +47,7 @@ try {
 } finally {
   await rm(scratch, { recursive: true, force: true });
 }
-const { handPlantTarget, poseAt, interactionProblems, INTERACTION_POLICY, interactionEnabled, interactionPolicyProblem, setInteractionEnabled, setInteractionMinimumAge, subscribeInteractionPolicy, OUTFITS, outfitProblems, applyOutfit, outfitOf, withSlot, GARMENTS, CLOTHING_LAYERS, CLOTHING_STYLES, clothingProblems, normalizeWorn, garment, CLOTHING_CATALOG, solveTwoBone, KNEEL_DROP, KNEEL_ANKLE, measureAllFours, allFoursGrip, ageRequirement, mirrorInteraction, furnitureToUse, interactionAccess, categoryTree, categoriesOf, longestPlantHold, setShowLockedActions, interactionGate, interactionHidden, interactionDressed, lengthOf, interactionWarnings, FACE_DEFS, FACE_VIEWS, FALLBACK_VIEW, FACE_SLOTS, World, Body, THREE, GLTFLoader } = animation;
+const { handPlantTarget, poseAt, interactionProblems, INTERACTION_POLICY, interactionEnabled, interactionPolicyProblem, setInteractionEnabled, setInteractionMinimumAge, subscribeInteractionPolicy, OUTFITS, outfitProblems, applyOutfit, outfitOf, withSlot, GARMENTS, CLOTHING_LAYERS, CLOTHING_STYLES, clothingProblems, normalizeWorn, garment, CLOTHING_CATALOG, solveTwoBone, KNEEL_DROP, KNEEL_ANKLE, measureAllFours, allFoursGrip, estimateHandHeight, polePoint, ALLFOURS_GRIP, ageRequirement, mirrorInteraction, furnitureToUse, interactionAccess, categoryTree, categoriesOf, longestPlantHold, setShowLockedActions, interactionGate, interactionHidden, interactionDressed, lengthOf, interactionWarnings, FACE_DEFS, FACE_VIEWS, FALLBACK_VIEW, FACE_SLOTS, World, Body, THREE, GLTFLoader } = animation;
 const { normalizeClothingFit, withClothingFit } = animation;
 const json = async (path) => JSON.parse(await readFile(join(root, path), "utf8"));
 const interaction = (keys, loop = false) => ({
@@ -1211,20 +1212,26 @@ await test("all fours: hands and knees on the floor, nothing through it, seat cl
     assert.ok(pitch > 0.9 && pitch <= half, `scale ${scale}: pitch ${(pitch / deg).toFixed(0)} degrees is a forward lean`);
     const frame = new THREE.Group(); frame.add(body.root);
     frame.position.y = leg * (1 - KNEEL_DROP); frame.rotation.set(pitch, 0, 0, "YXZ"); body.root.position.y = -leg;
-    for (const beat of [0, 4, 8, 28]) {
+    const planted = {};
+    for (const beat of [0, 2, 4, 28]) {
       const pose = poseAt(crawl, "lead", beat), off = pitch - half;
+      frame.position.y = leg * (1 - KNEEL_DROP);
       const p = neutral();
       p.arms = [[pose.armR[0] * deg + off, pose.armR[1] * deg], [pose.armL[0] * deg + off, pose.armL[1] * deg]];
       p.elbows = [pose.elbowR * deg, pose.elbowL * deg];
       p.legs = [pose.legR * deg + off, pose.legL * deg + off]; p.knees = [pose.kneeR * deg, pose.kneeL * deg];
       p.ankles = [[KNEEL_ANKLE, 0], [KNEEL_ANKLE, 0]];
       body.pose(p); frame.updateMatrixWorld(true);
+      // The lint's estimate of a keyed hand's height stays true to the rig.
+      for (const [hand, forward] of [["hand_l", pose.armL[0]], ["hand_r", pose.armR[0]]]) if (beat === 0 || beat === 2) assert.ok(Math.abs(at(hand).y / leg - estimateHandHeight(forward)) < 0.05, `scale ${scale} beat ${beat}: ${hand} keyed at ${forward} is ${(at(hand).y / leg).toFixed(3)} leg lengths up, estimate ${estimateHandHeight(forward).toFixed(3)}`);
       for (const [side, [u, l, e]] of [["l", ["upperarm_l", "lowerarm_l", "hand_l"]], ["r", ["upperarm_r", "lowerarm_r", "hand_r"]]]) {
         const bones = [u, l, e].map((n) => body.bone(n));
-        const { target, weight } = allFoursGrip(at(e), leg, scale);
+        const shoulder = at(u), armLen = shoulder.distanceTo(at(l)) + at(l).distanceTo(at(e));
+        const { target, weight } = allFoursGrip(at(e), shoulder, armLen, leg, scale);
         if (weight > 0) { solveTwoBone(...bones, target, weight); frame.updateMatrixWorld(true); }
         void side;
       }
+      frame.position.y += pose.bob; frame.updateMatrixWorld(true);
       const low = Math.min(...["hand_l", "hand_r", "calf_l", "calf_r", "foot_l", "foot_r", "ball_l", "ball_r", "thigh_l", "thigh_r"].map((n) => at(n).y));
       assert.ok(low >= -0.01 * scale, `scale ${scale} beat ${beat}: lowest joint ${low.toFixed(4)} m is above the floor`);
       for (const hand of ["hand_l", "hand_r"]) {
@@ -1233,15 +1240,89 @@ await test("all fours: hands and knees on the floor, nothing through it, seat cl
       }
       for (const knee of ["calf_l", "calf_r"]) if (beat === 0 || beat === 28) assert.ok(at(knee).y < 0.1 * scale, `scale ${scale}: ${knee} on the floor (${at(knee).y.toFixed(3)} m)`);
       assert.ok(at("thigh_l").y > 0.3 * leg, `scale ${scale}: the seat is clear of the floor (${at("thigh_l").y.toFixed(3)} m)`);
+      planted[beat] = { handL: at("hand_l").y / leg, footR: at("foot_r").y / leg, hips: at("thigh_l").y / leg };
     }
+    // On the lifted beat the left arm and the opposite (right) leg clear the floor, and the body rises with them.
+    assert.ok(planted[2].handL > 0.3, `scale ${scale}: the lifted hand is clear of the floor (${planted[2].handL.toFixed(3)} leg lengths)`);
+    assert.ok(planted[2].footR - planted[0].footR > 0.05, `scale ${scale}: the opposite foot comes up (${(planted[2].footR - planted[0].footR).toFixed(3)})`);
+    assert.ok(planted[2].hips > planted[0].hips + 0.01 * 1, `scale ${scale}: the body rises with the lift`);
+    assert.ok(planted[4].handL < 0.12, `scale ${scale}: and the hand is back on the floor`);
     frame.remove(body.root);
   }
   body.root.scale.setScalar(1); body.root.position.set(0, 0, 0); body.root.rotation.set(0, 0, 0); body.pose(neutral());
   // The posture is a legal one; a clip can name it per role, and rest still overrides.
   assert.deepEqual(interactionProblems(crawl), [], "crawl loads clean");
   assert.deepEqual(interactionWarnings(crawl), [], "and lints clean");
-  assert.equal(poseAt(crawl, "lead", 0).legL, 90, "an omitted leg takes the all-fours baseline");
-  assert.equal(poseAt(crawl, "lead", 0).kneeR, 90);
+  // The baseline: a limb no key names takes 90 on all fours; an explicit 0 stays 0; lint says when a clip relies on it.
+  const bare = { ...crawl, roles: { lead: [{ beat: 0, armL: [100, 8] }, { beat: 4 }] } };
+  assert.equal(poseAt(bare, "lead", 0).legL, 90, "an omitted leg takes the all-fours baseline");
+  assert.equal(poseAt(bare, "lead", 0).kneeR, 90);
+  assert.equal(poseAt(bare, "lead", 0).armR[0], 90, "and an omitted arm");
+  const explicit = { ...crawl, roles: { lead: [{ beat: 0, legL: 0, armR: [0, 0], kneeR: 0 }, { beat: 4 }] } };
+  assert.equal(poseAt(explicit, "lead", 0).legL, 0, "an explicit 0 reads as 0, not as absent");
+  assert.deepEqual(poseAt(explicit, "lead", 0).armR, [0, 0]);
+  assert.equal(poseAt(explicit, "lead", 0).kneeR, 0);
+  const reliance = (clip) => interactionWarnings(clip).filter((w) => /all-fours baseline/.test(w));
+  assert.equal(reliance(bare).length, 1, "relying on the baseline is flagged once per role");
+  assert.ok(/armR, legL, legR, kneeL, kneeR/.test(reliance(bare)[0]), "and names what it relies on");
+  assert.equal(reliance(explicit).length, 1, "naming armR, legL and kneeR with 0 still leaves legR and kneeL to the baseline");
+  assert.ok(!/legL|kneeR|armR/.test(reliance(explicit)[0].split("no key names")[1].split(",so")[0]), "an explicit 0 counts as naming it");
+  assert.equal(reliance(crawl).length, 0, "crawl names every limb");
   const stand = { ...crawl, target: { ...crawl.target, posture: "stand" } };
-  assert.equal(poseAt(stand, "lead", 0).legL, 0, "and other postures stay neutral");
+  assert.equal(poseAt(stand, "lead", 0).legL, 90, "stand still takes what the key says");
+  assert.equal(poseAt({ ...stand, roles: { lead: [{ beat: 0 }, { beat: 4 }] } }, "lead", 0).legL, 0, "and other postures stay neutral");
+  assert.equal(reliance(stand).length, 0, "only all fours is flagged");
+  // The flatten band: a number, an override, and a lint when a lifted hand sits inside it.
+  assert.deepEqual(ALLFOURS_GRIP, { full: 0.2, fade: 0.25 });
+  const hand = new THREE.Vector3(0.1, 0.05, 0.3), shoulder = new THREE.Vector3(0.1, 0.4, 0.2);
+  const grip = (y, band) => allFoursGrip(new THREE.Vector3(0.1, y, 0.3), shoulder, 0.36, 1, 1, band).weight;
+  assert.equal(grip(0.1), 1, "inside the band: flattened"); assert.equal(grip(0.3), 0, "beyond it: left alone");
+  assert.ok(grip(0.225) > 0.4 && grip(0.225) < 0.6, "and it fades between");
+  assert.equal(grip(0.3, { full: 0.4, fade: 0.5 }), 1, "a wider band flattens the same hand");
+  void hand;
+  const lifted = (forward, extra = {}) => ({ ...crawl, target: { ...crawl.target, ...extra }, roles: { lead: [{ beat: 0, armL: [forward, 8], armR: [105, 10], legL: 90, legR: 90, kneeL: 95, kneeR: 95 }, { beat: 4 }] } });
+  const bandWarn = (clip) => interactionWarnings(clip).filter((w) => /flatten band/.test(w));
+  assert.equal(bandWarn(lifted(145)).length, 0, "a real lift is clear of the band");
+  assert.equal(bandWarn(lifted(112)).length, 1, "a lift the band would press back to the floor is flagged");
+  assert.equal(bandWarn(lifted(112, { grip: false })).length, 0, "grip: false turns the flattening off, so no warning");
+  assert.equal(bandWarn(lifted(112, { grip: { full: 0.05, fade: 0.1 } })).length, 0, "and so does a narrower band");
+  assert.deepEqual(interactionProblems(lifted(112, { grip: false })), []);
+  assert.ok(interactionProblems(lifted(112, { grip: { full: 0.3, fade: 0.2 } })).length > 0, "a band with fade under full is a load error");
+  assert.ok(interactionProblems(lifted(112, { grip: 5 })).length > 0, "so is a grip that is neither false nor a band");
+});
+
+await test("a pole aims the elbow without changing where the hand lands", () => {
+  const deg = Math.PI / 180;
+  for (const scale of [0.7, 1, 1.3]) {
+    const bones = ["upperarm_l", "lowerarm_l", "hand_l"].map((n) => body.bone(n));
+    const frame = { up: new THREE.Vector3(0, 1, 0), forward: new THREE.Vector3(0, 0, 1), leftward: new THREE.Vector3(1, 0, 0) };
+    const elbowSide = (pole) => {
+      body.root.scale.setScalar(scale); body.pose(neutral()); body.root.updateMatrixWorld(true);
+      const shoulder = at("upperarm_l");
+      const target = shoulder.clone().add(new THREE.Vector3(0.05, 0.02, 0.3).multiplyScalar(scale));
+      const r = solveTwoBone(...bones, target, 1, pole ? polePoint("armL", shoulder, frame, pole) : undefined);
+      body.root.updateMatrixWorld(true);
+      assert.ok(at("hand_l").distanceTo(target) < 0.02 && r.clamped === false, `scale ${scale}: the hand lands within 2 cm whichever way the elbow points`);
+      // How far the elbow sits to the outside (left, +x) of the shoulder-to-hand line.
+      const line = at("hand_l").sub(shoulder), toElbow = at("lowerarm_l").sub(shoulder);
+      return toElbow.x - line.clone().multiplyScalar(toElbow.dot(line) / line.lengthSq()).x;
+    };
+    const outward = elbowSide([1, 0, 0]), inward = elbowSide([-1, 0, 0]), down = elbowSide([0, -1, 0]), dflt = elbowSide(undefined);
+    assert.ok(outward > 0.03 * scale, `scale ${scale}: an outward pole puts the elbow out (${outward.toFixed(3)})`);
+    assert.ok(inward < -0.03 * scale, `scale ${scale}: an inward pole puts it in (${inward.toFixed(3)}), through the ribs, with the same hand`);
+    assert.ok(Math.abs(down) < Math.abs(outward), "a downward pole is neither");
+    void dflt; void deg;
+  }
+  body.root.scale.setScalar(1); body.pose(neutral());
+  // The default arm pole is out and a little up; the default leg pole is forward.
+  const frame = { up: new THREE.Vector3(0, 1, 0), forward: new THREE.Vector3(0, 0, 1), leftward: new THREE.Vector3(1, 0, 0) };
+  const j = new THREE.Vector3();
+  const armL = polePoint("armL", j, frame), armR = polePoint("armR", j, frame), leg = polePoint("legL", j, frame);
+  assert.ok(armL.x > 0 && armR.x < 0 && armL.y > 0, "arms: each elbow out from its own side and a little up");
+  assert.ok(leg.z > Math.abs(leg.x) && leg.z > 0, "legs: the knee goes forward");
+  assert.ok(polePoint("armL", j, frame, [0, 0, 1]).z > 0 && polePoint("armR", j, frame, [1, 0, 0]).x < 0, "a stated pole is out per side");
+  // The schema accepts a pole on a plant and rejects a zero or malformed one.
+  const withPole = (pole) => interactionProblems({ id: "t", label: "t", category: "care", beat: 1, length: 4, people: { min: 1, max: 1 }, formation: { type: "spots", spots: [{ role: "lead", at: [0, 0], facing: 0 }] }, roles: { lead: [{ beat: 0, plant: { armL: { on: "floor", pole } } }] } });
+  assert.deepEqual(withPole([1, 0.3, 0]), []);
+  assert.ok(withPole([0, 0, 0]).length > 0 && withPole([1, 2]).length > 0 && withPole("out").length > 0, "a zero, short or non-vector pole is a load error");
 });

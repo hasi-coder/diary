@@ -6,7 +6,7 @@
   "description": "Across the floor on hands and knees. Slow.",
   "requires": { "tier": "casual" },
   "people": { "min": 1, "max": 1 },
-  "beat": 0.7,
+  "beat": 0.62,
   "length": 32,
   "loop": false,
   "formation": { "type": "spots", "spots": [ { "role": "lead", "at": [0, 0], "facing": 0 } ] },
@@ -14,15 +14,22 @@
   "camera": { "focus": "target", "zoom": 1.2, "height": 0.35 },
   "roles": {
     "lead": [
-      { "beat": 0, "armL": [95, 10], "armR": [95, 10], "elbowL": 8, "elbowR": 8, "head": [18, 0, 0] },
-      { "beat": 4, "armL": [100, 8], "legL": 96, "kneeL": 100, "move": [0, 0.12] },
-      { "beat": 8, "armR": [100, 8], "legR": 96, "kneeR": 100, "move": [0, 0.24] },
-      { "beat": 12, "armL": [100, 8], "legL": 96, "kneeL": 100, "move": [0, 0.36] },
-      { "beat": 16, "armR": [100, 8], "legR": 96, "kneeR": 100, "move": [0, 0.48] },
-      { "beat": 20, "armL": [100, 8], "legL": 96, "kneeL": 100, "move": [0, 0.6] },
-      { "beat": 24, "armR": [100, 8], "legR": 96, "kneeR": 100, "move": [0, 0.72] },
-      { "beat": 28, "armL": [95, 10], "armR": [95, 10], "legL": 90, "legR": 90, "kneeL": 90, "kneeR": 90, "move": [0, 0.8] },
-      { "beat": 32 }
+      { "beat": 0, "armL": [105, 10], "armR": [105, 10], "elbowL": 8, "elbowR": 8, "legL": 90, "legR": 90, "kneeL": 95, "kneeR": 95, "head": [18, 0, 0], "bob": 0 },
+      { "beat": 2, "armL": [145, 8], "legR": 96, "kneeR": 118, "bob": 0.02, "move": [0, 0.06] },
+      { "beat": 4, "armL": [105, 10], "legR": 90, "kneeR": 95, "bob": 0, "move": [0, 0.12] },
+      { "beat": 6, "armR": [145, 8], "legL": 96, "kneeL": 118, "bob": 0.02, "move": [0, 0.18] },
+      { "beat": 8, "armR": [105, 10], "legL": 90, "kneeL": 95, "bob": 0, "move": [0, 0.24] },
+      { "beat": 10, "armL": [145, 8], "legR": 96, "kneeR": 118, "bob": 0.02, "move": [0, 0.3] },
+      { "beat": 12, "armL": [105, 10], "legR": 90, "kneeR": 95, "bob": 0, "move": [0, 0.36] },
+      { "beat": 14, "armR": [145, 8], "legL": 96, "kneeL": 118, "bob": 0.02, "move": [0, 0.42] },
+      { "beat": 16, "armR": [105, 10], "legL": 90, "kneeL": 95, "bob": 0, "move": [0, 0.48] },
+      { "beat": 18, "armL": [145, 8], "legR": 96, "kneeR": 118, "bob": 0.02, "move": [0, 0.54] },
+      { "beat": 20, "armL": [105, 10], "legR": 90, "kneeR": 95, "bob": 0, "move": [0, 0.6] },
+      { "beat": 22, "armR": [145, 8], "legL": 96, "kneeL": 118, "bob": 0.02, "move": [0, 0.66] },
+      { "beat": 24, "armR": [105, 10], "legL": 90, "kneeL": 95, "bob": 0, "move": [0, 0.72] },
+      { "beat": 26, "armL": [145, 8], "legR": 96, "kneeR": 118, "bob": 0.02, "move": [0, 0.78] },
+      { "beat": 28, "armL": [105, 10], "legR": 90, "kneeR": 95, "bob": 0, "move": [0, 0.84] },
+      { "beat": 32, "move": [0, 0.84] }
     ]
   }
 }

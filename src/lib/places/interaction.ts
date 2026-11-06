@@ -1,5 +1,6 @@
 import type { ClothingLayer, ClothingRegion } from "./clothingTypes";
 import { FACE_VIEWS, type FaceView } from "./character";
+import { ALLFOURS_GRIP, estimateHandHeight, type Grip } from "./allfours";
 
 // Things people do together in the Places world (dance, hug, high-five, …),
 // described as JSON (./interactions/*.json): who takes part, where each person
@@ -86,6 +87,8 @@ export interface RolePlacement {
   posture: Posture;
   /** Overrides the action's `rest` for this role. */
   rest?: Rest;
+  /** All fours only: the band that flattens a near-floor hand, in leg lengths, or `false` to never flatten (see allfours.ts). */
+  grip?: Grip | false;
   /** Place this role against another role instead (same as a top-level `anchors` entry). */
   anchor?: Anchor;
   /** Which side of the furniture, from the point of view of a person lying on it. */
@@ -147,9 +150,14 @@ export type Limb = "armL" | "armR" | "legL" | "legR";
 export const LIMBS: Limb[] = ["armL", "armR", "legL", "legR"];
 /** Points on a body a limb can be planted on. `hand` on another body is the mutual midpoint of the two keyed hands when that body plants a hand back (else it falls back to their opposite hand, and lint flags it); `handL` / `handR` name one specific keyed hand of that body. */
 export const PLANT_POINTS = ["head", "shoulder", "hand", "handL", "handR", "hip", "lowerBack", "knee", "surface"];
-export interface Plant { on: string; point?: string; weight?: number; blend?: number }
+/**
+ * `pole` aims the elbow (or knee) as [out, up, forward]: out is away from the body's midline for that limb's own side
+ * (so it needs no flipping when a clip is mirrored), up is the body's up, forward is the way it faces. Default for an
+ * arm is out and a little up, [1, 0.35, 0]; for a leg, forward and a little out, [0.15, 0.2, 1].
+ */
+export interface Plant { on: string; point?: string; weight?: number; blend?: number; pole?: [number, number, number] }
 /** A planted limb at an instant: how strongly it is held on its target. */
-export type PlantState = Partial<Record<Limb, { on: string; point: string; weight: number }>>;
+export type PlantState = Partial<Record<Limb, { on: string; point: string; weight: number; pole?: [number, number, number] }>>;
 
 /** How an action reads, for a lint that checks the declared tier against what it does. */
 export interface Content { motion?: "static" | "cyclic" | "repetitive"; contact?: "none" | "incidental" | "sustained"; witness?: "fine" | "private" }
@@ -166,7 +174,7 @@ export interface Interaction {
    * `posture` is how everyone uses it; `roles` overrides that for a role, so a
    * client can lie on a bed while a therapist stands beside it.
    */
-  target?: { kinds: string[]; posture: Posture; leaveSeat?: boolean; rest?: Rest; roles?: Record<string, RolePlacement> };
+  target?: { kinds: string[]; posture: Posture; leaveSeat?: boolean; rest?: Rest; grip?: Grip | false; roles?: Record<string, RolePlacement> };
   /** A timed cutaway to a full-screen card, in beats. Only for actions that change outfit (with `outfitAt`). */
   cutaway?: { from: number; to: number; label: string; emoji?: string };
   /**
@@ -316,6 +324,8 @@ export function interactionProblems(value: unknown): string[] {
   if (!(v.people?.min! >= 1) || !(v.people?.max! >= v.people?.min!)) out.push(`${name}: people needs min ≥ 1 and max ≥ min.`);
   const postures = ["stand", "sit", "lie", "inside", "kneel", "allfours"];
   if (v.target && (!Array.isArray(v.target.kinds) || !v.target.kinds.length || v.target.kinds.some((kind) => typeof kind !== "string") || !postures.includes(v.target.posture))) out.push(`${name}: target needs furniture kinds and a stand, sit, lie or inside posture.`);
+  const badGrip = (g: unknown) => g !== undefined && g !== false && !(typeof g === "object" && g !== null && Number.isFinite((g as Grip).full) && Number.isFinite((g as Grip).fade) && (g as Grip).full >= 0 && (g as Grip).fade > (g as Grip).full);
+  if (badGrip(v.target?.grip) || Object.values(v.target?.roles ?? {}).some((place) => badGrip(place?.grip))) out.push(`${name}: grip is false or { full, fade } in leg lengths with fade above full.`);
   for (const [role, place] of Object.entries(v.target?.roles ?? {})) {
     if (!postures.includes(place?.posture) || (place.side !== undefined && !["left", "right", "center"].includes(place.side)) || ([place.along, place.across, place.facing].some((n) => n !== undefined && !Number.isFinite(n)))) out.push(`${name}: target role "${role}" needs a posture, an optional left or right side and numeric across, along and facing.`);
   }
@@ -356,7 +366,7 @@ export function interactionProblems(value: unknown): string[] {
     for (const key of Array.isArray(keys) ? keys : []) for (const [limb, plant] of Object.entries(key.plant ?? {})) {
       const to = typeof plant?.on === "string" ? plant.on : "";
       const okOn = to === "bed" || to === "floor" || (to.startsWith("role:") && !!v.roles?.[to.slice(5)] && to.slice(5) !== role);
-      if (!LIMBS.includes(limb as Limb) || !okOn || (plant.point !== undefined && !PLANT_POINTS.includes(plant.point)) || !(plant.weight === undefined || (Number.isFinite(plant.weight) && plant.weight >= 0 && plant.weight <= 1)) || !(plant.blend === undefined || (Number.isFinite(plant.blend) && plant.blend >= 0))) out.push(`${name}: role "${role}" at beat ${key.beat}: plant ${limb} needs a limb (${LIMBS.join(", ")}), an on of role:<another role>, bed or floor, a point (${PLANT_POINTS.join(", ")}), weight 0–1 and blend in beats.`);
+      if (!LIMBS.includes(limb as Limb) || !okOn || (plant.point !== undefined && !PLANT_POINTS.includes(plant.point)) || !(plant.weight === undefined || (Number.isFinite(plant.weight) && plant.weight >= 0 && plant.weight <= 1)) || !(plant.blend === undefined || (Number.isFinite(plant.blend) && plant.blend >= 0)) || !(plant.pole === undefined || (Array.isArray(plant.pole) && plant.pole.length === 3 && plant.pole.every(Number.isFinite) && plant.pole.some((n) => n !== 0)))) out.push(`${name}: role "${role}" at beat ${key.beat}: plant ${limb} needs a limb (${LIMBS.join(", ")}), an on of role:<another role>, bed or floor, a point (${PLANT_POINTS.join(", ")}), weight 0–1, blend in beats and an optional pole of three numbers [out, up, forward], not all zero.`);
     }
   }
   if (v.clearance && !(v.clearance.min === undefined || (Number.isFinite(v.clearance.min) && v.clearance.min >= 0))) out.push(`${name}: clearance.min must be a distance in metres.`);
@@ -448,7 +458,7 @@ function plantsAt(keys: Key[], beat: number, def: Interaction): PlantState {
   void def;
   const out: PlantState = {};
   for (const limb of LIMBS) {
-    type Entry = { beat: number; on: string; point?: string; weight?: number; blend?: number };
+    type Entry = { beat: number; on: string; point?: string; weight?: number; blend?: number; pole?: [number, number, number] };
     const entries: Entry[] = keys.filter((k) => k.plant?.[limb]).map((k) => ({ beat: k.beat, ...k.plant![limb]! }));
     const ramp = (e: Entry, from: number, at: number) => {
       const target = Math.max(0, Math.min(1, e.weight ?? 1));
@@ -463,7 +473,7 @@ function plantsAt(keys: Key[], beat: number, def: Interaction): PlantState {
     }
     if (!current) continue;
     const weight = ramp(current, start, beat);
-    if (weight > 0) out[limb] = { on: current.on, point: current.point ?? "hand", weight };
+    if (weight > 0) out[limb] = { on: current.on, point: current.point ?? "hand", weight, ...(current.pole ? { pole: current.pole } : {}) };
   }
   return out;
 }
@@ -525,6 +535,18 @@ export function interactionWarnings(value: unknown): string[] {
     if (!handsBack(other, role) && !flagged.has(`${role}>${other}`)) {
       flagged.add(`${role}>${other}`);
       out.push(`${name}: role "${role}" at beat ${key.beat}: plant ${limb} on "${other}" uses point "hand" (the mutual midpoint), but "${other}" never plants a hand back, so it falls back to their opposite hand; plant a hand back, or name handL / handR.`);
+    }
+  }
+  // All fours: a limb no key names silently takes the posture's baseline, and a hand the keys lift may sit inside the flatten band.
+  for (const [role, keys] of Object.entries(v.roles ?? {})) {
+    if (postureOf(v as Interaction, role) !== "allfours") continue;
+    const list = Array.isArray(keys) ? keys : [];
+    const missing = (["armL", "armR", "legL", "legR", "kneeL", "kneeR"] as const).filter((f) => !list.some((k) => k[f] !== undefined));
+    if (missing.length) out.push(`${name}: role "${role}" is on all fours and no key names ${missing.join(", ")}, so it takes the all-fours baseline (arms 90, legs 90, knees 90) rather than 0; name ${missing.length > 1 ? "them" : "it"} to rely on that on purpose (an explicit 0 means straight).`);
+    const grip = v.target?.roles?.[role]?.grip ?? v.target?.grip ?? ALLFOURS_GRIP;
+    if (grip !== false) for (const key of list) for (const arm of ["armL", "armR"] as const) {
+      const forward = key[arm]?.[0];
+      if (forward !== undefined && forward >= 110 && estimateHandHeight(forward) < grip.fade) out.push(`${name}: role "${role}" at beat ${key.beat}: ${arm} is keyed to ${forward} (a lift), but its hand would sit about ${estimateHandHeight(forward).toFixed(2)} leg lengths up, inside the flatten band (under ${grip.fade}), so it is pressed back to the floor; lift it higher, narrow target.grip, or set grip: false.`);
     }
   }
   if (v.clearance?.min !== undefined && v.clearance.min < 0.05) out.push(`${name}: clearance.min is under 5 cm, which lets bodies intersect.`);
