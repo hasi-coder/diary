@@ -9,7 +9,7 @@ import type { Actor } from "../../lib/places/world";
 import { garment, outfitOf } from "../../lib/places/garments";
 import { Body, loadBody, loadedBody, shapeOf, type Limbs } from "./body";
 import { drawnHead, photoHead } from "./faces";
-import { KNEEL_ANKLE, KNEEL_DROP, handPlantTarget, solveTwoBone, type KeyedHands } from "./ik";
+import { KNEEL_ANKLE, KNEEL_DROP, allFoursGrip, measureAllFours, handPlantTarget, solveTwoBone, type KeyedHands } from "./ik";
 
 export const WALL = 2.4;
 const LOW = 0.3;
@@ -335,6 +335,8 @@ export class Figure {
   private stoop: number;
   private ring: THREE.Mesh;
   private legLength: number;
+  /** The forward pitch (radians from upright) that puts this body's hands on the floor on all fours; measured on the rig. */
+  private fourPitch = Math.PI / 2;
   private bodyScale = 1;
   private angle = 0;
   private phase = Math.random() * 6;
@@ -500,6 +502,7 @@ export class Figure {
       if (o instanceof THREE.Mesh) o.castShadow = true;
     });
     this.legLength = body.hipHeight * scale;
+    this.fourPitch = this.measureFourPitch(body);
     this.armClearance = 0.12 + 0.16 * Math.max(0, shape.weight) + 0.08 * Math.max(0, shape.muscle);
     this.headSize = body.headLength * scale * 4.2;
     this.head.scale.setScalar(this.headSize);
@@ -579,7 +582,14 @@ export class Figure {
     while (d < -Math.PI) d += 2 * Math.PI;
     // Poses are already smooth; follow them closely, ease into walking turns.
     this.angle += d * (pose ? 0.6 : 0.25);
-    if (a.rest) {
+    const four = !!a.allfours && !a.rest;
+    if (four) {
+      // Hips at kneeling height, body pitched forward about them.
+      this.posture.position.y = this.legLength * (1 - KNEEL_DROP);
+      this.posture.rotation.set(this.fourPitch, this.angle, 0, "YXZ");
+      this.body.position.y = -this.legLength;
+      this.body.rotation.y = 0;
+    } else if (a.rest) {
       this.posture.position.y = a.rest.height;
       this.posture.rotation.set(a.rest.pitch, this.angle, 0, "YXZ");
       this.body.position.y = -this.legLength;
@@ -622,6 +632,16 @@ export class Figure {
       limbs.legs = sitting ? [half, half] : [swing, -swing];
       limbs.knees = sitting ? [half, half] : [bend, bend];
       limbs.arms = sitting ? [[0.5, 0], [0.5, 0]] : [[-swing * 0.7, 0], [swing * 0.7, 0]];
+    }
+    if (four) {
+      // Keyed arm and thigh angles read as if the torso were level; the pitch past level is taken off them so
+      // "90" is straight down to the floor whatever the body's proportions. The head comes back up to look ahead.
+      const off = this.fourPitch - half;
+      limbs.arms = limbs.arms.map(([f, o]) => [f + off, o]) as Limbs["arms"];
+      limbs.legs = [limbs.legs[0] + off, limbs.legs[1] + off];
+      limbs.ankles = limbs.ankles.map(([up, roll]) => [up + KNEEL_ANKLE, roll]) as Limbs["ankles"];
+      limbs.neck = [limbs.neck[0] - this.fourPitch * 0.45, limbs.neck[1], limbs.neck[2]];
+      limbs.head = [limbs.head[0] - this.fourPitch * 0.35, limbs.head[1], limbs.head[2]];
     }
     if (a.kneel) { limbs.knees = [limbs.knees[0] + half, limbs.knees[1] + half]; limbs.ankles = limbs.ankles.map(([up, roll]) => [up + KNEEL_ANKLE, roll]) as Limbs["ankles"]; }
     const { lean, tilt, twist } = limbs;
@@ -728,13 +748,19 @@ export class Figure {
     if (this.emote) this.emote.position.set(this.head.position.x, this.head.position.y + (this.tag ? 0.8 : 0.45) + Math.sin(t * 4) * 0.04, this.head.position.z);
   }
 
+  /** The all-fours pitch from this body's own bones (rest pose, current scale). */
+  private measureFourPitch(body: Body): number {
+    body.root.updateMatrixWorld(true);
+    return measureAllFours((n) => body.bone(n)!.getWorldPosition(new THREE.Vector3()), this.legLength, this.bodyScale);
+  }
+
   /** Where each hand is as keyed, before any plant moves it (hand-to-hand plants meet halfway between the two keyed hands). */
   keyedHands: Partial<KeyedHands> = {};
   snapshotHands() {
     const body = this.skinned;
     if (!body) return;
     this.group.updateMatrixWorld(true);
-    for (const limb of ["armL", "armR"]) {
+    for (const limb of ["armL", "armR"] as const) {
       const h = body.bone(LIMB_BONES[limb][2]);
       if (h) this.keyedHands[limb] = h.getWorldPosition(new THREE.Vector3());
     }
@@ -764,8 +790,22 @@ export class Figure {
   applyPlants(other: (role: string) => Figure | undefined): { limb: string; on: string; point: string; weight: number; target: THREE.Vector3 | null; hand: THREE.Vector3; miss: number }[] {
     const body = this.skinned, plants = this.actor.plants;
     const report: ReturnType<Figure["applyPlants"]> = [];
-    if (!body || !plants) return report;
+    if (!body) return report;
     this.group.updateMatrixWorld(true);
+    // On all fours the hands go flat on the floor unless the clip plants them somewhere else.
+    if (this.actor.allfours && !this.actor.rest) {
+      for (const limb of ["armL", "armR"] as const) {
+        if (plants?.[limb]) continue;
+        const [u, l, e] = LIMB_BONES[limb].map((n) => body.bone(n));
+        if (!u || !l || !e) continue;
+        const { target, weight } = allFoursGrip(e.getWorldPosition(new THREE.Vector3()), this.legLength, this.bodyScale);
+        if (weight <= 0) continue;
+        solveTwoBone(u as THREE.Bone, l as THREE.Bone, e, target, weight);
+        const hand = e.getWorldPosition(new THREE.Vector3());
+        report.push({ limb, on: "floor", point: "hand", weight, target, hand, miss: hand.distanceTo(target) });
+      }
+    }
+    if (!plants) return report;
     for (const [limb, plant] of Object.entries(plants)) {
       const [u, l, e] = (LIMB_BONES[limb] ?? []).map((n) => body.bone(n));
       if (!u || !l || !e) continue;

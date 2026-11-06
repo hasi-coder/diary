@@ -31,7 +31,7 @@ try {
         export { longestPlantHold } from './src/lib/places/interaction';
         export { mirrorInteraction } from './src/lib/places/interaction';
         export { lengthOf, interactionWarnings } from './src/lib/places/interaction';
-        export { solveTwoBone, KNEEL_DROP, KNEEL_ANKLE, handPlantTarget } from './src/components/world/ik';
+        export { solveTwoBone, KNEEL_DROP, KNEEL_ANKLE, handPlantTarget, measureAllFours, allFoursGrip } from './src/components/world/ik';
         export { CLOTHING_CATALOG } from './src/lib/places/clothingCatalog';
         export { FACE_DEFS, FACE_VIEWS, FALLBACK_VIEW, FACE_SLOTS } from './src/lib/places/character';
         export { setInteractionMinimumAge } from './src/lib/interactionSettings';
@@ -46,7 +46,7 @@ try {
 } finally {
   await rm(scratch, { recursive: true, force: true });
 }
-const { handPlantTarget, poseAt, interactionProblems, INTERACTION_POLICY, interactionEnabled, interactionPolicyProblem, setInteractionEnabled, setInteractionMinimumAge, subscribeInteractionPolicy, OUTFITS, outfitProblems, applyOutfit, outfitOf, withSlot, GARMENTS, CLOTHING_LAYERS, CLOTHING_STYLES, clothingProblems, normalizeWorn, garment, CLOTHING_CATALOG, solveTwoBone, KNEEL_DROP, KNEEL_ANKLE, ageRequirement, mirrorInteraction, furnitureToUse, interactionAccess, categoryTree, categoriesOf, longestPlantHold, setShowLockedActions, interactionGate, interactionHidden, interactionDressed, lengthOf, interactionWarnings, FACE_DEFS, FACE_VIEWS, FALLBACK_VIEW, FACE_SLOTS, World, Body, THREE, GLTFLoader } = animation;
+const { handPlantTarget, poseAt, interactionProblems, INTERACTION_POLICY, interactionEnabled, interactionPolicyProblem, setInteractionEnabled, setInteractionMinimumAge, subscribeInteractionPolicy, OUTFITS, outfitProblems, applyOutfit, outfitOf, withSlot, GARMENTS, CLOTHING_LAYERS, CLOTHING_STYLES, clothingProblems, normalizeWorn, garment, CLOTHING_CATALOG, solveTwoBone, KNEEL_DROP, KNEEL_ANKLE, measureAllFours, allFoursGrip, ageRequirement, mirrorInteraction, furnitureToUse, interactionAccess, categoryTree, categoriesOf, longestPlantHold, setShowLockedActions, interactionGate, interactionHidden, interactionDressed, lengthOf, interactionWarnings, FACE_DEFS, FACE_VIEWS, FALLBACK_VIEW, FACE_SLOTS, World, Body, THREE, GLTFLoader } = animation;
 const { normalizeClothingFit, withClothingFit } = animation;
 const json = async (path) => JSON.parse(await readFile(join(root, path), "utf8"));
 const interaction = (keys, loop = false) => ({
@@ -1198,4 +1198,50 @@ await test("reciprocal hand plants converge on the midpoint of the keyed hands, 
   assert.ok(alone.distanceTo(b.armR) < 0.036 && alone.distanceTo(a.armL.clone().add(b.armR).multiplyScalar(0.5)) > 0.1, "one-sided falls back to handR");
   // Solved hand positions are never an input: the signature takes keyed hands only, so the target can't walk.
   assert.equal(handPlantTarget.length, 6);
+});
+
+await test("all fours: hands and knees on the floor, nothing through it, seat clear, at every scale", async () => {
+  const crawl = await action("crawl");
+  const deg = Math.PI / 180, half = Math.PI / 2;
+  for (const scale of [0.64, 0.7, 1, 1.3]) {
+    body.root.scale.setScalar(scale); body.root.position.set(0, 0, 0); body.root.rotation.set(0, 0, 0);
+    body.pose(neutral()); body.root.updateMatrixWorld(true);
+    const leg = body.hipHeight * scale;
+    const pitch = measureAllFours(at, leg, scale);
+    assert.ok(pitch > 0.9 && pitch <= half, `scale ${scale}: pitch ${(pitch / deg).toFixed(0)} degrees is a forward lean`);
+    const frame = new THREE.Group(); frame.add(body.root);
+    frame.position.y = leg * (1 - KNEEL_DROP); frame.rotation.set(pitch, 0, 0, "YXZ"); body.root.position.y = -leg;
+    for (const beat of [0, 4, 8, 28]) {
+      const pose = poseAt(crawl, "lead", beat), off = pitch - half;
+      const p = neutral();
+      p.arms = [[pose.armR[0] * deg + off, pose.armR[1] * deg], [pose.armL[0] * deg + off, pose.armL[1] * deg]];
+      p.elbows = [pose.elbowR * deg, pose.elbowL * deg];
+      p.legs = [pose.legR * deg + off, pose.legL * deg + off]; p.knees = [pose.kneeR * deg, pose.kneeL * deg];
+      p.ankles = [[KNEEL_ANKLE, 0], [KNEEL_ANKLE, 0]];
+      body.pose(p); frame.updateMatrixWorld(true);
+      for (const [side, [u, l, e]] of [["l", ["upperarm_l", "lowerarm_l", "hand_l"]], ["r", ["upperarm_r", "lowerarm_r", "hand_r"]]]) {
+        const bones = [u, l, e].map((n) => body.bone(n));
+        const { target, weight } = allFoursGrip(at(e), leg, scale);
+        if (weight > 0) { solveTwoBone(...bones, target, weight); frame.updateMatrixWorld(true); }
+        void side;
+      }
+      const low = Math.min(...["hand_l", "hand_r", "calf_l", "calf_r", "foot_l", "foot_r", "ball_l", "ball_r", "thigh_l", "thigh_r"].map((n) => at(n).y));
+      assert.ok(low >= -0.01 * scale, `scale ${scale} beat ${beat}: lowest joint ${low.toFixed(4)} m is above the floor`);
+      for (const hand of ["hand_l", "hand_r"]) {
+        const y = at(hand).y;
+        if (beat === 0 || beat === 28) assert.ok(y < 0.1 * scale, `scale ${scale} beat ${beat}: ${hand} on the floor (${y.toFixed(3)} m)`);
+      }
+      for (const knee of ["calf_l", "calf_r"]) if (beat === 0 || beat === 28) assert.ok(at(knee).y < 0.1 * scale, `scale ${scale}: ${knee} on the floor (${at(knee).y.toFixed(3)} m)`);
+      assert.ok(at("thigh_l").y > 0.3 * leg, `scale ${scale}: the seat is clear of the floor (${at("thigh_l").y.toFixed(3)} m)`);
+    }
+    frame.remove(body.root);
+  }
+  body.root.scale.setScalar(1); body.root.position.set(0, 0, 0); body.root.rotation.set(0, 0, 0); body.pose(neutral());
+  // The posture is a legal one; a clip can name it per role, and rest still overrides.
+  assert.deepEqual(interactionProblems(crawl), [], "crawl loads clean");
+  assert.deepEqual(interactionWarnings(crawl), [], "and lints clean");
+  assert.equal(poseAt(crawl, "lead", 0).legL, 90, "an omitted leg takes the all-fours baseline");
+  assert.equal(poseAt(crawl, "lead", 0).kneeR, 90);
+  const stand = { ...crawl, target: { ...crawl.target, posture: "stand" } };
+  assert.equal(poseAt(stand, "lead", 0).legL, 0, "and other postures stay neutral");
 });

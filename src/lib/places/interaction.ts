@@ -76,7 +76,7 @@ export type Formation =
   /** Everyone where they are, turned toward the middle of the group. */
   | { type: "stay"; role: string };
 
-export type Posture = "stand" | "sit" | "lie" | "inside" | "kneel";
+export type Posture = "stand" | "sit" | "lie" | "inside" | "kneel" | "allfours";
 
 /** How a body rests on furniture: hip height in metres and tilt in degrees (-90 = lying face up, 0 = sitting upright). */
 export interface Rest { height: number; pitch: number }
@@ -290,6 +290,18 @@ const NEUTRAL: Required<Omit<Pose, "emote" | "held" | "face" | "plant">> = {
   bob: 0,
   move: [0, 0],
 };
+/** The posture a role is in, falling back to the clip's. */
+export const postureOf = (def: Pick<Interaction, "target">, role: string): Posture | undefined => def.target?.roles?.[role]?.posture ?? def.target?.posture;
+
+/**
+ * What a limb does when a key doesn't name it. Mostly neutral; on all fours the arms and thighs hang at 90, the
+ * rig's own "straight down to the floor" for a torso held level, and the shins fold back at 90 (so the
+ * keyed numbers read the same at every scale: 95 is five degrees past vertical).
+ */
+function baselineOf(def: Interaction, role: string): typeof NEUTRAL {
+  if (postureOf(def, role) !== "allfours") return NEUTRAL;
+  return { ...NEUTRAL, armL: [90, 0], armR: [90, 0], legL: 90, legR: 90, kneeL: 90, kneeR: 90 };
+}
 export type FullPose = Required<Omit<Pose, "emote" | "held" | "face" | "plant">> & { emote: string; held: HeldItem; face: FaceView | ""; plant: PlantState };
 
 /** Problems that stop an interaction from loading; [] when it's usable. */
@@ -302,7 +314,7 @@ export function interactionProblems(value: unknown): string[] {
   if (v.category !== undefined && (typeof v.category !== "string" || !v.category.trim())) out.push(`${name}: category must be a word.`);
   if (!(v.beat! > 0) || !(v.length! > 0)) out.push(`${name}: beat and length must be positive.`);
   if (!(v.people?.min! >= 1) || !(v.people?.max! >= v.people?.min!)) out.push(`${name}: people needs min ≥ 1 and max ≥ min.`);
-  const postures = ["stand", "sit", "lie", "inside", "kneel"];
+  const postures = ["stand", "sit", "lie", "inside", "kneel", "allfours"];
   if (v.target && (!Array.isArray(v.target.kinds) || !v.target.kinds.length || v.target.kinds.some((kind) => typeof kind !== "string") || !postures.includes(v.target.posture))) out.push(`${name}: target needs furniture kinds and a stand, sit, lie or inside posture.`);
   for (const [role, place] of Object.entries(v.target?.roles ?? {})) {
     if (!postures.includes(place?.posture) || (place.side !== undefined && !["left", "right", "center"].includes(place.side)) || ([place.along, place.across, place.facing].some((n) => n !== undefined && !Number.isFinite(n)))) out.push(`${name}: target role "${role}" needs a posture, an optional left or right side and numeric across, along and facing.`);
@@ -400,7 +412,8 @@ const mix = (a: number, b: number, t: number) => a + (b - a) * t;
 /** A role's pose at a beat, blending between keyframes. Missing joints are neutral. */
 export function poseAt(def: Interaction, role: string, beat: number): FullPose {
   const keys = def.roles[role] ?? [];
-  if (!keys.length) return { ...NEUTRAL, emote: "", held: "", face: "", plant: {} };
+  const base = baselineOf(def, role);
+  if (!keys.length) return { ...base, emote: "", held: "", face: "", plant: {} };
   const playing = beat;
   beat = keyedBeat(def, beat);
   const beat0 = beat;
@@ -414,9 +427,9 @@ export function poseAt(def: Interaction, role: string, beat: number): FullPose {
   const t = b < a.beat ? 0 : span > 0 ? smooth(Math.min(1, (b - a.beat) / span)) : 0;
   // Drive interpolation from the neutral pose so new joints cannot silently be
   // omitted here. Tuples are freshly allocated; callers never mutate defaults.
-  const pose = Object.fromEntries((Object.keys(NEUTRAL) as (keyof typeof NEUTRAL)[]).map((field) => {
-    const x = a[field] ?? NEUTRAL[field];
-    const y = next[field] ?? NEUTRAL[field];
+  const pose = Object.fromEntries((Object.keys(base) as (keyof typeof NEUTRAL)[]).map((field) => {
+    const x = a[field] ?? base[field];
+    const y = next[field] ?? base[field];
     return [field, Array.isArray(x) ? x.map((n, i) => mix(n, (y as number[])[i], t)) : mix(x, y as number, t)];
   })) as Required<Omit<Pose, "emote" | "held" | "face" | "plant">>;
   let emote = "";
@@ -515,7 +528,7 @@ export function interactionWarnings(value: unknown): string[] {
     }
   }
   if (v.clearance?.min !== undefined && v.clearance.min < 0.05) out.push(`${name}: clearance.min is under 5 cm, which lets bodies intersect.`);
-  for (const [role, place] of Object.entries(v.target?.roles ?? {})) if (place?.posture && !["stand", "sit", "lie", "inside", "kneel"].includes(place.posture)) out.push(`${name}: role "${role}" has a posture with no placement rule.`);
+  for (const [role, place] of Object.entries(v.target?.roles ?? {})) if (place?.posture && !["stand", "sit", "lie", "inside", "kneel", "allfours"].includes(place.posture)) out.push(`${name}: role "${role}" has a posture with no placement rule.`);
   for (const role of Object.keys(v.target?.roles ?? {})) if (!roles.has(role)) out.push(`${name}: target.roles names "${role}", which has no keyframes.`);
   for (const role of Object.keys(v.oscillators ?? {})) if (!roles.has(role)) out.push(`${name}: oscillators name "${role}", which has no keyframes.`);
   return out;

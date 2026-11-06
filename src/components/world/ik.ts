@@ -95,3 +95,44 @@ export function handPlantTarget(
   const hand = theirs[named];
   return hand.clone().addScaledVector(own.clone().sub(hand).normalize(), surface);
 }
+
+/**
+ * All fours: hands and knees on the floor. The hips sit where kneeling puts them (thighs vertical, shins flat),
+ * and the whole body pitches forward about the hips by the angle that brings the shoulders to the height a
+ * straight, vertical arm needs to reach the floor. Everything is measured on the body itself, so it holds at
+ * any scale.
+ *
+ * `hipY` is the hip joint's height above the floor, `shoulderUp`/`shoulderForward` the shoulder's offset from
+ * the hip joint in the upright body, `armDrop` the shoulder-to-wrist length plus the wrist's height off the
+ * floor. Returns the pitch from upright, radians (π/2 is a horizontal torso); a body whose arms are shorter
+ * than its hips are high (children) gets a level torso at most.
+ */
+export function allFoursPitch(hipY: number, shoulderUp: number, shoulderForward: number, armDrop: number): number {
+  // Shoulder height after pitching by θ: hipY + up·cosθ − forward·sinθ. Find θ where it equals armDrop.
+  const height = (theta: number) => hipY + shoulderUp * Math.cos(theta) - shoulderForward * Math.sin(theta);
+  let lo = 0, hi = Math.PI / 2;
+  if (height(hi) >= armDrop) return hi;
+  if (height(lo) <= armDrop) return lo;
+  for (let i = 0; i < 40; i++) { const mid = (lo + hi) / 2; if (height(mid) > armDrop) lo = mid; else hi = mid; }
+  return (lo + hi) / 2;
+}
+
+/** The all-fours pitch for a body, from its own bone positions at rest (`at` names a bone's world position, in the body's scaled units). */
+export function measureAllFours(at: (bone: string) => THREE.Vector3, legLength: number, scale: number): number {
+  const hip = at("thigh_l").add(at("thigh_r")).multiplyScalar(0.5);
+  const shoulder = at("upperarm_l").add(at("upperarm_r")).multiplyScalar(0.5);
+  const arm = at("upperarm_l").distanceTo(at("lowerarm_l")) + at("lowerarm_l").distanceTo(at("hand_l"));
+  // Knees on the floor put the hips a thigh's length up (as kneeling does); the wrist rests a little off the floor.
+  return allFoursPitch(legLength * (1 - KNEEL_DROP), shoulder.y - hip.y, shoulder.z - hip.z, arm + 0.04 * scale);
+}
+
+/**
+ * On all fours a hand that is near the floor is put flat on it: straight down from where the pose keyed it. The
+ * rig's forearm rests with a forward bend, so the keyed hand floats a few centimetres up at every scale; this
+ * closes that. The weight is full within 0.2 of a leg's length of the floor and fades to nothing by 0.3, so a hand
+ * the clip really lifts is left alone.
+ */
+export function allFoursGrip(hand: THREE.Vector3, legLength: number, scale: number): { target: THREE.Vector3; weight: number } {
+  const weight = Math.max(0, Math.min(1, (0.3 * legLength - hand.y) / (0.1 * legLength)));
+  return { target: new THREE.Vector3(hand.x, 0.04 * scale, hand.z), weight };
+}

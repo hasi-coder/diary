@@ -28,7 +28,7 @@ try {
   me.x = 3.5; me.y = 5.5; other.x = 4.5; other.y = 5.5; me.path = []; other.path = [];
   const kind = def.target?.kinds?.[0];
   const item = world.place.items.find((i) => i.kind === kind);
-  if (!world.startActivity(def, [me, other], { target: item && kind !== "floor" ? item : undefined })) throw new Error("startActivity returned false");
+  if (!world.startActivity(def, def.people.max >= 2 ? [me, other] : [me], { target: item && kind !== "floor" ? item : undefined })) throw new Error("startActivity returned false");
   const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
   renderer.setSize(640, 480, false); renderer.outputColorSpace = THREE.SRGBColorSpace;
   document.getElementById("h")!.appendChild(renderer.domElement);
@@ -67,7 +67,7 @@ try {
         }
       }
     }
-    const c = [(me.x + other.x) / 2, (me.y + other.y) / 2];
+    const solo = def.people.max < 2; const c = solo ? [me.x, me.y] : [(me.x + other.x) / 2, (me.y + other.y) / 2];
     const gap = Math.hypot(me.x - other.x, me.y - other.y);
     gaps.push(`beat ${b}: gap ${gap.toFixed(3)} m`, ...plantReport.map((p) => "   " + p));
     aimCamera(camera, new THREE.Vector3(c[0], 0.75, c[1]), az, false, Number(q.get("size") ?? 2.0), 640 / 480);
