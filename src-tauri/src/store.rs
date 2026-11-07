@@ -40,6 +40,8 @@ use crate::record::{self, Kind, CURRENT_SCHEMA};
 use crate::search::{self, DocKey, DocKind, Field, Query, SearchIndex};
 
 mod merge;
+mod people;
+pub use people::PersonImportMode;
 
 const CONFIG_FILE: &str = "workspace.json";
 const MANIFEST_FILE: &str = "manifest.enc";
@@ -153,6 +155,10 @@ struct RelationCatalog {
 struct RelationKindDef {
     kind: String,
     inverse: String,
+    #[serde(default, rename = "familyTree")]
+    family_tree: Option<String>,
+    #[serde(default)]
+    label: [String; 3],
 }
 
 fn relation_kinds() -> &'static HashMap<String, String> {
@@ -515,6 +521,7 @@ pub fn create_workspace(
             id: Uuid::new_v4().to_string(),
             kind: ProfileKind::Me,
             name: owner_name,
+            details: PersonDetails::default(),
             tagline: String::new(),
             bio: String::new(),
             relationship: String::new(),
@@ -1059,6 +1066,15 @@ impl Workspace {
     // ---- Profiles ----
 
     pub fn save_profile(&mut self, input: ProfileInput) -> Result<Profile> {
+        let profile = self.prepare_profile(input)?;
+        self.write_record(Kind::Profile, &profile.id, &profile, json!({}))?;
+        self.profiles.insert(profile.id.clone(), profile.clone());
+        self.index_profile(&profile.id);
+        Ok(profile)
+    }
+
+    /// Validate an entire import, including its relatives, before writing records.
+    fn prepare_profile(&self, input: ProfileInput) -> Result<Profile> {
         let name = required(&input.name, "Name")?;
         let now = now_millis();
         let (id, created_at, existing) = match &input.id {
@@ -1081,6 +1097,7 @@ impl Workspace {
             id,
             kind: input.kind,
             name,
+            details: people::clean_details(input.details)?,
             tagline: input.tagline.trim().to_string(),
             bio: input.bio.trim().to_string(),
             relationship: input.relationship.trim().to_string(),
@@ -1124,9 +1141,9 @@ impl Workspace {
             return Err(Error::Invalid("Remove this profile's listed items before turning off its shop.".into()));
         }
 
-        self.write_record(Kind::Profile, &profile.id, &profile, json!({}))?;
-        self.profiles.insert(profile.id.clone(), profile.clone());
-        self.index_profile(&profile.id);
+        if !profile.details.slug.is_empty() && self.profiles.values().any(|p| p.id != profile.id && p.is_person() && p.details.slug == profile.details.slug) {
+            return Err(Error::Invalid("That person's import slug is already in use.".into()));
+        }
         Ok(profile)
     }
 
@@ -1534,6 +1551,7 @@ impl Workspace {
         if input.to_id == profile_id {
             return Err(Error::Invalid("A profile can't be related to itself.".into()));
         }
+        people::validate_family_link(&self.profiles, profile_id, &input.to_id, &input.kind, input.id.as_deref())?;
         let inverse = inverse_relation(&input.kind).ok_or_else(|| Error::Invalid(format!("Unknown relationship: {}", input.kind)))?;
         let label = short(&input.label, 60);
         if input.kind == "custom" && label.is_empty() {
@@ -1543,7 +1561,7 @@ impl Workspace {
         if input.id.is_some() && !profile.relations.iter().any(|r| r.id == id) {
             return Err(Error::NotFound(format!("relationship {id}")));
         }
-        let duplicate = profile.relations.iter().any(|r| r.id != id && r.to_id == input.to_id && r.kind == input.kind && r.label == label)
+        let duplicate = profile.relations.iter().any(|r| r.id != id && r.to_id == input.to_id && r.kind == input.kind && (input.kind != "custom" || r.label == label))
             || self.profiles[&input.to_id]
                 .relations
                 .iter()
@@ -1559,6 +1577,7 @@ impl Workspace {
             label,
             inverse_label: short(&input.inverse_label, 60),
             since: short(&input.since, 40),
+            notes: input.notes.trim().to_string(),
         };
         match profile.relations.iter_mut().find(|r| r.id == id) {
             Some(existing) => *existing = relation,
@@ -2313,6 +2332,7 @@ impl Workspace {
     /// Indexes the profile document alone.
     fn index_profile_doc(&mut self, id: &str) {
         let Some(p) = self.profiles.get(id) else { return };
+        let details = people::search_details(p);
         let fields = [
             Field { text: &p.name, weight: 3.0 },
             Field { text: &p.tagline, weight: 1.5 },
@@ -2320,6 +2340,7 @@ impl Workspace {
             Field { text: &p.category, weight: 1.5 },
             Field { text: &p.bio, weight: 1.0 },
             Field { text: &p.location, weight: 1.0 },
+            Field { text: &details, weight: 1.0 },
         ];
         self.index.upsert(DocKey::new(DocKind::Profile, id), &fields, &[], p.updated_at);
     }
@@ -2390,7 +2411,8 @@ impl Workspace {
                     results.totals.profiles += 1;
                     if results.profiles.len() < limit {
                         let p = &self.profiles[&key.id];
-                        let text = [p.tagline.as_str(), &p.bio, &p.relationship, &p.category, &p.location]
+                        let details = people::search_details(p);
+                        let text = [p.tagline.as_str(), &p.bio, &p.relationship, &p.category, &p.location, &details]
                             .iter()
                             .filter(|s| !s.is_empty())
                             .copied()
@@ -2467,6 +2489,7 @@ mod tests {
 
     fn person(name: &str, kind: ProfileKind) -> ProfileInput {
         ProfileInput {
+            details: PersonDetails::default(),
             source_url: String::new(),
             id: None,
             kind,
@@ -3085,6 +3108,7 @@ mod tests {
             label: String::new(),
             inverse_label: String::new(),
             since: "2019".into(),
+            notes: String::new(),
         };
 
         assert!(ws.save_relation(&owner, rel(&owner, "friend")).is_err(), "not with yourself");

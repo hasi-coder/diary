@@ -72,6 +72,8 @@ pub struct Profile {
     pub id: String,
     pub kind: ProfileKind,
     pub name: String,
+    #[serde(flatten)]
+    pub details: PersonDetails,
     #[serde(default)]
     pub tagline: String,
     #[serde(default)]
@@ -175,6 +177,67 @@ fn default_terms() -> String {
     "neutral".into()
 }
 
+/// Optional biographical fields. Defaults keep older encrypted profiles readable.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct PersonDetails {
+    /// Stable import identity, independent of the person's display name.
+    pub slug: String,
+    pub display_name: String,
+    pub hometown: String,
+    pub occupation: String,
+    pub employer: String,
+    pub education: Vec<Education>,
+    pub website: String,
+    pub email: String,
+    pub phone: String,
+    pub languages: Vec<String>,
+    pub facebook_url: String,
+    pub is_active: bool,
+    pub notes: String,
+    /// A relative referenced during import, awaiting their own onboarding.
+    pub is_placeholder: bool,
+}
+
+impl Default for PersonDetails {
+    fn default() -> Self {
+        Self {
+            slug: String::new(), display_name: String::new(), hometown: String::new(),
+            occupation: String::new(), employer: String::new(), education: Vec::new(),
+            website: String::new(), email: String::new(), phone: String::new(),
+            languages: Vec::new(), facebook_url: String::new(), is_active: true,
+            notes: String::new(), is_placeholder: false,
+        }
+    }
+}
+
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct Education {
+    #[serde(rename = "type")]
+    pub kind: String,
+    pub name: String,
+    pub program: String,
+    pub years: String,
+}
+
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PersonImport {
+    pub profile: Profile,
+    pub created: bool,
+    pub related_people: Vec<ImportedPerson>,
+}
+
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ImportedPerson {
+    pub id: String,
+    pub name: String,
+    pub created: bool,
+    pub is_placeholder: bool,
+}
+
 /// "`to_id` is this profile's `kind`", e.g. kind `sibling`, or `workplace` for a shop.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -190,6 +253,8 @@ pub struct Relation {
     /// Free text such as "2019" or "June 2021".
     #[serde(default)]
     pub since: String,
+    #[serde(default)]
+    pub notes: String,
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -204,6 +269,8 @@ pub struct RelationInput {
     pub inverse_label: String,
     #[serde(default)]
     pub since: String,
+    #[serde(default)]
+    pub notes: String,
 }
 
 /// A character's head seen from around. `left` and `right` are 90° profiles
@@ -330,6 +397,8 @@ pub struct ProfileInput {
     pub id: Option<String>,
     pub kind: ProfileKind,
     pub name: String,
+    #[serde(flatten)]
+    pub details: PersonDetails,
     #[serde(default)]
     pub tagline: String,
     #[serde(default)]

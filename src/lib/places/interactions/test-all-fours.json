@@ -1,0 +1,68 @@
+{
+  "id": "all-fours",
+  "label": "All fours",
+  "emoji": "🐕",
+  "category": "romantic",
+  "description": "Four hands down, one bed, nobody says the name out loud.",
+  "requires": { "tier": "casual" },
+  "content": { "motion": "repetitive", "contact": "sustained", "witness": "private" },
+  "people": { "min": 2, "max": 2 },
+  "beat": 0.62,
+  "length": 30,
+  "loop": false,
+  "formation": {
+    "type": "spots",
+    "spots": [
+      { "role": "lead", "at": [0, 0], "facing": 0 },
+      { "role": "partner", "at": [0, 0.5], "facing": 0 }
+    ]
+  },
+  "target": {
+    "kinds": ["bed"],
+    "posture": "allfours",
+    "roles": {
+      "lead": { "posture": "allfours", "side": "center", "along": 0.38, "across": 0.42 },
+      "partner": { "posture": "allfours", "side": "center", "along": 0.78, "across": 0.42 }
+    }
+  },
+  "clearance": { "min": 0.3 },
+  "camera": { "focus": "people", "zoom": 1.1, "height": 0.32 },
+  "roles": {
+    "lead": [
+      { "beat": 0 },
+      { "beat": 2, "armL": [70, -10], "armR": [70, -10], "elbowL": 35, "elbowR": 35, "emote": "💞" },
+      { "beat": 4, "armL": [94, 16], "armR": [94, 16], "elbowL": 20, "elbowR": 20, "head": [16, 0, 0], "plant": { "armL": { "on": "role:partner", "point": "hip", "weight": 0.6 }, "armR": { "on": "role:partner", "point": "hip", "weight": 0.6 } } },
+      { "beat": 6, "armL": [92, 18], "armR": [92, 18], "elbowL": 18, "elbowR": 18, "head": [20, 0, 2], "plant": { "armL": { "on": "role:partner", "point": "hip", "weight": 1 }, "armR": { "on": "role:partner", "point": "hip", "weight": 1 } } },
+      { "beat": 8, "legL": 96, "kneeL": 96, "lean": 2, "head": [24, 0, 0], "move": [0, 0.05] },
+      { "beat": 10, "legL": 90, "kneeL": 90, "lean": 0, "head": [19, 0, 1], "move": [0, 0] },
+      { "beat": 12, "legL": 97, "kneeL": 97, "lean": 2, "head": [25, 0, 0], "move": [0, 0.05], "emote": "💦" },
+      { "beat": 14, "legL": 90, "kneeL": 90, "lean": 0, "head": [19, 0, 1], "move": [0, 0] },
+      { "beat": 16, "legR": 98, "kneeR": 98, "lean": 3, "head": [26, 0, -1], "move": [0, 0.05] },
+      { "beat": 18, "legR": 90, "kneeR": 90, "lean": 0, "head": [20, 0, 1], "move": [0, 0] },
+      { "beat": 20, "legL": 98, "kneeL": 98, "lean": 3, "head": [27, 0, 0], "move": [0, 0.05], "emote": "💞" },
+      { "beat": 22, "armL": [70, 22], "elbowL": 45, "head": [18, 0, -2], "move": [0, 0.05] },
+      { "beat": 24, "armL": [74, 20], "elbowL": 40, "head": [22, 0, -1], "move": [0, 0.01] },
+      { "beat": 26, "armL": [94, 16], "elbowL": 20, "head": [26, 0, 0], "move": [0, 0.06] },
+      { "beat": 28, "armL": [70, -10], "armR": [70, -10], "elbowL": 35, "elbowR": 35, "head": [8, 0, 0], "move": [0, 0] },
+      { "beat": 30 }
+    ],
+    "partner": [
+      { "beat": 0 },
+      { "beat": 2, "armL": [70, -10], "armR": [70, -10], "elbowL": 35, "elbowR": 35, "emote": "💞" },
+      { "beat": 4, "armL": [96, 14], "armR": [96, 14], "elbowL": 14, "elbowR": 14, "head": [22, 0, 2], "plant": { "armL": { "on": "bed", "point": "surface", "weight": 0.6 }, "armR": { "on": "bed", "point": "surface", "weight": 0.6 } } },
+      { "beat": 6, "armL": [98, 12], "armR": [98, 12], "elbowL": 10, "elbowR": 10, "head": [26, 0, 0], "plant": { "armL": { "on": "bed", "point": "surface", "weight": 1 }, "armR": { "on": "bed", "point": "surface", "weight": 1 } } },
+      { "beat": 8, "legL": 94, "kneeL": 94, "head": [30, 0, 1], "move": [0, -0.03] },
+      { "beat": 10, "legL": 90, "kneeL": 90, "head": [25, 0, 2], "move": [0, 0] },
+      { "beat": 12, "legL": 95, "kneeL": 95, "head": [31, 0, 1], "move": [0, -0.03], "emote": "💦" },
+      { "beat": 14, "legL": 90, "kneeL": 90, "head": [25, 0, 2], "move": [0, 0] },
+      { "beat": 16, "legR": 96, "kneeR": 96, "head": [32, 0, 0], "move": [0, -0.03] },
+      { "beat": 18, "legR": 90, "kneeR": 90, "head": [26, 0, 2], "move": [0, 0] },
+      { "beat": 20, "legL": 96, "kneeL": 96, "head": [30, -24, 4], "move": [0, -0.03], "emote": "💞" },
+      { "beat": 22, "legL": 92, "kneeL": 92, "head": [28, -18, 3], "move": [0, 0] },
+      { "beat": 24, "legL": 96, "kneeL": 96, "head": [32, -8, 2], "move": [0, -0.03] },
+      { "beat": 26, "legL": 90, "kneeL": 90, "head": [28, 0, 0], "move": [0, 0] },
+      { "beat": 28, "armL": [70, -10], "armR": [70, -10], "elbowL": 35, "elbowR": 35, "head": [8, 0, 0], "move": [0, 0] },
+      { "beat": 30 }
+    ]
+  }
+}

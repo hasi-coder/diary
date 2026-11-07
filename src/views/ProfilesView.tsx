@@ -4,6 +4,7 @@ import type { ProfileKind } from "../lib/api";
 import { useJournal } from "../lib/journal";
 import { KINDS, subtitle } from "../lib/format";
 import { ProfileForm } from "../components/forms";
+import { ImportPersonDialog } from "../components/ImportPersonDialog";
 import { Page } from "../components/Shell";
 import { Avatar, Button, CoverImage, EmptyState } from "../components/ui";
 
@@ -13,6 +14,7 @@ export function ProfilesView() {
   const { snapshot, navigate } = useJournal();
   const [filter, setFilter] = useState<ProfileKind | "all">("all");
   const [creating, setCreating] = useState(false);
+  const [importing, setImporting] = useState(false);
 
   const shown = snapshot.profiles
     .filter((p) => filter === "all" || p.kind === filter)
@@ -27,9 +29,9 @@ export function ProfilesView() {
         </>
       }
       actions={
-        <Button onClick={() => setCreating(true)}>
+        <div className="flex gap-2"><Button variant="outline" onClick={() => setImporting(true)}>Import JSON</Button><Button onClick={() => setCreating(true)}>
           <PlusIcon /> New profile
-        </Button>
+        </Button></div>
       }
     >
       <div className="mb-6 flex flex-wrap gap-2">
@@ -69,6 +71,7 @@ export function ProfilesView() {
                     <Avatar profile={p} size="lg" />
                   </div>
                   <div className="truncate font-bold text-slate-800">{p.name}</div>
+                  {p.isPlaceholder && <span className="text-xs font-medium text-amber-700">More details to add</span>}
                   <div className="text-xs font-medium text-brand-600">{p.kind === "me" ? "You · journal owner" : subtitle(p)}</div>
                   <p className="mt-2 line-clamp-2 min-h-[2.5rem] text-sm text-slate-500">{p.tagline || p.bio || " "}</p>
                   <div className="mt-3 flex gap-4 border-t border-slate-100 pt-3 text-xs text-slate-500">
@@ -87,6 +90,7 @@ export function ProfilesView() {
       )}
 
       {creating && <ProfileForm initialKind={filter === "all" ? undefined : filter} onClose={() => setCreating(false)} />}
+      {importing && <ImportPersonDialog onClose={() => setImporting(false)} />}
     </Page>
   );
 }

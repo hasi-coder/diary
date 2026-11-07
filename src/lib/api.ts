@@ -5,7 +5,43 @@ import type { Layout } from "./places/layout";
 
 export type ProfileKind = "me" | "person" | "page" | "shop" | "place";
 
-export interface Profile {
+export interface Education {
+  type: string;
+  name: string;
+  program: string;
+  years: string;
+}
+
+export interface PersonDetails {
+  slug: string;
+  displayName: string;
+  hometown: string;
+  occupation: string;
+  employer: string;
+  education: Education[];
+  website: string;
+  email: string;
+  phone: string;
+  languages: string[];
+  facebookUrl: string;
+  isActive: boolean;
+  notes: string;
+  isPlaceholder: boolean;
+}
+
+export const EMPTY_PERSON_DETAILS: PersonDetails = {
+  slug: "", displayName: "", hometown: "", occupation: "", employer: "", education: [],
+  website: "", email: "", phone: "", languages: [], facebookUrl: "", isActive: true,
+  notes: "", isPlaceholder: false,
+};
+
+export interface PersonImport {
+  profile: Profile;
+  created: boolean;
+  relatedPeople: { id: string; name: string; created: boolean; isPlaceholder: boolean }[];
+}
+
+export interface Profile extends PersonDetails {
   id: string;
   kind: ProfileKind;
   name: string;
@@ -56,6 +92,7 @@ export interface Relation {
   label: string;
   inverseLabel: string;
   since: string;
+  notes: string;
 }
 
 export type RelationInput = Omit<Relation, "id"> & { id?: string };
@@ -449,6 +486,7 @@ export const api = {
   getSnapshot: () => invoke<Snapshot>("get_snapshot"),
   listPosts: (filter: PostFilter) => invoke<Post[]>("list_posts", { filter }),
   saveProfile: (input: ProfileInput) => invoke<Profile>("save_profile", { input }),
+  importPerson: (input: Record<string, unknown>) => invoke<PersonImport>("import_person", { input }),
   deleteProfile: (id: string) => invoke<void>("delete_profile", { id }),
   mergePages: (sourceId: string, targetId: string) => invoke<PageMerge>("merge_pages", { sourceId, targetId }),
   savePost: (input: PostInput) => invoke<Post>("save_post", { input }),

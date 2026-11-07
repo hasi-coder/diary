@@ -136,6 +136,11 @@ pub fn save_profile(state: State<'_, AppState>, input: ProfileInput) -> Result<P
 }
 
 #[tauri::command]
+pub fn import_person(state: State<'_, AppState>, input: serde_json::Value) -> Result<PersonImport> {
+    state.with_workspace(|ws| ws.import_person(&input, crate::store::PersonImportMode::Upsert))
+}
+
+#[tauri::command]
 pub fn delete_profile(state: State<'_, AppState>, id: String) -> Result<()> {
     state.with_workspace(|ws| ws.delete_profile(&id))
 }

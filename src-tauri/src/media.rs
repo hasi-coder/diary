@@ -83,6 +83,35 @@ pub fn fit_photo(bytes: &[u8], max: u32, compact: bool) -> Option<Vec<u8>> {
     worth.then_some(out)
 }
 
+/// Long side of a character's head view, as the app's own face upload makes it.
+pub const FACE_MAX: u32 = 512;
+
+/// Shrinks a head view to `FACE_MAX`. A view with a transparent background stays
+/// a (best-compressed) PNG, because the transparency is what lets the head sit
+/// on the body; an opaque one becomes a JPEG. Metadata is dropped. `None` when
+/// that wouldn't make it smaller, or for formats kept as they are.
+pub fn fit_face(bytes: &[u8]) -> Option<Vec<u8>> {
+    use image::{codecs::png::{CompressionType, FilterType as PngFilter, PngEncoder}, imageops::FilterType, DynamicImage, ImageDecoder, ImageReader};
+    if !matches!(sniff(bytes), Some((MediaKind::Image, "image/jpeg" | "image/png" | "image/webp"))) {
+        return None;
+    }
+    let mut decoder = ImageReader::new(std::io::Cursor::new(bytes)).with_guessed_format().ok()?.into_decoder().ok()?;
+    let orientation = decoder.orientation().ok();
+    let mut img = DynamicImage::from_decoder(decoder).ok()?;
+    if !img.color().has_alpha() {
+        return fit_photo(bytes, FACE_MAX, false);
+    }
+    if let Some(o) = orientation {
+        img.apply_orientation(o);
+    }
+    if img.width().max(img.height()) > FACE_MAX {
+        img = img.resize(FACE_MAX, FACE_MAX, FilterType::Lanczos3);
+    }
+    let mut out = Vec::new();
+    img.write_with_encoder(PngEncoder::new_with_quality(&mut out, CompressionType::Best, PngFilter::Adaptive)).ok()?;
+    (out.len() < bytes.len()).then_some(out)
+}
+
 /// `photo.png` -> `photo.jpg`, after re-encoding.
 pub fn jpeg_name(name: &str) -> String {
     let stem = name.rsplit_once('.').map_or(name, |(stem, _)| stem);
@@ -315,6 +344,28 @@ pub(crate) mod tests {
     }
 
     use super::*;
+
+    #[test]
+    fn fit_face_shrinks_and_keeps_transparency() {
+        let png = |img: image::DynamicImage| {
+            let mut out = std::io::Cursor::new(Vec::new());
+            img.write_to(&mut out, image::ImageFormat::Png).unwrap();
+            out.into_inner()
+        };
+        // Transparent head: stays a PNG, 512 px, still transparent.
+        let rgba = image::RgbaImage::from_fn(1500, 1000, |x, y| image::Rgba([(x % 256) as u8, (y % 256) as u8, 90, if x < 100 { 0 } else { 255 }]));
+        let big = png(image::DynamicImage::ImageRgba8(rgba));
+        let out = fit_face(&big).expect("smaller");
+        assert_eq!(sniff(&out), Some((MediaKind::Image, "image/png")));
+        let img = image::load_from_memory(&out).unwrap();
+        assert_eq!((img.width(), img.height()), (512, 341));
+        assert_eq!(img.to_rgba8().get_pixel(0, 0)[3], 0);
+        // Opaque photo: becomes a 512 px JPEG.
+        let out = fit_face(&photo_png(1500, 1000)).expect("smaller");
+        assert_eq!(sniff(&out), Some((MediaKind::Image, "image/jpeg")));
+        assert_eq!(image::load_from_memory(&out).unwrap().width(), 512);
+        assert_eq!(fit_face(b"not an image"), None);
+    }
 
     #[test]
     fn sniffs_types() {

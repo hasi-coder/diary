@@ -13,7 +13,7 @@ export type Route =
   | { view: "trash" }
   | { view: "search"; query: string }
   | { view: "post"; id: string }
-  | { view: "profile"; id: string; tab?: "posts" | "about" | "media" | "shop" | "place" }
+  | { view: "profile"; id: string; tab?: "posts" | "about" | "media" | "shop" | "place" | "family" }
   | { view: "places" }
   /** Full window: walk a place, optionally with the people from a post. */
   | { view: "world"; placeId: string; postId?: string };

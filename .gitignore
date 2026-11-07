@@ -20,7 +20,6 @@ tmp/
 assets/places/faces/
 # Scratch animations (loaded by the app, ignored by tooling and git)
 # src/lib/places/interactions/test_*.json
-src/lib/places/interactions/test-*.json
 
 # Environment
 .env

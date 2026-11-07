@@ -1,6 +1,7 @@
 // Create/edit dialogs for profiles and shop items.
 import { useRef, useState } from "react";
-import { api, errorMessage, type Item, type ItemStatus, type Profile, type ProfileInput, type ProfileKind } from "../lib/api";
+import { api, EMPTY_PERSON_DETAILS, errorMessage, type Item, type ItemStatus, type Profile, type ProfileInput, type ProfileKind } from "../lib/api";
+import { PersonDetailsFields } from "./PersonDetailsFields";
 import { useJournal } from "../lib/journal";
 import { COLORS, KINDS, MONTHS, STATUS } from "../lib/format";
 import { parsePartialDate } from "../lib/dates";
@@ -28,6 +29,7 @@ export function ProfileForm(props: { profile?: Profile; initialKind?: ProfileKin
     existing
       ? { ...existing }
       : {
+          ...EMPTY_PERSON_DETAILS,
           kind: props.initialKind ?? "person",
           name: "",
           tagline: "",
@@ -105,6 +107,7 @@ export function ProfileForm(props: { profile?: Profile; initialKind?: ProfileKin
         )}
 
         {(kind === "person" || kind === "me") && <IdentityFields form={form} set={set} />}
+        {(kind === "person" || kind === "me") && <PersonDetailsFields form={form} set={set} />}
 
         <Field label="Tagline">
           <input className={inputClass} value={form.tagline} onChange={(e) => set("tagline", e.target.value)} placeholder="A one-line intro" />

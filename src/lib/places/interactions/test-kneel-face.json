@@ -1,0 +1,64 @@
+{
+  "id": "kneel-face",
+  "label": "On the knees",
+  "emoji": "🛏️",
+  "category": "romantic",
+  "description": "Down on the floor, holding on by the shoulders.",
+  "requires": { "tier": "casual" },
+  "content": { "motion": "repetitive", "contact": "sustained", "witness": "private" },
+  "people": { "min": 2, "max": 2 },
+  "beat": 0.7,
+  "length": 26,
+  "loop": false,
+  "formation": {
+    "type": "spots",
+    "spots": [
+      { "role": "lead", "at": [0, 0], "facing": 0 },
+      { "role": "partner", "at": [0, 0.45], "facing": 180 }
+    ]
+  },
+  "target": {
+    "kinds": ["floor"],
+    "posture": "kneel",
+    "roles": {
+      "lead": { "posture": "kneel", "side": "center" },
+      "partner": { "posture": "kneel", "anchor": { "role": "lead", "at": "front", "distance": 0.52 } }
+    }
+  },
+  "clearance": { "min": 0.2 },
+  "camera": { "focus": "people", "zoom": 1.25, "height": 0.1 },
+  "roles": {
+    "lead": [
+      { "beat": 0 },
+      { "beat": 2, "armL": [60, 15], "armR": [60, 15], "elbowL": 45, "elbowR": 45, "head": [8, 0, 0], "emote": "💞" },
+      { "beat": 4, "armL": [70, 24], "armR": [70, 24], "elbowL": 55, "elbowR": 55, "lean": 6, "head": [14, -6, 1], "plant": { "armL": { "on": "role:partner", "point": "shoulder", "weight": 0.6 }, "armR": { "on": "role:partner", "point": "shoulder", "weight": 0.6 } } },
+      { "beat": 6, "armL": [72, 26], "armR": [72, 26], "elbowL": 58, "elbowR": 58, "lean": 8, "head": [16, -8, 2], "plant": { "armL": { "on": "role:partner", "point": "shoulder", "weight": 1 }, "armR": { "on": "role:partner", "point": "shoulder", "weight": 1 } } },
+      { "beat": 8, "lean": 9, "head": [18, -8, 1], "move": [0, 0.04], "bob": 0.008 },
+      { "beat": 10, "lean": 7, "head": [15, -8, 2], "move": [0, 0], "bob": 0 },
+      { "beat": 12, "lean": 10, "head": [19, -7, 1], "move": [0, 0.04], "bob": 0.01, "emote": "💦" },
+      { "beat": 14, "lean": 7, "head": [15, -8, 2], "move": [0, 0], "bob": 0 },
+      { "beat": 16, "lean": 11, "head": [20, -7, 0], "move": [0, 0.05], "bob": 0.012 },
+      { "beat": 18, "lean": 8, "head": [16, -8, 1], "move": [0, 0.01], "bob": 0 },
+      { "beat": 20, "armL": [58, 28], "elbowL": 62, "lean": 12, "head": [18, -6, -2], "move": [0, 0.05], "bob": 0.01, "emote": "💞" },
+      { "beat": 22, "armL": [62, 26], "elbowL": 58, "lean": 9, "head": [15, -7, -1], "move": [0, 0.02], "bob": 0 },
+      { "beat": 24, "armL": [20, 12], "armR": [20, 12], "elbowL": 10, "elbowR": 10, "lean": 2, "head": [4, 0, 0], "move": [0, 0] },
+      { "beat": 26 }
+    ],
+    "partner": [
+      { "beat": 0 },
+      { "beat": 2, "armL": [70, -10], "armR": [70, -10], "elbowL": 45, "elbowR": 45, "emote": "💞" },
+      { "beat": 4, "armL": [72, 24], "armR": [72, 24], "elbowL": 56, "elbowR": 56, "lean": 7, "head": [15, 7, -1], "plant": { "armL": { "on": "role:lead", "point": "shoulder", "weight": 0.6 }, "armR": { "on": "role:lead", "point": "shoulder", "weight": 0.6 } } },
+      { "beat": 6, "armL": [74, 26], "armR": [74, 26], "elbowL": 59, "elbowR": 59, "lean": 9, "head": [17, 9, -2], "plant": { "armL": { "on": "role:lead", "point": "shoulder", "weight": 1 }, "armR": { "on": "role:lead", "point": "shoulder", "weight": 1 } } },
+      { "beat": 8, "lean": 10, "head": [19, 9, -1], "bob": 0.008 },
+      { "beat": 10, "lean": 8, "head": [16, 9, -2], "bob": 0 },
+      { "beat": 12, "lean": 11, "head": [20, 8, -1], "bob": 0.01, "emote": "💦" },
+      { "beat": 14, "lean": 8, "head": [16, 9, -2], "bob": 0 },
+      { "beat": 16, "lean": 12, "head": [21, 8, 0], "bob": 0.012 },
+      { "beat": 18, "lean": 9, "head": [17, 9, -1], "bob": 0 },
+      { "beat": 20, "armL": [60, 28], "elbowL": 64, "lean": 13, "head": [19, 7, 2], "bob": 0.01, "emote": "💞" },
+      { "beat": 22, "armL": [64, 26], "elbowL": 60, "lean": 10, "head": [16, 8, 1], "bob": 0 },
+      { "beat": 24, "armL": [20, 12], "armR": [20, 12], "elbowL": 10, "elbowR": 10, "lean": 2, "head": [4, 0, 0] },
+      { "beat": 26 }
+    ]
+  }
+}

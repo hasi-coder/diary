@@ -27,6 +27,7 @@ import { ProductPhotoSize } from "../components/Products";
 import { MediaGallery } from "../components/Media";
 import { MergePagesDialog } from "../components/MergePagesDialog";
 import { CharacterCard } from "../components/CharacterCard";
+import { FamilyTree } from "../components/FamilyTree";
 import { PlaceTab } from "../components/PlaceTab";
 import { ItemForm, ProfileForm } from "../components/forms";
 import { PostCard } from "../components/PostCard";
@@ -34,7 +35,7 @@ import { LifeEventsCard, PhotoDialog, RelationIntro, RelationshipsSection } from
 import { Page } from "../components/Shell";
 import { Avatar, Button, ConfirmDialog, CoverImage, EmptyState, KindBadge } from "../components/ui";
 
-type Tab = "posts" | "about" | "media" | "shop" | "place";
+type Tab = "posts" | "about" | "media" | "shop" | "place" | "family";
 
 export function ProfileView({ id: requestedId, tab }: { id: string; tab?: Tab }) {
   const { profiles, snapshot, navigate, refresh } = useJournal();
@@ -59,12 +60,14 @@ export function ProfileView({ id: requestedId, tab }: { id: string; tab?: Tab })
   const items = snapshot.items.filter((i) => i.shopId === id);
   const sells = canSell(profile);
   const hasPlace = profile.kind === "place" || profile.kind === "shop" || profile.kind === "page";
-  const active: Tab = (tab === "shop" && !sells) || (tab === "place" && !hasPlace) ? "posts" : (tab ?? "posts");
+  const isPerson = profile.kind === "person" || profile.kind === "me";
+  const active: Tab = (tab === "shop" && !sells) || (tab === "place" && !hasPlace) || (tab === "family" && !isPerson) ? "posts" : (tab ?? "posts");
   const KindIcon = KINDS[profile.kind].icon;
 
   const tabs: { key: Tab; label: string }[] = [
     { key: "posts", label: "Posts" },
     { key: "about", label: "About" },
+    ...(isPerson ? [{ key: "family" as Tab, label: "Family tree" }] : []),
     { key: "media", label: "Photos & videos" },
     ...(sells ? [{ key: "shop" as Tab, label: `Shop · ${items.length}` }] : []),
     ...(hasPlace ? [{ key: "place" as Tab, label: "Place" }] : []),
@@ -152,11 +155,13 @@ export function ProfileView({ id: requestedId, tab }: { id: string; tab?: Tab })
           </div>
           <div className="min-w-0 flex-1 pb-1">
             <h1 className="truncate text-[32px] font-bold text-slate-900">
-              {profile.name}
+              {profile.displayName || profile.name}
               {profile.pronouns && <span className="ml-2 text-base font-normal text-slate-400">({profile.pronouns})</span>}
             </h1>
+            {profile.displayName && profile.displayName !== profile.name && <p className="text-sm text-slate-500">{profile.name}</p>}
             <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-slate-500">
               <KindBadge profile={profile} />
+              {profile.isPlaceholder && <span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs text-amber-700">More details to add</span>}
               {profile.kind !== "me" && subtitle(profile) !== KINDS[profile.kind].label && <span>{subtitle(profile)}</span>}
               <span>
                 · {stats.posts} posts · {stats.mentions} mentions
@@ -178,12 +183,12 @@ export function ProfileView({ id: requestedId, tab }: { id: string; tab?: Tab })
             )}
           </div>
         </div>
-        <nav className="mx-auto flex max-w-5xl border-t border-slate-300 px-4">
+        <nav className="mx-auto flex max-w-5xl overflow-x-auto border-t border-slate-300 px-4">
           {tabs.map((t) => (
             <button
               key={t.key}
               onClick={() => navigate({ view: "profile", id, tab: t.key })}
-              className={`relative px-1 py-1 text-[15px] font-semibold ${active === t.key ? "text-brand-600" : "text-slate-500"}`}
+              className={`relative shrink-0 whitespace-nowrap px-1 py-1 text-[15px] font-semibold ${active === t.key ? "text-brand-600" : "text-slate-500"}`}
             >
               <span className={`block rounded-md px-3 py-3 ${active === t.key ? "" : "hover:bg-slate-50"}`}>{t.label}</span>
               {active === t.key && <span className="absolute inset-x-0 bottom-0 h-[3px] rounded-t bg-brand-600" />}
@@ -193,6 +198,7 @@ export function ProfileView({ id: requestedId, tab }: { id: string; tab?: Tab })
       </section>
 
       <div className="mt-6">
+        {active === "family" && <FamilyTree key={profile.id} profile={profile} />}
         {active === "posts" && (
           <div className="grid gap-6 lg:grid-cols-[18rem_1fr]">
             <div className="space-y-6">
@@ -303,12 +309,24 @@ function AboutCard({ profile }: { profile: Profile }) {
     { label: "Type", value: KINDS[profile.kind].label },
     { label: "Tagline", value: profile.tagline },
     { label: "Bio", value: profile.bio },
+    { label: "Display name", value: profile.displayName },
     { label: "Relationship", value: profile.relationship },
     { label: "Gender", value: profile.genders.join(", ") },
     { label: "Pronouns", value: profile.pronouns },
     { label: "Relationship status", value: profile.relationshipStatus },
     { label: "Category", value: profile.category },
     { label: "Location", value: profile.location },
+    { label: "Hometown", value: profile.hometown },
+    { label: "Occupation", value: profile.occupation },
+    { label: "Employer", value: profile.employer },
+    { label: "Education", value: profile.education.map((e) => [e.name, [e.program, e.years].filter(Boolean).join(" · ")].filter(Boolean).join("\n")).join("\n\n") },
+    { label: "Website", value: profile.website },
+    { label: "Facebook", value: profile.facebookUrl },
+    { label: "Email", value: profile.email },
+    { label: "Phone", value: profile.phone },
+    { label: "Languages", value: profile.languages.join(", ") },
+    { label: "Notes", value: profile.notes },
+    { label: "Profile status", value: profile.isPlaceholder ? "More details to add" : !profile.isActive ? "Inactive" : "" },
     { label: "Imported from", value: profile.sourceUrl ?? "" },
     { label: "Added", value: new Date(profile.createdAt).toLocaleDateString(undefined, { dateStyle: "long" }) },
   ].filter((r) => r.value);
@@ -319,7 +337,7 @@ function AboutCard({ profile }: { profile: Profile }) {
         {rows.map((r) => (
           <div key={r.label} className="grid grid-cols-[8rem_1fr] gap-4 py-3 text-sm">
             <dt className="font-medium text-slate-500">{r.label}</dt>
-            <dd className="whitespace-pre-wrap text-slate-800">{r.value}</dd>
+            <dd className="min-w-0 whitespace-pre-wrap break-words text-slate-800">{/^https?:\/\//.test(r.value) ? <a href={r.value} target="_blank" rel="noreferrer" className="text-brand-600 hover:underline">{r.value}</a> : r.value}</dd>
           </div>
         ))}
       </dl>
@@ -364,6 +382,8 @@ function detailRows(p: Profile) {
   if (p.relationshipStatus) rows.push({ label: "status", value: p.relationshipStatus, icon: HeartStraightIcon });
   if (p.category) rows.push({ label: "category", value: p.category, icon: BriefcaseIcon });
   if (p.location) rows.push({ label: "location", value: p.location, icon: MapPinIcon });
+  if (p.hometown) rows.push({ label: "hometown", value: `From ${p.hometown}`, icon: MapPinIcon });
+  if (p.occupation || p.employer) rows.push({ label: "work", value: [p.occupation, p.employer].filter(Boolean).join(" at "), icon: BriefcaseIcon });
   if (p.birthday) rows.push({ label: "birthday", value: `Born ${formatPartialDate(p.birthday)}`, icon: CakeIcon });
   if (p.anniversary)
     rows.push({

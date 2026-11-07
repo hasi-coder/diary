@@ -12,6 +12,7 @@
     "tauri:build": "tauri build",
     "seed:demo": "cargo run --manifest-path src-tauri/Cargo.toml --bin seed -- --force",
     "test:rust": "cargo test --manifest-path src-tauri/Cargo.toml",
+    "test:family": "node tools/test_family.mjs",
     "test:animation": "node tools/places/test_animation.mjs",
     "test:body": "node tools/places/test_body_anatomy.mjs",
     "test:clothing": "node tools/places/test_sri_lankan_clothing.mjs",

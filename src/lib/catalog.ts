@@ -138,6 +138,7 @@ interface RelationKind {
   label: [string, string, string];
   /** Phrase for the intro card, from the declarer's side ("Married to"). */
   intro?: string;
+  familyTree?: "parent" | "child" | "partner" | "relative";
 }
 
 export const RELATION_KINDS = relationsCatalog.kinds as RelationKind[];
@@ -145,10 +146,17 @@ const byKind = new Map(RELATION_KINDS.map((k) => [k.kind, k]));
 const kindInfo = (kind: string) => byKind.get(kind);
 
 /** The label for `kind`, gendered by the profile it describes. */
-export function relationLabel(kind: string, describes?: Pick<Profile, "terms">): string {
+export function relationLabel(kind: string, describes?: Pick<Profile, "terms">, explicit?: string): string {
   const info = kindInfo(kind);
-  if (!info) return kind;
   const i = describes?.terms === "feminine" ? 1 : describes?.terms === "masculine" ? 2 : 0;
+  if (explicit) {
+    // Keep specifically selected words. Resolve generic role overrides using the
+    // same family-word preference, including the imported legal-parent links.
+    if (explicit.toLowerCase() === "legal parent") return ["Legal parent", "Legal mother", "Legal father"][i];
+    if (explicit.toLowerCase() === "legal child") return ["Legal child", "Legal daughter", "Legal son"][i];
+    if (!info || explicit.toLowerCase() !== info.label[0].toLowerCase()) return explicit;
+  }
+  if (!info) return kind;
   return info.label[i];
 }
 
@@ -173,11 +181,11 @@ export function relationsOf(profileId: string, profiles: Profile[]): RelationVie
       if (p.id === profileId) {
         const other = byId.get(r.toId);
         if (!other) continue;
-        const label = r.kind === "custom" ? r.label : relationLabel(r.kind, other);
+        const label = relationLabel(r.kind, other, r.label);
         out.push({ relation: r, declarerId: p.id, other, label, intro: kindInfo(r.kind)?.intro });
       } else if (r.toId === profileId) {
         const inverse = kindInfo(r.kind)?.inverse ?? r.kind;
-        const label = r.kind === "custom" ? r.inverseLabel || r.label : relationLabel(inverse, p);
+        const label = relationLabel(inverse, p, r.inverseLabel || (r.kind === "custom" ? r.label : undefined));
         out.push({ relation: r, declarerId: p.id, other: p, label, intro: kindInfo(inverse)?.intro });
       }
     }

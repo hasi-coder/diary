@@ -1,0 +1,73 @@
+{
+  "id": "stand-face",
+  "label": "Face to face",
+  "emoji": "💞",
+  "category": "romantic",
+  "mirror": true,
+  "description": "One leg up, arms around the neck. No furniture involved, no explanation offered.",
+  "requires": { "tier": "casual" },
+  "content": { "motion": "repetitive", "contact": "incidental", "witness": "private" },
+  "people": { "min": 2, "max": 2 },
+  "beat": 0.62,
+  "length": 28,
+  "loop": false,
+  "formation": {
+    "type": "spots",
+    "spots": [
+      { "role": "lead", "at": [0, 0], "facing": 0 },
+      { "role": "partner", "at": [0, 0.4], "facing": 180 }
+    ]
+  },
+  "target": {
+    "kinds": ["floor"],
+    "posture": "stand",
+    "roles": {
+      "lead": { "posture": "stand", "side": "center" },
+      "partner": { "posture": "stand", "anchor": { "role": "lead", "at": "front", "distance": 0.42 } }
+    }
+  },
+  "clearance": { "min": 0.2 },
+  "camera": { "focus": "people", "zoom": 1.25, "height": 0.15 },
+  "roles": {
+    "lead": [
+      { "beat": 0 },
+      { "beat": 2, "armL": [60, 15], "armR": [60, 15], "elbowL": 40, "elbowR": 40, "head": [8, 0, 0], "emote": "💞" },
+      { "beat": 3, "armL": [55, 20], "armR": [55, 20], "elbowL": 60, "elbowR": 60, "plant": { "armL": { "on": "role:partner", "point": "hip", "weight": 0.4 }, "armR": { "on": "role:partner", "point": "hip", "weight": 0.4 } } },
+      { "beat": 6, "armL": [52, 26], "armR": [56, 22], "elbowL": 55, "elbowR": 45, "legL": 14, "legR": 18, "kneeL": 10, "kneeR": 12, "head": [12, -8, 2], "plant": { "armL": { "on": "role:partner", "point": "lowerBack", "weight": 1 }, "armR": { "on": "role:partner", "point": "hip", "weight": 0.6 } } },
+      { "beat": 8, "armL": [48, 24], "armR": [72, 30], "elbowL": 52, "elbowR": 38, "legL": 18, "legR": 22, "kneeL": 12, "kneeR": 16, "lean": 4, "head": [14, -10, 2], "plant": { "armL": { "on": "role:partner", "point": "lowerBack", "weight": 1 }, "armR": { "on": "role:partner", "point": "knee", "weight": 1 } } },
+      { "beat": 10, "legL": 24, "legR": 20, "kneeL": 16, "kneeR": 14, "lean": 5, "head": [16, -10, 1], "move": [0, 0.05], "bob": 0.01 },
+      { "beat": 11.5, "legL": 18, "legR": 22, "kneeL": 12, "kneeR": 16, "lean": 4, "head": [13, -10, 2], "move": [0, 0.01], "bob": 0 },
+      { "beat": 13, "legL": 25, "legR": 21, "kneeL": 17, "kneeR": 15, "lean": 5, "head": [17, -9, 1], "move": [0, 0.05], "bob": 0.01 },
+      { "beat": 14.5, "legL": 18, "legR": 22, "kneeL": 12, "kneeR": 16, "lean": 4, "head": [13, -10, 2], "move": [0, 0.01], "bob": 0 },
+      { "beat": 16, "legL": 26, "legR": 22, "kneeL": 18, "kneeR": 16, "lean": 6, "head": [19, -8, 0], "move": [0, 0.05], "bob": 0.012 },
+      { "beat": 17.5, "legL": 19, "legR": 23, "kneeL": 13, "kneeR": 17, "lean": 4, "head": [14, -9, 1], "move": [0, 0.01], "bob": 0 },
+      { "beat": 19, "legL": 26, "legR": 22, "kneeL": 18, "kneeR": 16, "lean": 6, "head": [20, -8, 0], "move": [0, 0.05], "bob": 0.012, "emote": "💦" },
+      { "beat": 20.5, "legL": 19, "legR": 23, "kneeL": 13, "kneeR": 17, "lean": 4, "head": [15, -9, 1], "move": [0, 0.01], "bob": 0 },
+      { "beat": 22, "legL": 24, "legR": 20, "kneeL": 16, "kneeR": 14, "lean": 7, "head": [21, -7, 0], "move": [0, 0.06], "bob": 0.008, "emote": "💞" },
+      { "beat": 24, "legL": 19, "legR": 23, "kneeL": 13, "kneeR": 17, "lean": 4, "head": [15, -9, 1], "move": [0, 0.02], "bob": 0 },
+      { "beat": 26, "armL": [130, 15], "armR": [130, 15], "elbowL": 80, "elbowR": 80, "legL": 12, "legR": 12, "kneeL": 8, "kneeR": 8, "lean": 2, "head": [6, -4, 0], "move": [0, 0], "plant": {} },
+      { "beat": 27, "armL": [20, 12], "armR": [20, 12], "elbowL": 10, "elbowR": 10, "lean": 0, "head": [2, 0, 0] },
+      { "beat": 28 }
+    ],
+    "partner": [
+      { "beat": 0 },
+      { "beat": 2, "armL": [70, -10], "armR": [70, -10], "elbowL": 35, "elbowR": 35, "emote": "💞" },
+      { "beat": 3, "armL": [60, 15], "armR": [60, 15], "elbowL": 70, "elbowR": 70, "plant": { "armL": { "on": "role:lead", "point": "shoulder", "weight": 0.5 }, "armR": { "on": "role:lead", "point": "shoulder", "weight": 0.5 } } },
+      { "beat": 6, "armL": [152, 20], "armR": [152, 20], "elbowL": 85, "elbowR": 85, "legL": 12, "legR": 20, "kneeL": 8, "kneeR": 12, "lean": 6, "head": [14, 10, -2], "plant": { "armL": { "on": "role:lead", "point": "shoulder", "weight": 1 }, "armR": { "on": "role:lead", "point": "shoulder", "weight": 1 } } },
+      { "beat": 8, "armL": [150, 19], "armR": [150, 19], "elbowL": 84, "elbowR": 84, "legL": 14, "legR": 95, "kneeL": 10, "kneeR": 90, "lean": 8, "head": [16, 12, -3] },
+      { "beat": 10, "legL": 18, "legR": 100, "kneeL": 13, "kneeR": 95, "lean": 9, "head": [18, 11, -2], "bob": 0.01 },
+      { "beat": 11.5, "legL": 14, "legR": 93, "kneeL": 9, "kneeR": 88, "lean": 7, "head": [15, 12, -3], "bob": 0 },
+      { "beat": 13, "legL": 19, "legR": 101, "kneeL": 14, "kneeR": 96, "lean": 9, "head": [19, 11, -2], "bob": 0.01 },
+      { "beat": 14.5, "legL": 14, "legR": 93, "kneeL": 9, "kneeR": 88, "lean": 7, "head": [15, 12, -3], "bob": 0 },
+      { "beat": 16, "legL": 20, "legR": 102, "kneeL": 15, "kneeR": 97, "lean": 10, "head": [21, 10, -2], "bob": 0.012 },
+      { "beat": 17.5, "legL": 15, "legR": 94, "kneeL": 10, "kneeR": 89, "lean": 8, "head": [16, 12, -3], "bob": 0 },
+      { "beat": 19, "legL": 20, "legR": 102, "kneeL": 15, "kneeR": 97, "lean": 10, "head": [22, 10, -2], "bob": 0.012, "emote": "💦" },
+      { "beat": 20.5, "legL": 15, "legR": 94, "kneeL": 10, "kneeR": 89, "lean": 8, "head": [16, 12, -3], "bob": 0 },
+      { "beat": 22, "legL": 18, "legR": 99, "kneeL": 13, "kneeR": 94, "lean": 11, "head": [23, 9, -2], "bob": 0.008, "emote": "💞" },
+      { "beat": 24, "legL": 15, "legR": 94, "kneeL": 10, "kneeR": 89, "lean": 8, "head": [17, 12, -3], "bob": 0 },
+      { "beat": 26, "armL": [130, 15], "armR": [130, 15], "elbowL": 80, "elbowR": 80, "legL": 12, "legR": 12, "kneeL": 8, "kneeR": 8, "lean": 2, "head": [6, 4, 0], "plant": {} },
+      { "beat": 27, "armL": [20, 12], "armR": [20, 12], "elbowL": 10, "elbowR": 10, "lean": 0, "head": [2, 0, 0] },
+      { "beat": 28 }
+    ]
+  }
+}

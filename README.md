@@ -399,10 +399,37 @@ it reads the page and calls My Diary's MCP tools.
 | `merge_pages` | Merge `sourceId` into `targetId`, preserving products, photos and references; only the source profile goes to Trash |
 | `set_page_photo` | Set or remove a profile picture or cover (image URL or base64) |
 | `set_place_layout` | Set or remove the walkable layout of a place, shop or page (the Places world) |
+| `create_person`, `update_person` | Person details, avatar, cover and face views; family references create linked placeholders when missing |
+| `import_person` | Import structured profile JSON; update an exact match, fill a placeholder, or create a person, retaining photos and existing links |
 | `set_person_faces` | Set a person's four face views (front, left, right, back), by profile id or exact name; returns only what was set |
 | `list_products`, `get_product` | Product metadata, including photo metadata |
 | `create_product`, `update_product`, `add_product_photos` | Products with price, currency, status, source URL and up to 20 photos (image URLs or base64) |
 | `delete_page`, `delete_product` | Move to the Trash (a page goes with its products and posts) |
+
+**Family onboarding:** Use **Profiles & Entities › Import JSON**, or pass the same profile object to `import_person`. Profiles have display name, hometown, occupation, employer, structured education (`type`, `name`, `program`, `years`), website, Facebook URL, email, phone, languages, notes and active/placeholder flags. These fields are editable under **Edit profile** and shown under **About**; work and education are searchable.
+
+`relationships` entries use `{ "type": "husband", "name": "Dev Perera", "slug": "dev-perera" }`. The target is the source person's relationship (Dev is their husband). Gendered types such as `husband`, `brother` and `son_in_law` map to the shared family vocabulary; inverse labels appear on the other profile automatically. Relationship notes are kept too. A missing target becomes a person marked **More details to add**. Importing that relative later matches their stable slug or exact name and fills the same profile, preserving ids, photos and family links. Repeating imports reuses existing profiles and relationships. A slug-only reference gets a readable temporary name; no other biographical details are invented.
+
+Use `id` to match an existing person whose journal name differs from the source; the import dialog has an existing-profile selector for the main person and each family reference. An explicitly matched reference's slug is saved when their import key is empty. Conflicting matches fail instead of merging people. `create_person` also fills placeholders, but still rejects duplicate complete profiles; `update_person` requires an existing person. Import fields omitted or set to `null` retain existing values; use empty strings/lists to clear details. Relationship imports add/update links and retain links absent from the source. English birthdays such as `December 10` and `January 1, 1960` are accepted. A year-only birthday such as `2002` uses January 1 (`2002-01-01`), per the journal owner's preference; month/day-only birthdays keep their unknown year. Local photo filenames in source JSON are ignored; MCP can receive actual image objects separately.
+
+**Family tree and children from different partners:** Each person's **Family tree** tab shows recorded parents, children, partners/former partners and other family links. Select a person to focus their branch, change the connection depth, zoom, or open **Manage relationships** to edit/remove links. **Add family member** supports an existing person or a new placeholder. When adding a child, choose their other parent explicitly, including a former partner; leaving the field blank records no additional parent. Children are grouped by their actual recorded parents. A spouse is never automatically assigned as a parent, and shared children never create an assumed romantic relationship. Mother/father and daughter/son labels follow each profile's family words, and explicit imported roles are retained. Both sides are shown on parent–child lines and child chips. Birth, adoptive, step, foster, legal and guardian roles keep distinct labels/lines. Multiple parents and partners are supported without gender-based restrictions.
+
+JSON/MCP imports accept `otherParents` on a child reference. Each entry names a parent of that child, with an optional `type` (defaults to `parent`; also `birth_parent`, `adoptive_parent`, `step_parent`, `foster_parent` or `guardian`). Missing parents become reusable placeholders. For example:
+
+```json
+{
+  "name": "Maya",
+  "relationships": [
+    { "type": "husband", "name": "Dev" },
+    { "type": "ex_husband", "name": "Sam" },
+    { "type": "daughter", "name": "June", "otherParents": [{ "name": "Sam" }] },
+    { "type": "son", "name": "Robin", "otherParents": [{ "name": "Dev" }] },
+    { "type": "child", "name": "Theo" }
+  ]
+}
+```
+
+June's recorded parents are Maya and Sam; Robin's are Maya and Dev. Only Maya is recorded for Theo. Re-importing keeps those same people and links. Parent, birth-parent and adoptive-parent links that would make someone their own ancestor are rejected before import writes. Caregiving does not imply ancestry: an adult child can be a parent's guardian. Legacy relationship graphs with cycles remain viewable without hanging. The import dialog also lets you map each child's other parents to existing profiles when source names differ.
 
 **Security model:**
 
@@ -413,9 +440,7 @@ it reads the page and calls My Diary's MCP tools.
 - **Token.** Every request needs `Authorization: Bearer <token>`. The token is random, stored in
   the encrypted manifest, and revoked by **New token**.
 - **DNS-rebinding guard.** Requests must name `127.0.0.1`/`localhost` and the port as their host.
-- **Scope.** Only pages, shops and products:
-  - posts, people, the owner's profile, series and the Trash have no tools;
-  - id-based tools refuse anything that isn't a page/shop or product.
+- **Scope.** Pages, shops and products can be listed/read and edited. People and the owner have write-only tools for details, photos, characters and family links; they cannot be listed/read. Posts, series and the Trash have no tools. Page/product tools reject person ids.
 - **Image downloads.** Image URLs are fetched by the app over http(s) only. Every hop, redirects
   included, must resolve to a public address (no loopback, private, link-local or metadata IPs).
   The size limit is 25 MB per download, and stored images are capped at 5 MB.

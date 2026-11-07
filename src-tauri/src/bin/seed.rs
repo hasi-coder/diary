@@ -20,6 +20,7 @@ const HOUR: i64 = 60 * 60 * 1000;
 
 fn profile(kind: ProfileKind, name: &str, color: &str) -> ProfileInput {
     ProfileInput {
+        details: PersonDetails::default(),
         source_url: String::new(),
         id: None,
         kind,
@@ -267,6 +268,7 @@ fn seed(ws: &mut Workspace) -> Result<(), Box<dyn std::error::Error>> {
 
     // Relationships, as Facebook's "Family and relationships".
     let relate = |to: &Profile, kind: &str, since: &str| RelationInput {
+    notes: String::new(),
         id: None,
         to_id: to.id.clone(),
         kind: kind.into(),
@@ -459,6 +461,7 @@ fn places(ws: &mut Workspace, me_id: &str, sarah: &Profile, dev: &Profile, robin
         label: String::new(),
         inverse_label: String::new(),
         since: String::new(),
+        notes: String::new(),
     };
     for p in [&home, &clinic, &hospital, &library, bean, boutique] {
         ws.save_relation(&p.id, relate(&city, "city"))?;

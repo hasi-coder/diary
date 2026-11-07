@@ -1,0 +1,64 @@
+{
+  "id": "stand-behind",
+  "label": "From behind",
+  "emoji": "🌶️",
+  "category": "romantic",
+  "description": "No bed required. Hands on hips, don't overthink it.",
+  "requires": { "tier": "casual" },
+  "content": { "motion": "repetitive", "contact": "sustained", "witness": "private" },
+  "people": { "min": 2, "max": 2 },
+  "beat": 0.6,
+  "length": 26,
+  "loop": false,
+  "formation": {
+    "type": "spots",
+    "spots": [
+      { "role": "lead", "at": [0, 0], "facing": 0 },
+      { "role": "partner", "at": [0, 0.42], "facing": 0 }
+    ]
+  },
+  "target": {
+    "kinds": ["floor"],
+    "posture": "stand",
+    "roles": {
+      "lead": { "posture": "stand", "side": "center" },
+      "partner": { "posture": "stand", "anchor": { "role": "lead", "at": "front", "distance": 0.38 } }
+    }
+  },
+  "clearance": { "min": 0.2 },
+  "camera": { "focus": "people", "zoom": 1.2, "height": 0.15 },
+  "roles": {
+    "lead": [
+      { "beat": 0 },
+      { "beat": 2, "armL": [60, 15], "armR": [60, 15], "elbowL": 40, "elbowR": 40, "head": [8, 0, 0], "emote": "💞" },
+      { "beat": 4, "armL": [70, 18], "armR": [74, 14], "elbowL": 32, "elbowR": 28, "legL": 20, "legR": 24, "kneeL": 14, "kneeR": 18, "lean": 3, "head": [13, 0, 1], "plant": { "armL": { "on": "role:partner", "point": "hipL", "weight": 0.6 }, "armR": { "on": "role:partner", "point": "hipR", "weight": 0.6 } } },
+      { "beat": 6, "armL": [68, 18], "armR": [76, 14], "elbowL": 34, "elbowR": 26, "legL": 24, "legR": 20, "kneeL": 18, "kneeR": 14, "lean": 4, "head": [15, 0, 2], "plant": { "armL": { "on": "role:partner", "point": "hipL", "weight": 1 }, "armR": { "on": "role:partner", "point": "hipR", "weight": 1 } } },
+      { "beat": 8, "legL": 28, "legR": 24, "kneeL": 22, "kneeR": 18, "lean": 5, "head": [17, 0, 1], "move": [0, 0.05] },
+      { "beat": 10, "legL": 22, "legR": 24, "kneeL": 16, "kneeR": 18, "lean": 3, "head": [14, 0, 2], "move": [0, 0.01] },
+      { "beat": 12, "legL": 29, "legR": 25, "kneeL": 23, "kneeR": 19, "lean": 5, "head": [18, 0, 1], "move": [0, 0.05], "emote": "💦" },
+      { "beat": 14, "legL": 22, "legR": 24, "kneeL": 16, "kneeR": 18, "lean": 3, "head": [14, 0, 2], "move": [0, 0.01] },
+      { "beat": 16, "legL": 30, "legR": 26, "kneeL": 24, "kneeR": 20, "lean": 6, "head": [19, 0, 0], "move": [0, 0.05] },
+      { "beat": 18, "legL": 23, "legR": 25, "kneeL": 17, "kneeR": 19, "lean": 4, "head": [15, 0, 1], "move": [0, 0.01] },
+      { "beat": 20, "armL": [50, 24], "elbowL": 52, "legL": 30, "legR": 26, "kneeL": 24, "kneeR": 20, "lean": 7, "head": [18, 0, -3], "move": [0, 0.06], "emote": "💞" },
+      { "beat": 22, "armL": [54, 22], "elbowL": 48, "legL": 24, "legR": 26, "kneeL": 18, "kneeR": 20, "lean": 5, "head": [14, 0, -2], "move": [0, 0.02] },
+      { "beat": 24, "armL": [20, 12], "armR": [20, 12], "elbowL": 10, "elbowR": 10, "legL": 10, "legR": 10, "kneeL": 8, "kneeR": 8, "lean": 0, "head": [4, 0, 0], "move": [0, 0] },
+      { "beat": 26 }
+    ],
+    "partner": [
+      { "beat": 0 },
+      { "beat": 2, "armL": [70, -10], "armR": [70, -10], "elbowL": 35, "elbowR": 35, "emote": "💞" },
+      { "beat": 4, "armL": [92, 14], "armR": [94, 10], "elbowL": 22, "elbowR": 18, "legL": 26, "legR": 22, "kneeL": 18, "kneeR": 14, "lean": 26, "head": [26, 0, 1] },
+      { "beat": 6, "armL": [96, 14], "armR": [98, 10], "elbowL": 20, "elbowR": 16, "legL": 30, "legR": 26, "kneeL": 22, "kneeR": 18, "lean": 30, "head": [30, 0, 2] },
+      { "beat": 8, "armL": [98, 14], "armR": [100, 10], "elbowL": 18, "elbowR": 14, "legL": 34, "legR": 28, "kneeL": 26, "kneeR": 20, "lean": 32, "head": [33, 0, 1] },
+      { "beat": 10, "armL": [95, 14], "armR": [97, 10], "elbowL": 21, "elbowR": 17, "legL": 28, "legR": 30, "kneeL": 20, "kneeR": 22, "lean": 29, "head": [29, 0, 2] },
+      { "beat": 12, "armL": [99, 14], "armR": [101, 10], "elbowL": 17, "elbowR": 13, "legL": 35, "legR": 29, "kneeL": 27, "kneeR": 21, "lean": 33, "head": [34, 0, 1], "emote": "💦" },
+      { "beat": 14, "armL": [95, 14], "armR": [97, 10], "elbowL": 21, "elbowR": 17, "legL": 28, "legR": 30, "kneeL": 20, "kneeR": 22, "lean": 29, "head": [29, 0, 2] },
+      { "beat": 16, "armL": [100, 14], "armR": [102, 10], "elbowL": 16, "elbowR": 12, "legL": 36, "legR": 30, "kneeL": 28, "kneeR": 22, "lean": 34, "head": [35, 0, 0] },
+      { "beat": 18, "armL": [96, 14], "armR": [98, 10], "elbowL": 20, "elbowR": 16, "legL": 29, "legR": 31, "kneeL": 21, "kneeR": 23, "lean": 30, "head": [30, 0, 1] },
+      { "beat": 20, "armL": [101, 15], "armR": [103, 10], "elbowL": 15, "elbowR": 11, "legL": 37, "legR": 31, "kneeL": 29, "kneeR": 23, "lean": 35, "head": [32, -22, 3], "emote": "💞" },
+      { "beat": 22, "armL": [97, 14], "armR": [99, 10], "elbowL": 19, "elbowR": 15, "legL": 30, "legR": 32, "kneeL": 22, "kneeR": 24, "lean": 31, "head": [28, -16, 2] },
+      { "beat": 24, "armL": [20, 12], "armR": [20, 12], "elbowL": 10, "elbowR": 10, "legL": 10, "legR": 10, "kneeL": 8, "kneeR": 8, "lean": 0, "head": [4, 0, 0] },
+      { "beat": 26 }
+    ]
+  }
+}

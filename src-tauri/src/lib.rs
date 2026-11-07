@@ -32,6 +32,7 @@ pub fn run() {
             commands::get_snapshot,
             commands::list_posts,
             commands::save_profile,
+            commands::import_person,
             commands::delete_profile,
             commands::merge_pages,
             commands::save_post,

@@ -7,7 +7,8 @@
 //!
 //! Scope: **pages, shops and their products**: list, read metadata, create,
 //! update, add photos (from an image URL or base64), and delete (to the Trash).
-//! Posts, people, the owner's profile, series and the Trash are out of reach.
+//! People can be imported or updated, with photos and family references. They
+//! cannot be listed/read. Posts, series and the Trash remain out of reach.
 //!
 //! Transports:
 //! - Streamable HTTP: `POST http://127.0.0.1:<port>/mcp` with `Authorization: Bearer <token>`
@@ -85,7 +86,7 @@ pub fn handle_message(state: &AppState, message: &Value) -> Option<Value> {
         "initialize" => Ok(json!({
             "protocolVersion": params.get("protocolVersion").and_then(Value::as_str).unwrap_or(PROTOCOL_VERSION),
             "capabilities": { "tools": { "listChanged": false } },
-            "serverInfo": { "name": "my-diary", "title": "My Diary: pages & products", "version": env!("CARGO_PKG_VERSION") },
+            "serverInfo": { "name": "my-diary", "title": "My Diary: profiles & products", "version": env!("CARGO_PKG_VERSION") },
             "instructions": INSTRUCTIONS,
         })),
         "ping" => Ok(json!({})),
@@ -122,7 +123,7 @@ pub fn handle_message(state: &AppState, message: &Value) -> Option<Value> {
 const INSTRUCTIONS: &str = "Manages pages, shops and products in the user's encrypted journal (My Diary). \
 To publish from a URL: fetch the URL yourself, extract the business or product details, \
 call find_by_source_url to avoid duplicates, then create_page / create_product (or update_* if found), \
-passing sourceUrl and image URLs. Deletes go to the user's Trash. Posts are not accessible. People can be added (create_person) and updated, and given photos, face views and a Places character, but they can't be listed or read back.";
+passing sourceUrl and image URLs. Deletes go to the user's Trash. Posts are not accessible. People can be added (create_person) and updated, and given photos, face views and a Places character, but they can't be listed or read back. import_person accepts structured profile JSON, links family members and creates placeholder profiles for missing relatives. Later imports fill those same profiles.";
 
 // ---- Tools ----
 
@@ -163,7 +164,7 @@ fn tools() -> Value {
     let tool = |name: &str, description: &str, properties: Value, required: &[&str]| {
         json!({ "name": name, "description": description, "inputSchema": { "type": "object", "properties": properties, "required": required, "additionalProperties": false } })
     };
-    json!([
+    let mut tools = json!([
         tool("list_pages", "List pages and shops (metadata only).", json!({ "query": { "type": "string" }, "kind": { "type": "string", "enum": ["page", "shop"] } }), &[]),
         tool("get_page", "A page or shop's metadata, photos and products.", id.clone(), &["id"]),
         tool("find_by_source_url", "Pages and products already imported from a URL (exact match, ignoring a trailing slash).", json!({ "url": { "type": "string" } }), &["url"]),
@@ -177,11 +178,11 @@ fn tools() -> Value {
             json!({ "id": { "type": "string" }, "slot": { "type": "string", "enum": ["avatar", "cover"] }, "imageUrl": { "type": "string" }, "imageBase64": { "type": "string" }, "fileName": { "type": "string" }, "remove": { "type": "boolean" } }), &["id", "slot"]),
         tool("set_place_layout", "Set or remove the walkable layout of a place, shop or page (the Places world). One cell is 1 m; x grows right, y grows down, as on a drawing. Shape: { version: 2, floors: [{ name, width, depth, entrance: [x,y], spawn: { at: [x,y], facing: 'N'|'NE'|…|'SE' }, rooms: [{ name, rect: [x1,y1,x2,y2], floor: '#hex', checker? }], doors: [{ edge: 'h:x:y' (north side of cell x,y) | 'v:x:y' (west side), kind?: 'door'|'arch', name?, locked?, partition?, cubicle?: [x,y] (the seat inside that locks it) }], partitions: ['v:x:y', …], items: [{ kind, x, y, w?, h?, facing?: 'N'|'S'|'E'|'W', color? }], spots?: { home: [Spot], work: [Spot], visit: [Spot] } }] }, Spot = { seat: [x,y] } | { cell: [x,y], facing }. Walls are drawn wherever two rooms (or a room and outside) meet. Item kinds: chair, armchair, sofa, bench, table, coffee, desk, counter, bed, hbed, couch, bedside, wardrobe, toilet, sink, bath, fridge, stove, kcounter, tv, shelf, plant, rug, cooler, cabinet, rack, mirror, till. Size spaces for groups: corridors 2 cells, cubicles and fitting rooms 2 x 2.",
             json!({ "id": { "type": "string" }, "layout": { "type": ["object", "null"], "description": "The layout; null removes it" } }), &["id", "layout"]),
-        tool("create_person", "Add a person to the journal (a friend, family member, colleague), optionally with a profile picture, cover photo and the head views their Places character wears. Fails if someone with that name already exists. Returns only the new id; people can't be listed or read back. Use set_person_character to dress and shape their character.",
+        tool("create_person", "Add a person to the journal (a friend, family member, colleague), optionally with a profile picture, cover photo and the head views their Places character wears. Fills an existing placeholder; otherwise fails if someone with that name already exists. Missing family references become placeholders. Returns only import outcomes; people can't be listed or read back. Use set_person_character to dress and shape their character.",
             json!({
                 "name": { "type": "string" },
                 "relationship": { "type": "string", "description": "How they relate to the journal owner, e.g. Sister, Friend" },
-                "birthday": { "type": "string", "description": "YYYY-MM-DD, or MM-DD when the year is unknown" },
+                "birthday": { "type": "string", "description": "YYYY-MM-DD, MM-DD without the year, or YYYY (uses January 1)" },
                 "anniversary": { "type": "string", "description": "Same format" },
                 "terms": { "type": "string", "enum": ["neutral", "feminine", "masculine"], "description": "Which relationship words to use for them; the default body shape of their character" },
                 "pronouns": { "type": "string", "description": "e.g. she/her, they/them" },
@@ -244,7 +245,48 @@ fn tools() -> Value {
             merge(&merge(&id, &product_fields), &json!({ "removePhotoIds": { "type": "array", "items": { "type": "string" } } })), &["id"]),
         tool("add_product_photos", "Add photos to a product (up to 20 in total).", merge(&id, &image_inputs), &["id"]),
         tool("delete_product", "Move a product to the user's Trash.", id, &["id"]),
-    ])
+    ]);
+    let family_references = json!({ "type": "array", "maxItems": 100, "description": "Each target is this person's type. Match id, stable slug or exact name. Missing people become placeholders; repeated imports reuse profiles and links. Use id when a journal name differs from the source name. Gendered types such as husband, brother and son_in_law are accepted.", "items": {
+            "type": "object", "properties": {
+                "id": { "type": "string" }, "name": { "type": "string" }, "slug": { "type": "string" },
+                "type": { "type": "string" }, "label": { "type": "string" }, "inverseLabel": { "type": "string" },
+                "since": { "type": "string" }, "notes": { "type": "string" },
+                "otherParents": { "type": "array", "description": "Only on a child relationship: that child's other recorded parents. Never assumed from the current spouse. Each can match an existing person or create a missing placeholder. Omit unknown parents. Multiple parents and all gender combinations are supported.", "items": {
+                    "type": "object", "properties": {
+                        "id": { "type": "string" }, "name": { "type": "string" }, "slug": { "type": "string" },
+                        "type": { "type": "string", "enum": ["parent", "birth_parent", "adoptive_parent", "step_parent", "foster_parent", "guardian", "mother", "father"], "description": "The person's relationship to the child; defaults to parent" }
+                    }
+                } }
+            }, "required": ["type"]
+        } });
+    let mut person_fields = json!({
+        "slug": { "type": "string", "description": "Stable import key; used to find and fill a previously created relative" },
+        "displayName": { "type": ["string", "null"] },
+        "gender": { "type": ["string", "null"], "description": "Single-gender alias for genders" },
+        "hometown": { "type": ["string", "null"] }, "occupation": { "type": ["string", "null"] },
+        "employer": { "type": ["string", "null"] }, "website": { "type": ["string", "null"] },
+        "email": { "type": ["string", "null"] }, "phone": { "type": ["string", "null"] },
+        "facebookUrl": { "type": ["string", "null"] }, "notes": { "type": ["string", "null"] },
+        "languages": { "type": "array", "items": { "type": "string" } },
+        "isActive": { "type": "boolean" }, "isPlaceholder": { "type": "boolean" },
+        "education": { "type": "array", "maxItems": 50, "items": { "type": "object", "properties": {
+            "type": { "type": "string" }, "name": { "type": "string" }, "program": { "type": "string" }, "years": { "type": "string" }
+        }, "required": ["name"] } },
+        "relationships": family_references
+    });
+    // The same import fields are accepted for normal create/update operations.
+    for item in tools.as_array_mut().unwrap().iter_mut().filter(|t| matches!(t["name"].as_str(), Some("create_person" | "update_person"))) {
+        item["inputSchema"]["properties"].as_object_mut().unwrap().extend(person_fields.as_object().unwrap().clone());
+    }
+    let base = tools.as_array().unwrap().iter().find(|t| t["name"] == "update_person").unwrap()["inputSchema"]["properties"].clone();
+    person_fields = merge(&base, &person_fields);
+    for key in ["name", "newName", "slug", "tagline", "bio", "relationship", "location", "birthday", "anniversary", "pronouns", "relationshipStatus"] {
+        person_fields[key]["type"] = json!(["string", "null"]);
+    }
+    person_fields["avatar"] = json!({ "anyOf": [face_view("profile picture"), { "type": ["string", "null"] }] });
+    person_fields["cover"] = json!({ "anyOf": [face_view("cover photo"), { "type": ["string", "null"] }] });
+    tools.as_array_mut().unwrap().push(tool("import_person", "Import a person from profile JSON, updating an exact match or filling an existing placeholder. Retains omitted or null fields, photos and links. Unknown family references become linked placeholder people, ready to be onboarded later. Accepts full English or ISO birthdays, gender and structured education. Relative image filenames are ignored; send photos as image objects. Returns only ids, names and import outcomes; people cannot be listed or read back.", person_fields, &[]));
+    tools
 }
 
 fn arg_str<'a>(args: &'a Value, key: &str) -> Option<&'a str> {
@@ -318,7 +360,16 @@ fn face_images(src: &Value) -> Result<Vec<(&'static str, PhotoSlot, Image)>> {
 
 /// Stages and attaches photos to a person: `(slot name, image)` pairs. Returns the slots set.
 fn attach_photos(ws: &mut Workspace, person: &str, photos: Vec<(&str, PhotoSlot, Image)>) -> Result<Vec<String>> {
-    let staged = stage_all(ws, photos.iter().map(|(_, _, img)| img.clone()).collect())?;
+    // Head views are shrunk like the app's own face upload (512 px, transparency kept).
+    let images = photos
+        .iter()
+        .map(|(_, slot, (name, bytes))| match slot.is_face().then(|| crate::media::fit_face(bytes)).flatten() {
+            Some(small) if crate::media::sniff(&small).is_some_and(|(_, m)| m == "image/jpeg") => (crate::media::jpeg_name(name), small),
+            Some(small) => (name.clone(), small),
+            None => (name.clone(), bytes.clone()),
+        })
+        .collect();
+    let staged = stage_all(ws, images)?;
     let mut set = Vec::new();
     for ((key, slot, _), media) in photos.iter().zip(staged) {
         ws.set_profile_photo(person, *slot, Some(media))?;
@@ -332,7 +383,14 @@ fn person_photos(args: &Value) -> Result<Vec<(&'static str, PhotoSlot, Image)>> 
     let mut photos = Vec::new();
     for (key, slot) in [("avatar", PhotoSlot::Avatar), ("cover", PhotoSlot::Cover)] {
         if let Some(v) = args.get(key).filter(|v| !v.is_null()) {
-            photos.push((key, slot, image_of(v, key)?));
+            // Source JSON often has a relative filename, not downloadable photo bytes.
+            if let Some(url) = v.as_str() {
+                if url.starts_with("https://") || url.starts_with("http://") {
+                    photos.push((key, slot, fetch_image(url)?));
+                }
+            } else {
+                photos.push((key, slot, image_of(v, key)?));
+            }
         }
     }
     if let Some(faces) = args.get("faces").filter(|v| !v.is_null()) {
@@ -341,29 +399,6 @@ fn person_photos(args: &Value) -> Result<Vec<(&'static str, PhotoSlot, Image)>> 
     Ok(photos)
 }
 
-fn apply_person_fields(input: &mut ProfileInput, args: &Value) -> Result<()> {
-    let text = |key: &str| arg_str(args, key).map(|s| s.trim().to_string());
-    if let Some(v) = text("name") { input.name = v; }
-    if let Some(v) = text("relationship") { input.relationship = v; }
-    if let Some(v) = text("tagline") { input.tagline = v; }
-    if let Some(v) = text("bio") { input.bio = v; }
-    if let Some(v) = text("location") { input.location = v; }
-    if let Some(v) = text("birthday") { input.birthday = v; }
-    if let Some(v) = text("anniversary") { input.anniversary = v; }
-    if let Some(v) = text("pronouns") { input.pronouns = v; }
-    if let Some(v) = text("relationshipStatus") { input.relationship_status = v; }
-    if let Some(v) = text("color") { input.color = v; }
-    if let Some(v) = text("terms") {
-        if !["neutral", "feminine", "masculine"].contains(&v.as_str()) {
-            return Err(Error::Invalid("terms must be neutral, feminine or masculine.".into()));
-        }
-        input.terms = v;
-    }
-    if let Some(list) = args.get("genders").and_then(Value::as_array) {
-        input.genders = list.iter().filter_map(Value::as_str).map(str::to_string).collect();
-    }
-    Ok(())
-}
 
 fn person_summary(p: &Profile, set: Vec<String>) -> Value {
     json!({ "id": p.id, "name": p.name, "relationship": p.relationship, "photosSet": set })
@@ -569,6 +604,7 @@ fn profile_input(p: &Profile) -> ProfileInput {
         id: Some(p.id.clone()),
         kind: p.kind,
         name: p.name.clone(),
+        details: p.details.clone(),
         tagline: p.tagline.clone(),
         bio: p.bio.clone(),
         relationship: p.relationship.clone(),
@@ -697,6 +733,7 @@ pub fn call_tool(state: &AppState, name: &str, args: &Value) -> Result<(Value, S
                     other => return Err(Error::Invalid(format!("Pages can be \"page\" or \"shop\", not \"{other}\"."))),
                 };
                 let mut input = ProfileInput {
+                    details: PersonDetails::default(),
                     id: None,
                     kind,
                     name: String::new(),
@@ -754,40 +791,21 @@ pub fn call_tool(state: &AppState, name: &str, args: &Value) -> Result<(Value, S
                 Ok((json!({ "id": p.id, "name": p.name, "set": set }), format!("set {} face view(s) of \"{}\"", set.len(), p.name)))
             })
         }
-        "create_person" => {
+        "create_person" | "update_person" | "import_person" => {
             let photos = person_photos(args)?;
             state.with_workspace(|ws| {
-                let mut input = ProfileInput {
-                    id: None, kind: ProfileKind::Person, name: String::new(), tagline: String::new(), bio: String::new(),
-                    relationship: String::new(), category: String::new(), location: String::new(), color: "teal".into(), has_shop: false,
-                    genders: Vec::new(), pronouns: String::new(), terms: "neutral".into(), relationship_status: String::new(),
-                    birthday: String::new(), anniversary: String::new(), source_url: String::new(),
+                let mode = match name {
+                    "create_person" => crate::store::PersonImportMode::Create,
+                    "update_person" => crate::store::PersonImportMode::Update,
+                    _ => crate::store::PersonImportMode::Upsert,
                 };
-                apply_person_fields(&mut input, args)?;
-                if let Some(same) = ws.profiles.values().find(|p| p.is_person() && p.name.eq_ignore_ascii_case(input.name.trim())) {
-                    return Err(Error::Invalid(format!("\"{}\" already exists (id {}). Use update_person to change them.", same.name, same.id)));
-                }
-                let person = ws.save_profile(input)?;
-                let set = attach_photos(ws, &person.id, photos)?;
-                let p = &ws.profiles[&person.id];
-                Ok((person_summary(p, set), format!("added the person \"{}\"", p.name)))
-            })
-        }
-        "update_person" => {
-            let photos = person_photos(args)?;
-            state.with_workspace(|ws| {
-                let id = person_of(ws, arg_str(args, "id"), arg_str(args, "name"))?;
-                let mut input = profile_input(&ws.profiles[&id]);
-                // A name only identifies the person unless `newName` renames them.
-                let rename = arg_str(args, "newName").map(|s| s.trim().to_string());
-                let mut fields = args.clone();
-                if let Some(obj) = fields.as_object_mut() { obj.remove("name"); }
-                apply_person_fields(&mut input, &fields)?;
-                if let Some(n) = rename { input.name = n; }
-                let person = ws.save_profile(input)?;
-                let set = attach_photos(ws, &person.id, photos)?;
-                let p = &ws.profiles[&person.id];
-                Ok((person_summary(p, set), format!("updated the person \"{}\"", p.name)))
+                let imported = ws.import_person(args, mode)?;
+                let set = attach_photos(ws, &imported.profile.id, photos)?;
+                let p = &ws.profiles[&imported.profile.id];
+                let mut result = person_summary(p, set);
+                result["created"] = json!(imported.created);
+                result["relatedPeople"] = serde_json::to_value(&imported.related_people)?;
+                Ok((result, format!("{} the person \"{}\"", if imported.created { "added" } else { "updated" }, p.name)))
             })
         }
         "set_person_character" => state.with_workspace(|ws| {
@@ -1192,6 +1210,41 @@ mod tests {
     }
 
     #[test]
+    fn person_json_import_exposes_fields_and_onboards_references_without_reading_people() {
+        let (_root, state) = unlocked();
+        let listed = tools();
+        let schema = &listed.as_array().unwrap().iter().find(|t| t["name"] == "import_person").unwrap()["inputSchema"]["properties"];
+        for field in ["displayName", "hometown", "occupation", "employer", "education", "website", "email", "phone", "languages", "facebookUrl", "notes", "relationships"] {
+            assert!(!schema[field].is_null(), "missing import field {field}");
+        }
+        assert!(schema["relationships"]["items"]["properties"]["otherParents"].is_object());
+        let (out, err) = call(&state, "import_person", json!({
+            "name": "Maya", "gender": "female", "birthday": "December 10", "avatar": "avatar.jpg", "cover": "relative.jpg?query=value",
+            "occupation": "Nurse", "education": [{"type": "college", "name": "Medical College"}],
+            "bio": "private source text", "relationships": [{"type": "husband", "name": "Dev Perera", "slug": "dev-perera"}]
+        }));
+        assert!(!err, "{out}");
+        assert!(out["created"].as_bool().unwrap());
+        assert!(out.get("bio").is_none() && out.get("profile").is_none() && out.get("education").is_none(), "write-only import summary");
+        let id = out["id"].as_str().unwrap();
+        let relative = out["relatedPeople"][0]["id"].clone();
+        let (promoted, err) = call(&state, "create_person", json!({"name": "Dev Perera", "slug": "dev-perera", "employer": "Example Bank"}));
+        assert!(!err, "{promoted}");
+        assert_eq!(promoted["id"], relative);
+        let (updated, err) = call(&state, "update_person", json!({"id": id, "occupation": "Doctor", "education": [], "notes": "Verified"}));
+        assert!(!err, "{updated}");
+        state.with_workspace(|ws| {
+            let p = &ws.profiles[id];
+            assert_eq!(p.birthday, "12-10");
+            assert_eq!(p.details.occupation, "Doctor");
+            assert!(p.details.education.is_empty());
+            assert_eq!(p.relations.len(), 1);
+            assert!(!ws.profiles[relative.as_str().unwrap()].details.is_placeholder);
+            Ok(())
+        }).unwrap();
+    }
+
+    #[test]
     fn face_views_go_to_a_named_person_and_reveal_nothing_else() {
         let (_root, state) = unlocked();
         let june = state.with_workspace(|ws| {
@@ -1316,7 +1369,7 @@ mod tests {
         let names: Vec<&str> = tools["result"]["tools"].as_array().unwrap().iter().map(|t| t["name"].as_str().unwrap()).collect();
         assert!(names.contains(&"create_product") && names.contains(&"add_product_photos"));
         // Pages and products, plus write-only tools for people: nothing lists or reads them back.
-        assert!(names.iter().all(|n| !n.contains("post") && (!n.contains("person") || ["set_person_", "create_person", "update_person"].iter().any(|w| n.starts_with(w))) && !n.contains("trash")), "pages and products only: {names:?}");
+        assert!(names.iter().all(|n| !n.contains("post") && (!n.contains("person") || ["set_person_", "create_person", "update_person", "import_person"].iter().any(|w| n.starts_with(w))) && !n.contains("trash")), "pages and products only: {names:?}");
         let unknown = handle_message(&state, &json!({ "jsonrpc": "2.0", "id": 3, "method": "resources/list" })).unwrap();
         assert_eq!(unknown["error"]["code"], -32601);
     }

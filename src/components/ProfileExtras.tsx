@@ -138,13 +138,16 @@ export function RelationshipsSection({ profile }: { profile: Profile }) {
 
   return (
     <section className="max-w-2xl rounded-2xl bg-white p-6 shadow-sm">
-      <div className="mb-4 flex items-center justify-between">
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <h2 className="flex items-center gap-2 text-lg font-bold text-slate-800">
           <UsersIcon className="text-brand-500" /> {profile.kind === "person" || profile.kind === "me" ? "Family and relationships" : "Connections"}
         </h2>
+        <div className="flex gap-2">
+        {(profile.kind === "person" || profile.kind === "me") && <Button variant="ghost" onClick={() => navigate({ view: "profile", id: profile.id, tab: "family" })}>Family tree</Button>}
         <Button variant="outline" onClick={() => setEditing("new")}>
           <PlusIcon /> Add
         </Button>
+        </div>
       </div>
       {views.length === 0 && <p className="text-sm text-slate-400">No relationships yet.</p>}
       {RELATION_GROUPS.map((group) => {
@@ -167,6 +170,8 @@ export function RelationshipsSection({ profile }: { profile: Profile }) {
                       {v.label}
                       {v.relation.since && ` · since ${v.relation.since}`}
                     </div>
+                    {v.other.isPlaceholder && <div className="text-xs text-amber-700">More details to add</div>}
+                    {v.relation.notes && <p className="mt-1 whitespace-pre-wrap text-xs text-slate-500">{v.relation.notes}</p>}
                   </div>
                   {v.declarerId === profile.id && (
                     <button onClick={() => setEditing(v.relation)} className="rounded-full p-1.5 text-slate-400 hover:bg-slate-100" aria-label="Edit">
@@ -207,6 +212,8 @@ function RelationDialog({ profile, relation, onClose }: { profile: Profile; rela
   const [label, setLabel] = useState(relation?.label ?? "");
   const [inverseLabel, setInverseLabel] = useState(relation?.inverseLabel ?? "");
   const [since, setSince] = useState(relation?.since ?? "");
+  const [notes, setNotes] = useState(relation?.notes ?? "");
+  const [newName, setNewName] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -220,7 +227,11 @@ function RelationDialog({ profile, relation, onClose }: { profile: Profile; rela
     setBusy(true);
     setError(null);
     try {
-      await api.saveRelation(profile.id, { id: relation?.id, toId, kind, label, inverseLabel, since });
+      if (toId === "new-person") {
+        await api.importPerson({ id: profile.id, isPlaceholder: profile.isPlaceholder, relationships: [{ name: newName, type: kind, label, inverseLabel, since, notes }] });
+      } else {
+        await api.saveRelation(profile.id, { id: relation?.id, toId, kind, label, inverseLabel, since, notes });
+      }
       await refresh();
       onClose();
     } catch (err) {
@@ -230,11 +241,12 @@ function RelationDialog({ profile, relation, onClose }: { profile: Profile; rela
   };
 
   return (
-    <Modal title={relation ? "Edit relationship" : "Add relationship"} onClose={onClose}>
+    <Modal title={relation ? "Edit relationship" : "Add relationship"} onClose={busy ? () => {} : onClose}>
       <form onSubmit={save} className="space-y-4">
         <Field label="Who">
           <select className={inputClass} value={toId} onChange={(e) => setToId(e.target.value)} required>
             <option value="">Choose a profile…</option>
+            {!relation && (profile.kind === "person" || profile.kind === "me") && <option value="new-person">Add a missing person…</option>}
             {(["me", "person", "page", "shop", "place"] as const).map((k) => {
               const group = snapshot.profiles.filter((p) => p.kind === k && p.id !== profile.id);
               return group.length === 0 ? null : (
@@ -249,6 +261,7 @@ function RelationDialog({ profile, relation, onClose }: { profile: Profile; rela
             })}
           </select>
         </Field>
+        {toId === "new-person" && <Field label="Person's name" hint="We'll add a linked profile you can fill in later."><input className={inputClass} value={newName} onChange={(e) => setNewName(e.target.value)} required /></Field>}
         <Field label={`${other?.name ?? "They"} is ${profile.name}'s…`}>
           <select className={inputClass} value={kind} onChange={(e) => setKind(e.target.value)}>
             {RELATION_GROUPS.map((g) => (
@@ -262,10 +275,10 @@ function RelationDialog({ profile, relation, onClose }: { profile: Profile; rela
             ))}
           </select>
         </Field>
-        {kind === "custom" && (
+        {(kind === "custom" || label || inverseLabel) && (
           <div className="grid grid-cols-2 gap-3">
             <Field label={`${other?.name ?? "They"} is…`}>
-              <input className={inputClass} value={label} onChange={(e) => setLabel(e.target.value)} placeholder="e.g. Mentor" required />
+              <input className={inputClass} value={label} onChange={(e) => setLabel(e.target.value)} placeholder="e.g. Mentor" required={kind === "custom"} />
             </Field>
             <Field label={`${profile.name} is…`}>
               <input className={inputClass} value={inverseLabel} onChange={(e) => setInverseLabel(e.target.value)} placeholder="e.g. Mentee" />
@@ -275,6 +288,7 @@ function RelationDialog({ profile, relation, onClose }: { profile: Profile; rela
         <Field label="Since (optional)">
           <input className={inputClass} value={since} onChange={(e) => setSince(e.target.value)} placeholder="e.g. 2019" />
         </Field>
+        <Field label="Notes (optional)"><textarea className={inputClass} value={notes} onChange={(e) => setNotes(e.target.value)} /></Field>
         {other && (
           <p className="rounded-xl bg-slate-50 p-3 text-xs text-slate-500">
             On {profile.name}'s profile: <b className="text-slate-700">{other.name}</b> · {forward}
@@ -287,7 +301,7 @@ function RelationDialog({ profile, relation, onClose }: { profile: Profile; rela
           <Button type="button" variant="ghost" onClick={onClose}>
             Cancel
           </Button>
-          <Button type="submit" disabled={busy || !toId}>
+          <Button type="submit" disabled={busy || !toId || (toId === "new-person" && !newName.trim())}>
             Save
           </Button>
         </div>
